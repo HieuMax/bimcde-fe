@@ -19,6 +19,7 @@ export const useApi = () => ({
     // GET
     async get(path: string, config?: AxiosRequestConfig) {
         const res = await client.get<any>(path, config);
+        return res?.data
     },
 
     // POST
