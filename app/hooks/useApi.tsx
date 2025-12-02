@@ -18,28 +18,29 @@ client.interceptors.request.use((config => {
 export const useApi = () => ({
     // GET
     async get(path: string, config?: AxiosRequestConfig) {
-        const res = await client.get<any>(path, config);
+        const res = await client.get(path, config);
+        return res?.data
     },
 
     // POST
-    async post(path: string, data?: any, config?: AxiosRequestConfig) {
-        const res = await client.post<any>(path, data, config);
+    async post<T>(path: string, data?: T, config?: AxiosRequestConfig) {
+        const res = await client.post(path, data, config);
         return res.data;
     },
 
     // PUT
-    async put(path: string, data?: any, config?: AxiosRequestConfig) {
-        const res = await client.put<any>(path, data, config);
+    async put<T>(path: string, data?: T, config?: AxiosRequestConfig) {
+        const res = await client.put(path, data, config);
         return res?.data;
     },
     // PATCH
-    async patch(path: string, data?: any, config?: AxiosRequestConfig) {
-        const res = await client.patch<any>(path, data, config);
+    async patch<T>(path: string, data?: T, config?: AxiosRequestConfig) {
+        const res = await client.patch(path, data, config);
         return res?.data;
     },
     // DELETE
     async delete(path: string, config?: AxiosRequestConfig) {
-        const res = await client.delete<any>(path, config);
+        const res = await client.delete(path, config);
         return res?.data;
     }
 })
