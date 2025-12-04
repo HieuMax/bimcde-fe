@@ -1,0 +1,198 @@
+"use client";
+import { useState } from "react";
+import {
+  Home,
+  View,
+  Folder,
+  Package,
+  ClockFading,
+  CircleCheck,
+  Users,
+  ReceiptText,
+  ShieldCheck,
+  CircuitBoard,
+  Blocks,
+  BellRing,
+  DraftingCompass,
+  Tag,
+  KeyRound,
+  Repeat,
+  Settings,
+  ChevronDown,
+  ChevronRight,
+  ArrowLeftToLine,
+} from "lucide-react";
+import Link from "next/link";
+
+export default function Sidebar() {
+  const [openData, setOpenData] = useState(true);
+  const [openSettings, setOpenSettings] = useState(false);
+
+  return (
+    <div className="sidebar">
+      {/* Menu */}
+      <nav className="sidebar-menu">
+        <SidebarItem name="Home" icon={<Home size={20} />} href="/home" />
+        <div>
+          <button
+            onClick={() => setOpenData(!openData)}
+            className="sidebar-dropdown-btn-1"
+          >
+            <div className="sidebar-dropdown-left">
+              <Folder size={20} />
+              <span>Data</span>
+            </div>
+            {openData ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+          </button>
+
+          {openData && (
+            <div className="sidebar-submenu">
+              <SidebarItem
+                name="Explorer"
+                icon={<Folder size={18} />}
+                href="/data/explorer"
+                small
+              />
+              <SidebarItem
+                name="Views"
+                icon={<View size={18} />}
+                href="/data/views"
+                small
+              />
+              <SidebarItem
+                name="Releases"
+                icon={<Package size={18} />}
+                href="/data/releases"
+                small
+              />
+            </div>
+          )}
+        </div>
+
+        <SidebarItem
+          name="Activity"
+          icon={<ClockFading size={20} />}
+          href="/activity"
+        />
+        <SidebarItem
+          name="ToDo"
+          icon={<CircleCheck size={20} />}
+          href="/todo"
+        />
+        <SidebarItem name="Team" icon={<Users size={20} />} href="/team" />
+
+        <div>
+          <button
+            onClick={() => setOpenSettings(!openSettings)}
+            className="sidebar-dropdown-btn-2"
+          >
+            <div className="sidebar-dropdown-left">
+              <Settings size={20} />
+              <span>Settings</span>
+            </div>
+            {openSettings ? (
+              <ChevronDown size={18} />
+            ) : (
+              <ChevronRight size={18} />
+            )}
+          </button>
+
+          {openSettings && (
+            <div className="sidebar-submenu">
+              <SidebarItem
+                name="Project Details"
+                icon={<ReceiptText size={18} />}
+                href="/data/details"
+                small
+              />
+              <SidebarItem
+                name="Permissions Overview"
+                icon={<ShieldCheck size={18} />}
+                href="/data/overview"
+                small
+              />
+              <SidebarItem
+                name="BCF Topics"
+                icon={<CircuitBoard size={18} />}
+                href="/data/topics"
+                small
+              />
+              <SidebarItem
+                name="Extensions"
+                icon={<Blocks size={18} />}
+                href="/data/extensions"
+                small
+              />
+              <SidebarItem
+                name="Notifications"
+                icon={<BellRing size={18} />}
+                href="/data/notifications"
+                small
+              />
+              <SidebarItem
+                name="Units"
+                icon={<DraftingCompass size={18} />}
+                href="/data/units"
+                small
+              />
+              <SidebarItem
+                name="Tags"
+                icon={<Tag size={18} />}
+                href="/data/tags"
+                small
+              />
+              <SidebarItem
+                name="Permissions"
+                icon={<KeyRound size={18} />}
+                href="/data/permissions"
+                small
+              />
+              <SidebarItem
+                name="Sync"
+                icon={<Repeat size={18} />}
+                href="/data/sync"
+                small
+              />
+            </div>
+          )}
+        </div>
+        <div className="logout">
+          <a href="#">
+            <img className="user-img" src="/" alt="img" />
+          </a>
+          <div className="name">
+            <p className="full-name">Tommi Xiao</p>
+            <p className="email">Tommixiao79</p>
+          </div>
+          <SidebarItem
+            name=""
+            icon={<ArrowLeftToLine size={20} />}
+            href="/logout"
+          />
+        </div>
+      </nav>
+    </div>
+  );
+}
+
+function SidebarItem({
+  name,
+  icon,
+  href,
+  small,
+}: {
+  name: string;
+  icon: React.ReactNode;
+  href: string;
+  small?: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      className={`sidebar-item ${small ? "sidebar-item-small" : ""}`}
+    >
+      {icon}
+      <span>{name}</span>
+    </Link>
+  );
+}
