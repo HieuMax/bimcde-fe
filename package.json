@@ -3,16 +3,22 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --webpack",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
   },
   "dependencies": {
     "axios": "^1.13.2",
+    "client-zip": "^2.5.0",
+    "copy-webpack-plugin": "^13.0.1",
     "next": "16.0.4",
     "react": "19.2.0",
-    "react-dom": "19.2.0"
+    "react-dom": "19.2.0",
+    "stats.js": "^0.17.0",
+    "three": "^0.181.2",
+    "web-ifc": "^0.0.74",
+    "web-ifc-three": "^0.0.126"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
