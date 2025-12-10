@@ -18,8 +18,9 @@ export class ThreeScene {
     this.threeCanvas = canvas;
     this.scene = new Scene();
 
-    const width = canvas.offsetWidth;
-    const height = canvas.offsetHeight;
+    const parent = canvas.parentElement;
+    const width = parent.clientWidth;
+    const height = parent.clientHeight;
 
     this.camera = new PerspectiveCamera(45, width / height, 0.1, 1000);
     // this.camera = new PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -34,7 +35,7 @@ export class ThreeScene {
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.stats = new Stats();
-    this.grid = new GridHelper(200,200);
+    // this.grid = new GridHelper(200,200);
 
     this.setupScene();
   }
@@ -46,7 +47,7 @@ export class ThreeScene {
     this.setupMonitoring();
     this.setupAnimation();
     this.setupCamera();
-    this.scene.add(this.grid);
+    // this.scene.add(this.grid);
   }
 
   setupAnimation = () => {
@@ -60,8 +61,13 @@ export class ThreeScene {
   };
 
   setupBasics() {
-    this.scene.background = new Color(0x8cc7de);
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.scene.background = new Color(0xcccccc);
+    const parent = this.threeCanvas.parentElement;
+    const width = parent.clientWidth;
+    const height = parent.clientHeight;
+
+    this.renderer.setSize(width, height);
+    // this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.camera.position.z = 5;
   }
@@ -81,10 +87,11 @@ export class ThreeScene {
 
   setupWindowResize() {
     window.addEventListener("resize", () => {
-      if (!this.threeCanvas) return;
+      const parent = this.threeCanvas.parentElement;
+      if (!parent) return;
 
-      const width = this.threeCanvas.offsetWidth;
-      const height = this.threeCanvas.offsetHeight;
+      const width = parent.clientWidth;
+      const height = parent.clientHeight;
 
       this.camera.aspect = width / height;
       this.camera.updateProjectionMatrix();
@@ -105,5 +112,13 @@ export class ThreeScene {
     this.camera.position.set(10, 10, 10);
     this.controls.target.set(0, 0, 0);
     this.controls.update();
+  }
+
+  getRenderer() {
+    return this.renderer;
+  }
+
+  getCamera() {
+    return this.camera;
   }
 }
