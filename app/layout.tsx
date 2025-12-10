@@ -1,6 +1,5 @@
-import './global.css';
+import "./global.css";
 import type { Metadata } from "next";
-import "globals.css";
 
 export const metadata: Metadata = {
   title: "BIM CDE",

@@ -1,4 +1,5 @@
 "use client";
+import "./sidebar.css";
 import { useState } from "react";
 import {
   Home,
@@ -32,7 +33,11 @@ export default function Sidebar() {
     <div className="sidebar">
       {/* Menu */}
       <nav className="sidebar-menu">
-        <SidebarItem name="Home" icon={<Home size={20} />} href="/home" />
+        <SidebarItem
+          name="Home"
+          icon={<Home size={20} />}
+          href="/dashboard/home"
+        />
         <div>
           <button
             onClick={() => setOpenData(!openData)}
@@ -50,19 +55,19 @@ export default function Sidebar() {
               <SidebarItem
                 name="Explorer"
                 icon={<Folder size={18} />}
-                href="/data/explorer"
+                href="/dashboard/data/explorer"
                 small
               />
               <SidebarItem
                 name="Views"
                 icon={<View size={18} />}
-                href="/data/views"
+                href="/dashboard/data/views"
                 small
               />
               <SidebarItem
                 name="Releases"
                 icon={<Package size={18} />}
-                href="/data/releases"
+                href="/dashboard/data/releases"
                 small
               />
             </div>
@@ -72,14 +77,18 @@ export default function Sidebar() {
         <SidebarItem
           name="Activity"
           icon={<ClockFading size={20} />}
-          href="/activity"
+          href="/dashboard/activity"
         />
         <SidebarItem
           name="ToDo"
           icon={<CircleCheck size={20} />}
-          href="/todo"
+          href="/dashboard/todo"
         />
-        <SidebarItem name="Team" icon={<Users size={20} />} href="/team" />
+        <SidebarItem
+          name="Team"
+          icon={<Users size={20} />}
+          href="/dashboard/team"
+        />
 
         <div>
           <button
@@ -102,55 +111,55 @@ export default function Sidebar() {
               <SidebarItem
                 name="Project Details"
                 icon={<ReceiptText size={18} />}
-                href="/data/details"
+                href="/dashboard/settings/project-details"
                 small
               />
               <SidebarItem
                 name="Permissions Overview"
                 icon={<ShieldCheck size={18} />}
-                href="/data/overview"
+                href="/dashboard/settings/per-overview"
                 small
               />
               <SidebarItem
                 name="BCF Topics"
                 icon={<CircuitBoard size={18} />}
-                href="/data/topics"
+                href="/dashboard/settings/bcf-topics"
                 small
               />
               <SidebarItem
                 name="Extensions"
                 icon={<Blocks size={18} />}
-                href="/data/extensions"
+                href="/dashboard/settings/extensions"
                 small
               />
               <SidebarItem
                 name="Notifications"
                 icon={<BellRing size={18} />}
-                href="/data/notifications"
+                href="/dashboard/settings/notifications"
                 small
               />
               <SidebarItem
                 name="Units"
                 icon={<DraftingCompass size={18} />}
-                href="/data/units"
+                href="/dashboard/settings/units"
                 small
               />
               <SidebarItem
                 name="Tags"
                 icon={<Tag size={18} />}
-                href="/data/tags"
+                href="/dashboard/settings/tags"
                 small
               />
               <SidebarItem
                 name="Permissions"
                 icon={<KeyRound size={18} />}
-                href="/data/permissions"
+                href="/dashboard/settings/permissions"
                 small
               />
               <SidebarItem
                 name="Sync"
                 icon={<Repeat size={18} />}
-                href="/data/sync"
+                href="/dashboard/settings/sync"
                 small
               />
             </div>
