@@ -17,7 +17,7 @@ export class IfcManager {
     this.scene = scene;
     this.ifcModels = ifcModels;
     this.ifcLoader = new IFCLoader();
-    this.ifcLoader.ifcManager.setWasmPath('wasm/');
+    this.ifcLoader.ifcManager.setWasmPath('/wasm/');
 
     this.setupLoader();
   }

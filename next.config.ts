@@ -9,14 +9,6 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   reactStrictMode: false,
-  async rewrites() {
-    return [
-      {
-        source: '/_next/static/chunks/wasm/:path*',
-        destination: '/wasm/:path*',
-      },
-    ];
-  },
 };
 
 export default nextConfig;
