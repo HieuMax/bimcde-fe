@@ -1,5 +1,3 @@
-// scene.js — phiên bản hoàn chỉnh cho Next.js
-
 import {
   AmbientLight,
   Color,
@@ -7,7 +5,7 @@ import {
   PerspectiveCamera,
   Scene,
   WebGLRenderer,
-  GridHelper,
+  // GridHelper,
 } from "three";
 
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";

@@ -128,9 +128,9 @@ export class IfcManager {
     const spatial = await this.ifcLoader.ifcManager.getSpatialStructure(modelID);
     const materials = await this.ifcLoader.ifcManager.getMaterialsProperties(modelID, expressID);
 
-    console.log("Type:", type);
-    console.log("Spatial:", spatial);
-    console.log("Materials:", materials);
+    // console.log("Type:", type);
+    // console.log("Spatial:", spatial);
+    // console.log("Materials:", materials);
   }
 
   async getItemName(modelID, expressID) {
