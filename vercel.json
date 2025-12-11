@@ -4,6 +4,10 @@
     {
       "source": "/_next/static/chunks/wasm/:path*",
       "destination": "/wasm/:path*"
+    },
+    {
+      "source": "/contact",
+      "destination": "https://example.com/html/contact"
     }
   ]
 }
