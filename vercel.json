@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/_next/static/chunks/wasm/(.*)",
+      "destination": "/wasm/$1"
+    }
+  ]
+}
