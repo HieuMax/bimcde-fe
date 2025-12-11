@@ -1,8 +1,9 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     {
-      "source": "/_next/static/chunks/wasm/(.*)",
-      "destination": "/wasm/$1"
+      "source": "/_next/static/chunks/wasm/:path*",
+      "destination": "/wasm/:path*"
     }
   ]
 }
