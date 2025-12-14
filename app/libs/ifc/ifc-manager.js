@@ -1,16 +1,9 @@
-import { Matrix4, Raycaster, Vector2 } from "three";
-import { IFCLoader } from "web-ifc-three/IFCLoader";
-import {
-  acceleratedRaycast,
-  computeBoundsTree,
-  disposeBoundsTree,
-} from "three-mesh-bvh";
-import {
-  IFCSPACE,
-  IFCOPENINGELEMENT,
-} from "web-ifc";
+import { Matrix4, Raycaster, Vector2 } from 'three';
+import { IFCLoader } from 'web-ifc-three/IFCLoader';
+import { acceleratedRaycast, computeBoundsTree, disposeBoundsTree } from 'three-mesh-bvh';
+import { IFCSPACE, IFCOPENINGELEMENT } from 'web-ifc';
 
-import * as THREE from "three";
+import * as THREE from 'three';
 
 export class IfcManager {
   constructor(scene, ifcModels) {
@@ -25,7 +18,13 @@ export class IfcManager {
   async editSubset(type) {
     const ids = await this.ifcLoader.ifcManager.getAllItemsOfType(0, type, false);
     if (this.remove) this.ifcLoader.ifcManager.removeFromSubset(0, ids);
-    else this.ifcLoader.ifcManager.createSubset({modelID: 0, ids, applyBVH: false, removePrevious: false})
+    else
+      this.ifcLoader.ifcManager.createSubset({
+        modelID: 0,
+        ids,
+        applyBVH: false,
+        removePrevious: false,
+      });
   }
 
   async setupLoader() {
@@ -37,7 +36,7 @@ export class IfcManager {
     this.ifcLoader.ifcManager.setupThreeMeshBVH(
       computeBoundsTree,
       disposeBoundsTree,
-      acceleratedRaycast
+      acceleratedRaycast,
     );
   }
 
@@ -53,33 +52,35 @@ export class IfcManager {
   subset = {};
 
   async loadIfcUrl(ifcURL) {
-    const start = window.performance.now()
+    const start = window.performance.now();
 
     this.ifcLoader.ifcManager.setOnProgress((event) => console.log(event));
 
     const firstModel = Boolean(this.ifcModels.length === 0);
 
     await this.ifcLoader.ifcManager.applyWebIfcConfig({
-        COORDINATE_TO_ORIGIN: firstModel,
-        USE_FAST_BOOLS: true,
+      COORDINATE_TO_ORIGIN: firstModel,
+      USE_FAST_BOOLS: true,
     });
     // console.log("Loading IFC from URL:", ifcURL);
     const ifcModel = await this.ifcLoader.loadAsync(ifcURL);
 
     if (firstModel) {
-        const matrixArr = await this.ifcLoader.ifcManager.ifcAPI.GetCoordinationMatrix(ifcModel.modelID);
-        const matrix = new Matrix4().fromArray(matrixArr);
-        this.ifcLoader.ifcManager.setupCoordinationMatrix(matrix);
+      const matrixArr = await this.ifcLoader.ifcManager.ifcAPI.GetCoordinationMatrix(
+        ifcModel.modelID,
+      );
+      const matrix = new Matrix4().fromArray(matrixArr);
+      this.ifcLoader.ifcManager.setupCoordinationMatrix(matrix);
     }
 
     this.ifcModels.push(ifcModel);
     this.scene.add(ifcModel);
 
-    const stop = window.performance.now()
+    const stop = window.performance.now();
 
     console.log(`Time Taken to load = ${(stop - start) / 1000} seconds`);
 
-    return ifcModel
+    return ifcModel;
   }
 
   /**
@@ -103,8 +104,14 @@ export class IfcManager {
 
     this.raycaster.setFromCamera(this.mouse, camera);
 
-    const intersects = this.raycaster.intersectObjects(this.ifcModels);
+    const visibleModels = this.ifcModels.filter(
+      (model) => model.visible !== false && model.mesh?.visible !== false,
+    );
 
+    if (visibleModels.length === 0) return;
+
+    const intersects = this.raycaster.intersectObjects(visibleModels);
+    this.removeHighlight();
     if (intersects.length === 0) return;
 
     const found = intersects[0];
@@ -114,23 +121,14 @@ export class IfcManager {
     const expressID = this.ifcLoader.ifcManager.getExpressId(geometry, faceIndex);
     const modelID = found.object.modelID;
 
-
     this.highlight(modelID, expressID);
     this.getIFCProps(found.object.modelID, expressID);
   }
-  
+
   async getIFCProps(modelID, expressID) {
-    console.log(modelID)
+    console.log(modelID);
     const props = await this.ifcLoader.ifcManager.getItemProperties(modelID, expressID, true);
-    console.log("IFC Properties:", props);
-
-    const type = await this.ifcLoader.ifcManager.getIfcType(modelID, expressID);
-    const spatial = await this.ifcLoader.ifcManager.getSpatialStructure(modelID);
-    const materials = await this.ifcLoader.ifcManager.getMaterialsProperties(modelID, expressID);
-
-    // console.log("Type:", type);
-    // console.log("Spatial:", spatial);
-    // console.log("Materials:", materials);
+    console.log('IFC Properties:', props);
   }
 
   async getItemName(modelID, expressID) {
@@ -138,37 +136,30 @@ export class IfcManager {
     return props.Name || `#${expressID}`;
   }
 
-  async highlight(modelID, expressID) {
-    if (this.highlightEdges) {
-      this.scene.remove(this.highlightEdges);
-      this.highlightEdges.geometry.dispose();
-      this.highlightEdges.material.dispose();
-      this.highlightEdges = null;
-    }
+  highlightModelID = null;
+  highlightExpressID = null;
 
-    if (this.highlightFill) {
-      this.scene.remove(this.highlightFill);
-      this.highlightFill.geometry.dispose();
-      this.highlightFill.material.dispose();
-      this.highlightFill = null;
-    }
+  async highlight(modelID, expressID) {
+    this.removeHighlight();
+
+    this.highlightModelID = modelID;
+    this.highlightExpressID = expressID;
 
     const subset = this.ifcLoader.ifcManager.createSubset({
       modelID,
       ids: [expressID],
       applyBVH: true,
-      removePrevious: true
+      removePrevious: true,
     });
 
     if (!subset) return;
-
 
     const glowMaterial = new THREE.MeshBasicMaterial({
       color: 0xffff00,
       transparent: true,
       opacity: 0.12,
       depthTest: false,
-      side: THREE.DoubleSide
+      side: THREE.DoubleSide,
     });
 
     this.highlightFill = new THREE.Mesh(subset.geometry, glowMaterial);
@@ -184,7 +175,7 @@ export class IfcManager {
       color: 0xffff00,
       transparent: true,
       opacity: 0.6,
-      depthTest: false
+      depthTest: false,
     });
 
     this.highlightEdges = new THREE.LineSegments(edgesGeom, edgeMaterial);
@@ -196,8 +187,62 @@ export class IfcManager {
     this.scene.add(this.highlightEdges);
   }
 
+  removeHighlight() {
+    if (this.highlightEdges) {
+      this.scene.remove(this.highlightEdges);
+      this.highlightEdges.geometry.dispose();
+      this.highlightEdges.material.dispose();
+      this.highlightEdges = null;
+    }
+    if (this.highlightFill) {
+      this.scene.remove(this.highlightFill);
+      this.highlightFill.geometry.dispose();
+      this.highlightFill.material.dispose();
+      this.highlightFill = null;
+    }
+
+    this.highlightModelID = null;
+    this.highlightExpressID = null;
+  }
+
   async getSpatialTree(modelID) {
-    const tree = await this.ifcLoader.ifcManager.getSpatialStructure(modelID);
+    const rawTree = await this.ifcLoader.ifcManager.getSpatialStructure(modelID);
+    console.log('Spatial Tree with flags:', rawTree);
+
+    const getProperty = async (node) => {
+      return await this.ifcLoader.ifcManager.getItemProperties(modelID, node.expressID, false);
+    };
+
+    /**
+     * Optimize by limiting depth of property fetching -> can be adjusted
+     */
+    async function enrichNode(node, depth = 0, maxDepth = 5) {
+      let properties = null;
+
+      if (node.expressID && depth <= maxDepth) {
+        properties = await getProperty(node);
+      }
+
+      const children = node.children
+        ? await Promise.all(node.children.map((child) => enrichNode(child, depth + 1, maxDepth)))
+        : [];
+
+      return {
+        ...node,
+        properties,
+        children,
+      };
+    }
+
+    const tree = await enrichNode(rawTree);
+
+    console.log('Spatial Tree with flags:', tree);
     return tree;
+  }
+
+  clearHighlightIfBelongsToModel(modelID) {
+    if (this.highlightModelID === modelID) {
+      this.removeHighlight();
+    }
   }
 }

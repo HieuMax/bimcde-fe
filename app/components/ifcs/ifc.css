@@ -1,0 +1,14 @@
+.tree-active {
+  position: relative;
+}
+
+.tree-active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: #1e40af;
+  border-radius: 4px;
+}
