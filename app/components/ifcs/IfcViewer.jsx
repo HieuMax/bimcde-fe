@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { ThreeScene } from '@/app/libs/ifc/scene';
 import { IfcManager } from '@/app/libs/ifc/ifc-manager';
 import { TreeNode } from './TreeNode';
-import { Eye, EyeOff, ChevronDown, ChevronRight, ChevronLeft } from 'lucide-react';
+import { Eye, EyeOff, ChevronDown, ChevronRight, ChevronLeft, Info } from 'lucide-react';
 import './ifc.css';
 
 export default function IfcViewer() {
@@ -18,6 +18,9 @@ export default function IfcViewer() {
   const [selectedModelIndex, setSelectedModelIndex] = useState(null);
   const [openModel, setOpenModel] = useState({});
   const [selectedTreePath, setSelectedTreePath] = useState(null);
+  const [selectedItems, setSelectedItems] = useState([]);
+  const [hiddenItems, setHiddenItems] = useState({});
+
   const EXPANDED_WIDTH = 400;
   const COLLAPSED_WIDTH = 250;
 
@@ -68,7 +71,13 @@ export default function IfcViewer() {
       /** ONLY PICK IF NOT DRAGGING */
       canvas.addEventListener('mouseup', (event) => {
         if (!isDragging.current) {
-          loaderRef.current.pick(event, scene.getCamera(), scene.getRenderer());
+          const result = loaderRef.current.pick(event, scene.getCamera(), scene.getRenderer());
+
+          if (result) {
+            setSelectedItems([result]);
+          } else {
+            setSelectedItems([]);
+          }
         }
       });
     }
@@ -243,15 +252,26 @@ export default function IfcViewer() {
                       }}
                       onClick={(e) => {
                         e.stopPropagation();
-                        const newVisible = !m.mesh.visible;
-                        m.mesh.visible = newVisible;
-                        m.visible = newVisible;
+                        setSelectedItems((prev) => {
+                          const filtered = prev.filter((item) => item.modelID !== m.id);
+                          return filtered;
+                        });
+                        loaderRef.current.toggleModelVisibility(m.id);
+                        setModels((prev) =>
+                          prev.map((model) =>
+                            model.id === m.id ? { ...model, visible: !model.visible } : model,
+                          ),
+                        );
 
-                        if (!newVisible) {
-                          loaderRef.current.clearHighlightIfBelongsToModel(m.id);
-                          setSelectedTreePath(null);
-                        }
-                        setModels([...models]);
+                        setHiddenItems((prev) => {
+                          const updated = { ...prev };
+                          Object.keys(updated).forEach((key) => {
+                            if (key.startsWith(`${m.id}-`)) {
+                              delete updated[key];
+                            }
+                          });
+                          return updated;
+                        });
                         setOpenModel((prev) => ({ ...prev, [idx]: false }));
                       }}
                     >
@@ -296,6 +316,7 @@ export default function IfcViewer() {
             height: '100%',
             position: 'relative',
             overflow: 'hidden',
+            alignItems: 'center',
           }}
         >
           <canvas
@@ -306,6 +327,67 @@ export default function IfcViewer() {
               display: 'block',
             }}
           />
+
+          {/* Selected Item Information */}
+          {selectedItems.length > 0 && (
+            <div
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+              className="absolute bottom-6 left-1/2 -translate-x-1/2 
+               bg-slate-800/90 backdrop-blur
+               text-white rounded-xl shadow-lg
+               px-4 py-2 flex items-center gap-4
+               z-20"
+            >
+              {/* Count */}
+              <div className="text-sm">
+                <span className="font-semibold">{selectedItems.length}</span> selected
+              </div>
+
+              <div className="w-px h-5 bg-white/20" />
+
+              {/* Info */}
+              <button
+                className="hover:text-blue-400 transition"
+                title="View properties"
+                onClick={() => {
+                  // TODO: Show properties drawer
+                  // const item = selectedItems[0];
+                  // loaderRef.current.showProperties(item);
+                }}
+              >
+                <Info />
+              </button>
+
+              {/* Visibility */}
+              {selectedItems.length > 0 && (
+                <button
+                  className="hover:text-blue-400 transition"
+                  title="Toggle visibility"
+                  onClick={() => {
+                    const item = selectedItems[0];
+                    const key = `${item.modelID}-${item.expressID}`;
+                    setHiddenItems((prev) => {
+                      const updated = { ...prev };
+                      if (updated[key]) {
+                        delete updated[key];
+                      } else {
+                        updated[key] = true;
+                      }
+                      return updated;
+                    });
+                    loaderRef.current.toggleItemVisibility(item.modelID, item.expressID);
+                  }}
+                >
+                  {hiddenItems[`${selectedItems[0]?.modelID}-${selectedItems[0]?.expressID}`] ? (
+                    <EyeOff />
+                  ) : (
+                    <Eye />
+                  )}
+                </button>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

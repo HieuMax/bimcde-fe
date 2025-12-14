@@ -3,7 +3,7 @@
 }
 
 .tree-active::before {
-  content: "";
+  content: '';
   position: absolute;
   left: 0;
   top: 0;
@@ -11,4 +11,23 @@
   width: 4px;
   background: #1e40af;
   border-radius: 4px;
+}
+
+.selection-bar button {
+  padding: 4px;
+  border-radius: 6px;
+}
+.selection-bar button:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+@keyframes slideUp {
+  from {
+    transform: translate(-50%, 10px);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, 0);
+    opacity: 1;
+  }
 }
