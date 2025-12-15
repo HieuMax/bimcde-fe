@@ -49,8 +49,6 @@ export class IfcManager {
     await this.setupLoader();
   }
 
-  subset = {};
-
   async loadIfcUrl(ifcURL) {
     const start = window.performance.now();
 
@@ -62,7 +60,7 @@ export class IfcManager {
       COORDINATE_TO_ORIGIN: firstModel,
       USE_FAST_BOOLS: true,
     });
-    // console.log("Loading IFC from URL:", ifcURL);
+
     const ifcModel = await this.ifcLoader.loadAsync(ifcURL);
 
     if (firstModel) {
@@ -75,6 +73,8 @@ export class IfcManager {
 
     this.ifcModels.push(ifcModel);
     this.scene.add(ifcModel);
+
+    await this.initializeAllExpressIDs(ifcModel.modelID);
 
     const stop = window.performance.now();
 
@@ -94,7 +94,6 @@ export class IfcManager {
 
   raycaster = new Raycaster();
   mouse = new Vector2();
-  highlightSubset = null;
 
   pick(event, camera, renderer) {
     const bounds = renderer.domElement.getBoundingClientRect();
@@ -104,13 +103,24 @@ export class IfcManager {
 
     this.raycaster.setFromCamera(this.mouse, camera);
 
-    const visibleModels = this.ifcModels.filter(
-      (model) => model.visible !== false && model.mesh?.visible !== false,
-    );
+    const pickTargets = [];
 
-    if (visibleModels.length === 0) return;
+    for (const model of this.ifcModels) {
+      const modelID = model.modelID;
 
-    const intersects = this.raycaster.intersectObjects(visibleModels);
+      if (model.mesh?.visible) {
+        pickTargets.push(model.mesh);
+      }
+
+      const subset = this.hiddenSubsets.get(modelID);
+      if (subset && subset.visible) {
+        pickTargets.push(subset);
+      }
+    }
+
+    if (pickTargets.length === 0) return;
+
+    const intersects = this.raycaster.intersectObjects(pickTargets, false);
     this.removeHighlight();
     if (intersects.length === 0) return;
 
@@ -122,7 +132,8 @@ export class IfcManager {
     const modelID = found.object.modelID;
 
     this.highlight(modelID, expressID);
-    this.getIFCProps(found.object.modelID, expressID);
+
+    return { modelID, expressID };
   }
 
   async getIFCProps(modelID, expressID) {
@@ -136,73 +147,14 @@ export class IfcManager {
     return props.Name || `#${expressID}`;
   }
 
-  highlightModelID = null;
-  highlightExpressID = null;
-
-  async highlight(modelID, expressID) {
-    this.removeHighlight();
-
-    this.highlightModelID = modelID;
-    this.highlightExpressID = expressID;
-
-    const subset = this.ifcLoader.ifcManager.createSubset({
-      modelID,
-      ids: [expressID],
-      applyBVH: true,
-      removePrevious: true,
-    });
-
-    if (!subset) return;
-
-    const glowMaterial = new THREE.MeshBasicMaterial({
-      color: 0xffff00,
-      transparent: true,
-      opacity: 0.12,
-      depthTest: false,
-      side: THREE.DoubleSide,
-    });
-
-    this.highlightFill = new THREE.Mesh(subset.geometry, glowMaterial);
-    this.highlightFill.position.copy(subset.position);
-    this.highlightFill.rotation.copy(subset.rotation);
-    this.highlightFill.scale.copy(subset.scale);
-
-    this.scene.add(this.highlightFill);
-
-    const edgesGeom = new THREE.EdgesGeometry(subset.geometry, 25);
-
-    const edgeMaterial = new THREE.LineBasicMaterial({
-      color: 0xffff00,
-      transparent: true,
-      opacity: 0.6,
-      depthTest: false,
-    });
-
-    this.highlightEdges = new THREE.LineSegments(edgesGeom, edgeMaterial);
-
-    this.highlightEdges.position.copy(subset.position);
-    this.highlightEdges.rotation.copy(subset.rotation);
-    this.highlightEdges.scale.copy(subset.scale);
-
-    this.scene.add(this.highlightEdges);
-  }
-
-  removeHighlight() {
-    if (this.highlightEdges) {
-      this.scene.remove(this.highlightEdges);
-      this.highlightEdges.geometry.dispose();
-      this.highlightEdges.material.dispose();
-      this.highlightEdges = null;
-    }
-    if (this.highlightFill) {
-      this.scene.remove(this.highlightFill);
-      this.highlightFill.geometry.dispose();
-      this.highlightFill.material.dispose();
-      this.highlightFill = null;
-    }
-
-    this.highlightModelID = null;
-    this.highlightExpressID = null;
+  async showProperties(item) {
+    if (!item || !item.modelID || !item.expressID) return;
+    const props = await this.ifcLoader.ifcManager.getItemProperties(
+      item.modelID,
+      item.expressID,
+      true,
+    );
+    console.log('Item Properties:', props);
   }
 
   async getSpatialTree(modelID) {
@@ -240,9 +192,193 @@ export class IfcManager {
     return tree;
   }
 
+  /**
+   * HIGHLIGHT MANAGEMENT
+   */
+
+  highlightModelID = null;
+  highlightExpressID = null;
+  highlightMeshes = [];
+
+  async highlight(modelID, expressID) {
+    this.removeHighlight();
+
+    this.highlightModelID = modelID;
+    this.highlightExpressID = expressID;
+
+    const subset = this.ifcLoader.ifcManager.createSubset({
+      modelID,
+      ids: [expressID],
+      applyBVH: true,
+      removePrevious: true,
+    });
+
+    if (!subset) return;
+
+    const geometry = subset.geometry.clone();
+
+    const glowMaterial = new THREE.MeshPhongMaterial({
+      color: 0xffff00,
+      emissive: 0xffff00,
+      emissiveIntensity: 0.4,
+      transparent: true,
+      opacity: 0.3,
+      depthTest: false,
+      side: THREE.DoubleSide,
+      wireframe: false,
+    });
+
+    const glowMesh = new THREE.Mesh(geometry, glowMaterial);
+    glowMesh.position.copy(subset.position);
+    glowMesh.rotation.copy(subset.rotation);
+    glowMesh.scale.copy(subset.scale);
+    this.scene.add(glowMesh);
+    this.highlightMeshes.push(glowMesh);
+
+    const edgesGeom = new THREE.EdgesGeometry(geometry, 25);
+    const edgeMaterial = new THREE.LineBasicMaterial({
+      color: 0xffff00,
+      transparent: true,
+      opacity: 0.8,
+      depthTest: false,
+      linewidth: 3,
+    });
+
+    const edgesMesh = new THREE.LineSegments(edgesGeom, edgeMaterial);
+    edgesMesh.position.copy(subset.position);
+    edgesMesh.rotation.copy(subset.rotation);
+    edgesMesh.scale.copy(subset.scale);
+    this.scene.add(edgesMesh);
+    this.highlightMeshes.push(edgesMesh);
+
+    this.rebuildSubset(modelID);
+  }
+
+  removeHighlight() {
+    for (const mesh of this.highlightMeshes) {
+      this.scene.remove(mesh);
+      mesh.geometry.dispose();
+      mesh.material.dispose();
+    }
+
+    this.highlightMeshes = [];
+    this.highlightModelID = null;
+    this.highlightExpressID = null;
+  }
+
   clearHighlightIfBelongsToModel(modelID) {
     if (this.highlightModelID === modelID) {
       this.removeHighlight();
     }
+  }
+
+  /**
+   * VISIBILITY MANAGEMENT
+   */
+
+  hiddenSubsets = new Map();
+  hiddenExpressIDs = new Map();
+  modelHidden = new Map();
+
+  toggleModelVisibility(modelID) {
+    const model = this.ifcModels.find((m) => m.modelID === modelID);
+    if (!model) return;
+
+    const isHidden = this.modelHidden.get(modelID) === true;
+
+    if (!isHidden) {
+      // HIDE MODEL
+      this.modelHidden.set(modelID, true);
+
+      model.mesh.visible = false;
+
+      const subset = this.hiddenSubsets.get(modelID);
+      if (subset) subset.visible = false;
+
+      this.clearHighlightIfBelongsToModel(modelID);
+    } else {
+      // SHOW MODEL - clear all hidden items and show everything
+      this.modelHidden.set(modelID, false);
+
+      this.hiddenExpressIDs.delete(modelID);
+
+      const oldSubset = this.hiddenSubsets.get(modelID);
+      if (oldSubset) {
+        this.scene.remove(oldSubset);
+        oldSubset.geometry.dispose();
+        this.hiddenSubsets.delete(modelID);
+      }
+
+      model.mesh.visible = true;
+    }
+  }
+
+  async initializeAllExpressIDs(modelID) {
+    const model = this.ifcModels.find((m) => m.modelID === modelID);
+    if (!model || model._allExpressIDs) return;
+
+    const attr = model.mesh.geometry.attributes.expressID.array;
+    model._allExpressIDs = [...new Set(attr)];
+  }
+
+  async toggleItemVisibility(modelID, expressID) {
+    const model = this.ifcModels.find((m) => m.modelID === modelID);
+    if (!model) return;
+
+    await this.initializeAllExpressIDs(modelID);
+
+    if (!this.hiddenExpressIDs.has(modelID)) {
+      this.hiddenExpressIDs.set(modelID, new Set());
+    }
+
+    const set = this.hiddenExpressIDs.get(modelID);
+
+    set.has(expressID) ? set.delete(expressID) : set.add(expressID);
+
+    if (this.highlightModelID === modelID && this.highlightExpressID === expressID) {
+      this.removeHighlight();
+    }
+
+    this.rebuildSubset(modelID);
+  }
+
+  rebuildSubset(modelID) {
+    const model = this.ifcModels.find((m) => m.modelID === modelID);
+    if (!model) return;
+
+    const hiddenSet = this.hiddenExpressIDs.get(modelID);
+    const isModelHidden = this.modelHidden.get(modelID) === true;
+
+    const oldSubset = this.hiddenSubsets.get(modelID);
+    if (oldSubset) {
+      this.scene.remove(oldSubset);
+      oldSubset.geometry.dispose();
+      this.hiddenSubsets.delete(modelID);
+    }
+
+    if (!hiddenSet || hiddenSet.size === 0) {
+      model.mesh.visible = !isModelHidden;
+      return;
+    }
+
+    if (!model._allExpressIDs) {
+      const attr = model.mesh.geometry.attributes.expressID.array;
+      model._allExpressIDs = [...new Set(attr)];
+    }
+
+    const visibleIDs = model._allExpressIDs.filter((id) => !hiddenSet.has(id));
+
+    const subset = this.ifcLoader.ifcManager.createSubset({
+      modelID,
+      ids: visibleIDs,
+      scene: this.scene,
+      removePrevious: true,
+      applyBVH: true,
+    });
+
+    model.mesh.visible = false;
+    subset.visible = !isModelHidden;
+
+    this.hiddenSubsets.set(modelID, subset);
   }
 }
