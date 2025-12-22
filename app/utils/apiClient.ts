@@ -1,7 +1,7 @@
 import axios, { AxiosRequestConfig } from "axios";
 
 export const client = axios.create({
-  baseURL: "http://localhost:4000/api",
+  baseURL: "https://bimcde-be-dev.vercel.app/api", //"http://localhost:4000/api"
   headers: {
     "Content-Type": "application/json",
   },
