@@ -3,7 +3,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   /* config options here */
   env: {
-    API_URL: "http://localhost:4000/api",
+    API_URL: "https://bimcde-be-dev.vercel.app/api",
   },
   typescript: {
     ignoreBuildErrors: true,
