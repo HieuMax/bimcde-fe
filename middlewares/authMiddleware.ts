@@ -9,7 +9,7 @@ const getTokenFromCookies = (request: NextRequest): string | null => {
   return request.cookies.get("accessToken")?.value || null;
 };
 
-export function authMiddleware(request: NextRequest) {
+export function authMiddleware(request: NextRequest, callBack?: (request: NextRequest) => NextResponse | void) {
   const path = request.nextUrl.pathname;
   const token = getTokenFromCookies(request);
 
@@ -23,6 +23,5 @@ export function authMiddleware(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   }
 
-  // Nếu token hợp lệ và trang yêu cầu xác thực, cho phép tiếp tục yêu cầu
-  return NextResponse.next();
+  return callBack?.(request)
 }
