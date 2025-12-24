@@ -1,6 +1,7 @@
 import { AuthProvider } from "./context/authContext";
 import "./global.css";
 import type { Metadata } from "next";
+import QueryProvider from "@/components/providers/QueryProvider";
 
 export const metadata: Metadata = {
   title: "BIM CDE",
@@ -15,7 +16,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <AuthProvider>{children}</AuthProvider>
+        <QueryProvider>
+          <AuthProvider>{children}</AuthProvider>
+        </QueryProvider>
       </body>
     </html>
   );

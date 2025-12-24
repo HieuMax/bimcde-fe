@@ -1,384 +1,296 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { useState, use } from "react"; // 1. Import 'use' từ react
+import {
+  MoreVertical,
+  Pencil,
+  X,
+  Loader2,
+  Plus,
+  Tag as TagIcon,
+} from "lucide-react";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-} from "@/components/ui/dropdown-menu";
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import {
   Table,
-  TableHeader,
-  TableRow,
-  TableHead,
   TableBody,
   TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
 } from "@/components/ui/table";
-import { MoreVertical, Pencil, X, Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { useApi } from "@/app/hooks/useApi";
+import { Label } from "@/components/ui/label";
 
-// -------------------- Page --------------------
-export default function TopicsSettingsPage({
-  params,
-}: {
-  params: Promise<{ projectId: string }>;
-}) {
-  const { get, post, put, delete: del } = useApi();
-  const [tags, setTags] = useState<{ tag: string }[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [projectId, setProjectId] = useState<string | null>(null);
-  useEffect(() => {
-    const fetchTags = async () => {
-      const projectId = (await params).projectId;
-      if (!projectId) {
-        setLoading(false);
-        return;
-      }
-      setProjectId(projectId);
+import { ITag } from "@/types/tag";
+import { useTags } from "@/components/features/explorer/hooks/useTags";
 
-      try {
-        const response = await get(`/tags/getAll/${projectId}`);
-        if (response.success) {
-          setTags(response.result || []);
-        } else {
-          console.error("Failed to fetch tags:", response.error);
-        }
-      } catch (e: any) {
-        setErrorMessage(e.response.data.error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchTags();
-  }, []);
-
-  const handleSave = () => {
-    const payload = { tags };
-    // TODO: call API to save settings
-    console.log("SAVE TO DB:", payload);
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-500" />
-      </div>
-    );
-  }
-  if (errorMessage) {
-    return (
-      <div className="flex items-center justify-center min-h-screen text-red-500">
-        <p>{errorMessage}</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="p-6 space-y-6 bg-muted min-h-screen">
-      <Header
-        setData={setTags}
-        removeAll={async () => {
-          const projectId = (await params).projectId;
-
-          try {
-            const response = await del(`/tags/removeAll/${projectId}`);
-            if (response.success) {
-              setTags([]);
-            } else {
-              alert(response.error || "Failed to remove all tags");
-            }
-          } catch (error) {
-            alert("Error removing all tags");
-          }
-        }}
-      />
-
-      <TopicTypesSection data={tags} setData={setTags} projectId={projectId} />
-    </div>
-  );
+// 2. Cập nhật Interface: params bây giờ là Promise
+interface PageProps {
+  params: Promise<{
+    projectId: string;
+  }>;
 }
 
-//#region DIALOG
-function EditNameDialog({
-  open,
-  value,
-  onClose,
-  onSave,
-}: {
-  open: boolean;
-  value: string;
-  onClose: () => void;
-  onSave: (v: string) => void;
-}) {
-  const [name, setName] = useState(value);
+export default function TagsPage({ params }: PageProps) {
+  // 3. Dùng use() để lấy projectId từ Promise params
+  const { projectId } = use(params);
 
-  return (
-    <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Edit name</DialogTitle>
-          <DialogDescription>
-            Update the name of the selected item.
-          </DialogDescription>
-        </DialogHeader>
-        <Input value={name} onChange={(e) => setName(e.target.value)} />
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button onClick={() => onSave(name)}>Save</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function ConfirmDeleteDialog({
-  open,
-  title = "Delete item",
-  description = "Are you sure you want to delete this item? This action cannot be undone.",
-  onCancel,
-  onConfirm,
-}: {
-  open: boolean;
-  title?: string;
-  description?: string;
-  onCancel: () => void;
-  onConfirm: () => void;
-}) {
-  return (
-    <Dialog open={open} onOpenChange={onCancel}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={onCancel}>
-            Cancel
-          </Button>
-          <Button variant="destructive" onClick={onConfirm}>
-            Delete
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-//#endregion
-
-//#region header
-function Header({
-  setData,
-  removeAll,
-}: {
-  setData: React.Dispatch<React.SetStateAction<{ tag: string }[]>>;
-  removeAll: () => Promise<void>;
-}) {
-  const handleRemoveAll = async () => {
-    await removeAll();
-  };
-  return (
-    <div className="flex items-center justify-between">
-      <h1 className="text-xl font-semibold">Tags</h1>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon">
-            <MoreVertical className="w-4 h-4" />
-          </Button>
-        </DropdownMenuTrigger>
-
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem
-            className="text-destructive"
-            onClick={handleRemoveAll}>
-            Remove all
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
-  );
-}
-//#endregion
-
-//#region TAGS
-function TopicTypesSection({
-  data,
-  setData,
-  projectId,
-}: {
-  data: any;
-  setData: any;
-  projectId: string | null;
-}) {
-  const { post, put, delete: del } = useApi();
-  const [editIndex, setEditIndex] = useState<number | null>(null);
   const [newTag, setNewTag] = useState("");
-  const [deleteIndex, setDeleteIndex] = useState<number | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [editingTag, setEditingTag] = useState<ITag | null>(null);
+  const [editName, setEditName] = useState("");
 
-  const isDuplicate = data.some(
-    (item: any) => item.name.toLowerCase() === newTag.trim().toLowerCase()
-  );
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const handleAddType = async () => {
-    if (!newTag.trim() || isDuplicate) return;
+  // Use the shared hook
+  const { tags, isLoading, createTag, updateTag, deleteTag } =
+    useTags(projectId);
 
-    setLoading(true);
+  // --- HANDLERS ---
+
+  const handleAddTag = async () => {
+    if (!newTag.trim()) return;
+    setIsSubmitting(true);
     try {
-      const response = await post(`/tags/create/${projectId}`, {
+      await createTag({
         name: newTag.trim(),
+        projectId: projectId,
       });
-      if (response.success) {
-        setData([...data, response.result]);
-        setNewTag("");
-      } else {
-        alert(response.error || "Failed to add tag");
-      }
+      setNewTag("");
     } catch (error) {
-      alert("Error adding tag");
+      console.error(error);
     } finally {
-      setLoading(false);
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteTag = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this tag?")) return;
+
+    setDeletingId(id);
+    try {
+      await deleteTag(id);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleEditClick = (tag: ITag) => {
+    setEditingTag(tag);
+    setEditName(tag.name);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editName.trim() || !editingTag) return;
+    setIsSubmitting(true);
+    try {
+      await updateTag({
+        id: editingTag._id,
+        data: { name: editName.trim() },
+      });
+      setEditingTag(null);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>Tag Manager</CardTitle>
+    <div className="p-6 space-y-6 max-w-6xl mx-auto">
+      {/* Header Page */}
+      {/* <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-slate-900">Tags</h1>
+          <p className="text-sm text-slate-500">
+            Manage tags for project categorization.
+          </p>
+        </div>
+        <Button variant="ghost" size="icon">
+          <MoreVertical className="h-5 w-5 text-slate-500" />
+        </Button>
+      </div> */}
 
-        <div className="flex items-center gap-1">{/* Collapse */}</div>
-      </CardHeader>
-      <CardContent className="grid grid-cols-3 gap-6">
-        <div className="col-span-1">
-          <p className="text-sm text-muted-foreground mb-2">Add custom tag</p>
-          <div className="flex gap-2">
-            <Input
-              placeholder="Add new topic type..."
-              value={newTag}
-              onChange={(e) => setNewTag(e.target.value)}
-            />
-            <Button
-              onClick={handleAddType}
-              disabled={isDuplicate || loading || !newTag.trim()}>
-              {loading ? "Adding..." : "Add"}
-            </Button>
+      <Card className="shadow-sm border-slate-200">
+        <CardHeader className="pb-4 border-b bg-slate-50/50">
+          <CardTitle className="text-lg font-medium text-slate-800 flex items-center gap-2">
+            <TagIcon className="h-5 w-5 text-blue-500" />
+            Tag Manager
+          </CardTitle>
+          <CardDescription>Create and manage tags used within </CardDescription>
+        </CardHeader>
+
+        <CardContent className="p-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Left Column: Add Tag Form */}
+            <div className="lg:col-span-1 space-y-4">
+              <div className="bg-slate-50 p-4 rounded-lg border border-slate-100">
+                <h3 className="text-sm font-semibold text-slate-700 mb-3">
+                  Create New Tag
+                </h3>
+                <div className="flex flex-col gap-3">
+                  <Input
+                    placeholder="e.g. Architectural, Draft..."
+                    value={newTag}
+                    onChange={(e) => setNewTag(e.target.value)}
+                    disabled={isSubmitting}
+                    className="bg-white"
+                    onKeyDown={(e) => e.key === "Enter" && handleAddTag()}
+                  />
+                  <Button
+                    onClick={handleAddTag}
+                    disabled={isSubmitting || !newTag.trim()}
+                    className="w-full bg-blue-600 hover:bg-blue-700 text-white"
+                  >
+                    {isSubmitting ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                    ) : (
+                      <Plus className="h-4 w-4 mr-2" />
+                    )}
+                    Add Tag
+                  </Button>
+                </div>
+                <p className="text-xs text-slate-400 mt-3">
+                  Tags help organize files and folders across your project.
+                </p>
+              </div>
+            </div>
+
+            {/* Right Column: Tag List Table */}
+            <div className="lg:col-span-2">
+              <div className="rounded-md border border-slate-200 overflow-hidden">
+                <Table>
+                  <TableHeader className="bg-slate-50">
+                    <TableRow>
+                      <TableHead className="font-semibold text-slate-600">
+                        Tag Name
+                      </TableHead>
+                      <TableHead className="text-right font-semibold text-slate-600 w-[100px]">
+                        Actions
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {isLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={2} className="h-32 text-center">
+                          <div className="flex flex-col items-center justify-center gap-2 text-slate-500">
+                            <Loader2 className="h-6 w-6 animate-spin text-blue-500" />
+                            <span>Loading tags...</span>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ) : tags && tags.length > 0 ? (
+                      tags.map((tag) => (
+                        <TableRow
+                          key={tag._id}
+                          className="hover:bg-slate-50/80 transition-colors"
+                        >
+                          <TableCell className="font-medium text-slate-700">
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full bg-blue-400" />
+                              {tag.name}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-slate-500 hover:text-blue-600"
+                                onClick={() => handleEditClick(tag)}
+                                disabled={deletingId === tag._id}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-slate-500 hover:text-red-600"
+                                onClick={() => handleDeleteTag(tag._id)}
+                                disabled={deletingId === tag._id}
+                              >
+                                {deletingId === tag._id ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <X className="h-4 w-4" />
+                                )}
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={2} className="h-32 text-center">
+                          <div className="flex flex-col items-center justify-center gap-1 text-slate-400">
+                            <TagIcon className="h-8 w-8 opacity-20" />
+                            <p>No tags found.</p>
+                            <p className="text-xs">
+                              Create your first tag to get started.
+                            </p>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
           </div>
-          {isDuplicate && newTag.trim() && (
-            <p className="text-sm text-red-500 mt-1">Tag already exists</p>
-          )}
-        </div>
+        </CardContent>
+      </Card>
 
-        {/* Table takes up 1 column */}
-        <div className="col-span-2">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Tag</TableHead>
-                <TableHead className="text-right w-24">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-
-            <TableBody>
-              {data.map((item: any, i: number) => (
-                <TableRow key={item._id}>
-                  <TableCell>{item.name}</TableCell>
-                  <TableCell className="text-right space-x-1">
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => setEditIndex(i)}>
-                      <Pencil className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => setDeleteIndex(i)}>
-                      <X size={16} />
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      </CardContent>
-
-      {editIndex !== null && (
-        <EditNameDialog
-          open
-          value={data[editIndex].name}
-          onClose={() => setEditIndex(null)}
-          onSave={async (v) => {
-            setLoading(true);
-            try {
-              const response = await put(
-                `/tags/update/${data[editIndex]._id}`,
-                {
-                  name: v,
-                }
-              );
-              if (response.success) {
-                const clone = [...data];
-                clone[editIndex].name = v;
-                setData(clone);
-                setEditIndex(null);
-              } else {
-                alert(response.error || "Failed to update tag");
-              }
-            } catch (error) {
-              alert("Error updating tag");
-            } finally {
-              setLoading(false);
-            }
-          }}
-        />
-      )}
-
-      {deleteIndex !== null && (
-        <ConfirmDeleteDialog
-          open
-          title="Delete tag"
-          description="This tag will be removed."
-          onCancel={() => setDeleteIndex(null)}
-          onConfirm={async () => {
-            setLoading(true);
-            try {
-              const response = await del(
-                `/tags/delete/${data[deleteIndex]._id}`
-              );
-              if (response.success) {
-                const clone = [...data];
-                clone.splice(deleteIndex, 1);
-                setData(clone);
-                setDeleteIndex(null);
-              } else {
-                alert(response.error || "Failed to delete tag");
-              }
-            } catch (error) {
-              alert("Error deleting tag");
-            } finally {
-              setLoading(false);
-            }
-          }}
-        />
-      )}
-    </Card>
+      {/* Edit Dialog */}
+      <Dialog
+        open={!!editingTag}
+        onOpenChange={(open) => !open && setEditingTag(null)}
+      >
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Edit Tag</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="name">Tag Name</Label>
+              <Input
+                id="name"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleSaveEdit()}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingTag(null)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveEdit} disabled={isSubmitting}>
+              {isSubmitting && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }
-//#endregion
