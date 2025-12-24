@@ -1,6 +1,31 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+html, body, #__next {
+  height: 100%;
+  margin: 0;
+}
+
+/* optional: custom scrollbar for panels */
+.side-panel-scrollbar::-webkit-scrollbar { width: 8px; }
+.side-panel-scrollbar::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 8px; }
+.side-panel-scrollbar { scrollbar-width: thin; }
+
+/* subtle panel shadow */
+.panel-shadow { box-shadow: 0 8px 20px rgba(2,6,23,0.06); }
+
+@keyframes dropdown {
+  0% {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-dropdown {
+  animation: dropdown 0.18s ease-out;
+}
 
 @layer base {
   :root {
@@ -60,9 +85,12 @@
 
 @layer base {
   * {
-    @apply border-border;
+    border-color: hsl(var(--border));
   }
+
   body {
-    @apply bg-background text-foreground;
+    background-color: hsl(var(--background));
+    color: hsl(var(--foreground));
   }
 }
+
