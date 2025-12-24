@@ -17,11 +17,14 @@ import {
 
 // Định nghĩa kiểu dữ liệu của người dùng
 interface User {
-  id: string;
-  email: string;
+  _id: string;
   fullName: string;
-  role: string;
-  phone: string;
+  email: string;
+  password: string;
+  role: "admin" | "user";
+  phone?: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 interface AuthContextType {
@@ -244,7 +247,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logout,
         refreshUser,
         clearError,
-      }}>
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

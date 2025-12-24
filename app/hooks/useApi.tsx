@@ -1,4 +1,4 @@
-import axios, { AxiosRequestConfig } from "axios";
+import { AxiosRequestConfig } from "axios";
 import { client } from "../utils/apiClient";
 
 export const useApi = () => ({
@@ -11,10 +11,13 @@ export const useApi = () => ({
   // POST
   async post<T>(path: string, data?: T, config?: AxiosRequestConfig) {
     const res = await client.post(path, data, config);
-    console.log("POST response data:", res.data);
     return res.data;
   },
-
+  // POST RAW
+  async postRaw<T>(path: string, data?: T, config?: AxiosRequestConfig) {
+    const res = await client.post(path, data, config);
+    return res; // Trả về nguyên cục response để lấy headers
+  },
   // PUT
   async put<T>(path: string, data?: T, config?: AxiosRequestConfig) {
     const res = await client.put(path, data, config);

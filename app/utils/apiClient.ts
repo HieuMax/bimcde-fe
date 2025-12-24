@@ -1,10 +1,10 @@
 import axios, { AxiosRequestConfig } from "axios";
 
 export const client = axios.create({
-  baseURL: "https://bimcde-be-dev.vercel.app/api", //"http://localhost:4000/api"
-  headers: {
-    "Content-Type": "application/json",
-  },
+  baseURL: "http://localhost:4000/api", //"http://localhost:4000/api"
+  // headers: {
+  //   "Content-Type": "application/json",
+  // },
 });
 
 function getCookie(name: string): string | null {
@@ -19,6 +19,13 @@ client.interceptors.request.use((config) => {
   const token = getCookie("accessToken");
   if (token) {
     config.headers["Authorization"] = `Bearer ${token}`;
+  }
+  if (config.data instanceof FormData) {
+    delete config.headers["Content-Type"];
+  } else {
+    if (!config.headers["Content-Type"]) {
+      config.headers["Content-Type"] = "application/json";
+    }
   }
   return config;
 });

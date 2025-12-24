@@ -18,6 +18,10 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "upload.wikimedia.org",
       },
+      {
+        protocol: "https",
+        hostname: "pub-94a7e3af32ab4e34b3903187fd7e7b72.r2.dev",
+      },
     ],
   },
   reactStrictMode: false,
