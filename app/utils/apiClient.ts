@@ -1,10 +1,9 @@
-import axios, { AxiosRequestConfig } from "axios";
+import axios from "axios";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL
 
 export const client = axios.create({
-  baseURL: "http://localhost:4000/api", //"http://localhost:4000/api"
-  // headers: {
-  //   "Content-Type": "application/json",
-  // },
+  baseURL: API_URL
 });
 
 function getCookie(name: string): string | null {
