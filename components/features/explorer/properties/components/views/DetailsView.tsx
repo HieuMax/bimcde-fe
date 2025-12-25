@@ -11,6 +11,7 @@ import CommentList from "../comments/CommentList";
 import CommentInput from "../comments/CommentInput";
 import { useComments } from "../../../hooks/useComments";
 import ShareFileDialog from "../../../dialogs/ShareFileDialog";
+import { useRouter } from 'next/navigation';
 
 interface Props {
   item: IFile | IFolder;
@@ -54,13 +55,22 @@ export default function DetailsView({
     deleteComment,
     currentUserId,
   } = useComments(item._id, isFile ? "file" : "folder");
+
+  const router = useRouter();
   const handleViewFile = () => {
     if (isFile) {
       // Ví dụ đường dẫn: /explorer/file/12345
       // router.push(`/explorer/file/${item._id}`);
+      const fileExt = (item as IFile).name.toString().split('.').pop()?.toLowerCase();
 
+      // SUPPORT FOR 3D EXT
+      const supportFiles = ['ifc'];
+
+      if (fileExt && supportFiles.includes(fileExt)) {
+        router.push(`/viewer?urls=${encodeURIComponent(JSON.stringify([item.location]))}`);
+      }
       // Hoặc mở tab mới (như logic cũ)
-      window.open((item as IFile).location, "_blank");
+      // window.open((item as IFile).location, "_blank");
     }
   };
   return (

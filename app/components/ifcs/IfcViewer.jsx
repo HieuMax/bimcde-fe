@@ -7,14 +7,11 @@ import { TreeNode } from './TreeNode';
 import { Eye, EyeOff, ChevronDown, ChevronRight, ChevronLeft, Info } from 'lucide-react';
 import './ifc.css';
 
-export default function IfcViewer() {
+export default function IfcViewer({ ifcUrls }) {
   const canvasRef = useRef(null);
   const loaderRef = useRef(null);
   const sceneRef = useRef(null);
-  const [file, setFile] = useState({
-    name: '',
-    url: '',
-  });
+
   const [selectedModelIndex, setSelectedModelIndex] = useState(null);
   const [openModel, setOpenModel] = useState({});
   const [selectedTreePath, setSelectedTreePath] = useState(null);
@@ -32,20 +29,8 @@ export default function IfcViewer() {
   // Model list
   const [models, setModels] = useState([]);
 
-  // console.log(models);
-  const handleUpload = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    const url = URL.createObjectURL(file);
-    setFile({
-      name: file.name,
-      url: url,
-    });
-  };
-
   useEffect(() => {
-    if (!canvasRef.current) return;
+    if (!ifcUrls?.length || !canvasRef.current) return;
 
     const canvas = canvasRef.current;
 
@@ -82,25 +67,30 @@ export default function IfcViewer() {
       });
     }
 
-    if (file.url) {
+    if (ifcUrls?.length) {
       loaderRef.current.clearModels();
-      loaderRef.current.loadIfcUrl(file.url).then(async (model) => {
-        const modelID = model.modelID;
-        const tree = await loaderRef.current.getSpatialTree(modelID);
 
-        setModels((prev) => [
-          ...prev,
-          {
-            id: modelID,
-            name: file.name,
-            tree,
-            mesh: model.mesh,
-            visible: true,
-          },
-        ]);
-      });
+      for (const url of ifcUrls) {
+        loaderRef.current.loadIfcUrl(url).then(async (model) => {
+          const modelID = model.modelID;
+          const tree = await loaderRef.current.getSpatialTree(modelID);
+
+          setModels((prev) => [
+            ...prev,
+            {
+              id: modelID,
+              // name: file.name,
+              name: url.split('/').pop(),
+              tree,
+              mesh: model.mesh,
+              visible: true,
+            },
+          ]);
+        });
+      }
     }
-  }, [file]);
+  }, [ifcUrls]);
+
 
   const sidebarWidth = isCollapsed ? COLLAPSED_WIDTH : EXPANDED_WIDTH;
 
@@ -139,22 +129,6 @@ export default function IfcViewer() {
     <div style={{ width: '100%', height: '100vh' }}>
       <div style={{ display: 'flex', width: '100%', height: '100%', position: 'relative' }}>
         <div className="flex flex-col bg-slate-700">
-          <input
-            type="file"
-            accept=".ifc"
-            onChange={handleUpload}
-            style={{
-              marginBottom: '20px',
-              width: sidebarWidth,
-              // position: "relative",
-              zIndex: 20,
-              background: '#fff',
-              marginTop: '80px',
-              padding: '10px',
-              border: '1px solid #ccc',
-              transition: 'width 0.25s ease',
-            }}
-          />
 
           {/* LEFT SIDEBAR */}
           <div
