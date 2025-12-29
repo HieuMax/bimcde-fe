@@ -11,7 +11,7 @@ export class Project {
   createdBy?: User;
   modifiedBy?: User;
   lastModifiedOn?: string;
-  lastVisitedOn?: string;
+  lastAccessed?: string;
   size?: string;
   folderCount?: number;
   filesCount?: number;
