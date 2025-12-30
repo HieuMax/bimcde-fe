@@ -17,7 +17,7 @@ import { IComment } from "@/types/comment";
 
 interface Props {
   comment: IComment;
-  isOwner: boolean; // Prop quyết định có hiện menu Edit/Delete không
+  isOwner: boolean;
   onUpdate: (data: { id: string; content: string }) => void;
   onDelete: (id: string) => void;
 }
@@ -33,14 +33,13 @@ export default function CommentItem({
 
   const handleSave = () => {
     if (!editContent.trim()) return;
-    // Gọi hàm update từ cha, component này không cần biết logic API
     onUpdate({ id: comment._id, content: editContent });
     setIsEditing(false);
   };
 
   const handleCancel = () => {
     setIsEditing(false);
-    setEditContent(comment.content); // Reset về nội dung cũ
+    setEditContent(comment.content);
   };
 
   const author = comment.createdBy;
@@ -103,7 +102,7 @@ export default function CommentItem({
           </span>
           <span
             className="text-xs text-slate-400 shrink-0"
-            title={format(new Date(comment.createdAt), "PPpp")} // Tooltip native hiện ngày giờ chi tiết
+            title={format(new Date(comment.createdAt), "PPpp")}
           >
             {formatDistanceToNow(new Date(comment.createdAt), {
               addSuffix: true,
@@ -117,7 +116,7 @@ export default function CommentItem({
         </p>
       </div>
 
-      {/* Action Menu (Chỉ hiện khi hover vào dòng và là Owner) */}
+      {/* Action Menu */}
       {isOwner && (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

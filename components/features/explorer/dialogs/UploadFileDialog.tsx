@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { File as FileIcon, Upload, Loader2, Trash2 } from "lucide-react";
-import { ScrollArea } from "@/components/ui/scroll-area"; // Dùng ScrollArea của Shadcn cho đẹp
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface Props {
   open: boolean;
@@ -27,13 +27,10 @@ export default function UploadFileDialog({
   const [files, setFiles] = useState<File[]>([]);
   const [isUploading, setIsUploading] = useState(false);
 
-  // 1. Khi file được thả hoặc chọn -> Chỉ lưu vào State, KHÔNG upload ngay
   const onDrop = useCallback((acceptedFiles: File[]) => {
-    // Thêm file mới vào danh sách cũ (tránh trùng lặp nếu cần, ở đây tôi cho phép trùng tên)
     setFiles((prev) => [...prev, ...acceptedFiles]);
   }, []);
 
-  // Cấu hình Dropzone
   const {
     getRootProps,
     getInputProps,
@@ -46,20 +43,18 @@ export default function UploadFileDialog({
     multiple: true,
   });
 
-  // 2. Hàm xóa file khỏi danh sách chờ
   const removeFile = (indexToRemove: number) => {
     setFiles((prev) => prev.filter((_, index) => index !== indexToRemove));
   };
 
-  // 3. Hàm xử lý nút Upload cuối cùng
   const handleUploadClick = async () => {
     if (files.length === 0) return;
 
     setIsUploading(true);
     try {
       await onUpload(files);
-      setFiles([]); // Reset danh sách sau khi upload thành công
-      onOpenChange(false); // Đóng modal
+      setFiles([]);
+      onOpenChange(false);
     } catch (error) {
       console.error("Upload failed", error);
     } finally {
@@ -67,7 +62,6 @@ export default function UploadFileDialog({
     }
   };
 
-  // Hàm format dung lượng file cho đẹp (VD: 1.5 MB)
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return "0 Bytes";
     const k = 1024;
@@ -93,7 +87,6 @@ export default function UploadFileDialog({
 
         {/* --- BODY --- */}
         <div className="p-6 flex-1 overflow-y-auto">
-          {/* Vùng Dropzone (Luôn hiện để có thể kéo thêm file vào) */}
           <div
             {...getRootProps()}
             className={`
@@ -105,7 +98,6 @@ export default function UploadFileDialog({
                   : "border-slate-300 hover:bg-slate-100"
               }
             `}
-            // Cho phép click vào vùng này để chọn thêm file nếu muốn (UX tốt hơn)
             onClick={openFileBrowser}
           >
             <input {...getInputProps()} />
@@ -119,7 +111,6 @@ export default function UploadFileDialog({
             </div>
           </div>
 
-          {/* Danh sách File đã chọn (Chỉ hiện khi files > 0) */}
           {files.length > 0 && (
             <div className="mt-6">
               <h4 className="text-sm font-medium text-slate-700 mb-3">
@@ -147,7 +138,6 @@ export default function UploadFileDialog({
                         </div>
                       </div>
 
-                      {/* Nút xóa file */}
                       <Button
                         variant="ghost"
                         size="icon"

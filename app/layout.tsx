@@ -2,6 +2,15 @@ import { AuthProvider } from "./context/authContext";
 import "./global.css";
 import type { Metadata } from "next";
 import QueryProvider from "@/components/providers/QueryProvider";
+import { Roboto } from "next/font/google";
+
+const roboto = Roboto({
+  subsets: ["latin"],
+  weight: ["100", "300", "400", "500", "700", "900"],
+  style: ["normal", "italic"],
+  variable: "--font-roboto",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "BIM CDE",
@@ -14,7 +23,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" className={roboto.variable}>
       <body>
         <QueryProvider>
           <AuthProvider>{children}</AuthProvider>

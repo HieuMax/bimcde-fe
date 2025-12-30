@@ -19,8 +19,6 @@ interface Props {
 export default function HistoryView({ item, onBack }: Props) {
   const isFile = "mimeType" in item;
 
-  // Lấy versions từ item (nếu là file), reverse để mới nhất lên đầu
-  // Lưu ý: Cần đảm bảo item.versions tồn tại (mảng rỗng nếu không có)
   const versions = [...(item.versions || [])].reverse();
 
   return (
@@ -40,8 +38,6 @@ export default function HistoryView({ item, onBack }: Props) {
             Version history
           </h2>
         </div>
-        {/* Nút đóng (Optional: có thể dùng onBack hoặc thêm prop onClose nếu cần) */}
-        {/* Hiện tại UI cũ nút X không làm gì hoặc đóng panel, ta tạm ẩn hoặc map vào onBack */}
       </div>
 
       <ScrollArea className="flex-1">
@@ -107,7 +103,7 @@ export default function HistoryView({ item, onBack }: Props) {
                       </p>
                     </div>
 
-                    {/* Download Action (Chỉ cho File) */}
+                    {/* Download Action */}
                     {isFile && versionLocation && (
                       <Button
                         variant="ghost"

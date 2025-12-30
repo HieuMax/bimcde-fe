@@ -3,7 +3,7 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { explorerService } from "@/services/explorer.service"; // Dùng lại service cũ
+import { explorerService } from "@/services/explorer.service";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Folder, ChevronRight, ArrowLeft, Loader2, X } from "lucide-react";
@@ -12,10 +12,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 interface Props {
   onBack: () => void;
   onClose: () => void;
-  onMove: (destinationFolderId: string) => Promise<void>; // Hàm thực thi Move
+  onMove: (destinationFolderId: string) => Promise<void>;
   title?: string;
-  sourceItemIds: string[]; // Để check disable folder trùng
-  projectId: string; // Thêm projectId
+  sourceItemIds: string[];
+  projectId: string;
 }
 
 export default function MoveDestinationView({
@@ -26,12 +26,9 @@ export default function MoveDestinationView({
   sourceItemIds,
   projectId,
 }: Props) {
-  // State lưu folder đang xem trong Panel Move (Mặc định là Root = null)
   const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
   const [isMoving, setIsMoving] = useState(false);
 
-  // Fetch dữ liệu folder con của currentFolderId
-  // Lưu ý: Dùng key riêng để không đụng cache của màn hình chính
   const { data, isLoading } = useQuery({
     queryKey: ["explorer-move-nav", projectId, currentFolderId],
     queryFn: () => explorerService.getContent(projectId, currentFolderId),
@@ -44,7 +41,6 @@ export default function MoveDestinationView({
   const handleMoveClick = async () => {
     setIsMoving(true);
     try {
-      // currentFolderId chính là đích đến (nếu null là root)
       await onMove(currentFolderId || "");
     } catch (error) {
       console.error(error);
@@ -53,13 +49,10 @@ export default function MoveDestinationView({
     }
   };
 
-  // Logic Back: Nếu đang ở Root thì gọi onBack (thoát Move View), ngược lại thì lên folder cha
   const handleBackNav = () => {
     if (!currentFolderId) {
       onBack();
     } else {
-      // Nếu API trả về ancestors, có thể dùng để back chính xác hơn.
-      // Ở đây ta tạm dùng logic đơn giản: Back về parentId lấy từ API
       setCurrentFolderId(parentId);
     }
   };
@@ -96,7 +89,7 @@ export default function MoveDestinationView({
         {currentFolderName}
       </div>
 
-      {/* Warning Box (Giống hình) */}
+      {/* Warning Box */}
       <div className="bg-yellow-50 p-3 m-4 mb-2 rounded border border-yellow-100 text-xs text-yellow-800 leading-relaxed">
         Please note: Folder(s) existing with same name in the destination folder
         will be ignored.
@@ -113,7 +106,6 @@ export default function MoveDestinationView({
             </div>
           ) : (
             subFolders.map((folder) => {
-              // Disable chính folder đang được chọn để move (tránh move vào chính nó)
               const isDisabled = sourceItemIds.includes(folder._id);
 
               return (
@@ -152,7 +144,7 @@ export default function MoveDestinationView({
       {/* Footer: Move Button */}
       <div className="p-4 border-t border-border bg-white">
         <Button
-          className="w-full bg-[#005F9E] hover:bg-[#004B7D]" // Màu xanh giống hình
+          className="w-full bg-[#005F9E] hover:bg-[#004B7D]"
           onClick={handleMoveClick}
           disabled={isMoving}
         >

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { X, Loader2, Link as LinkIcon, UserPlus } from "lucide-react";
+import { X, Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -22,7 +22,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { httpClient } from "@/lib/http-client"; // Dùng client mới tạo
+import { httpClient } from "@/lib/http-client";
 
 interface Props {
   open: boolean;
@@ -33,15 +33,14 @@ interface Props {
 type ShareType = "SPECIFIC" | "INTERNAL_LINK" | "PUBLIC_LINK";
 
 export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
-  const [shareType, setShareType] = useState<ShareType>("PUBLIC_LINK"); // Default: Any user with link
+  const [shareType, setShareType] = useState<ShareType>("PUBLIC_LINK");
   const [emailInput, setEmailInput] = useState("");
   const [recipients, setRecipients] = useState<string[]>([]);
   const [note, setNote] = useState("");
-  const [expiresAt, setExpiresAt] = useState(""); // YYYY-MM-DD
+  const [expiresAt, setExpiresAt] = useState("");
   const [accessLevel, setAccessLevel] = useState("VIEW");
   const [showLatest, setShowLatest] = useState(false);
 
-  // Xử lý thêm Email vào danh sách (Chips)
   const handleAddRecipient = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter" && emailInput.trim()) {
       e.preventDefault();
@@ -56,11 +55,9 @@ export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
     setRecipients(recipients.filter((r) => r !== email));
   };
 
-  // Mutation gọi API
+  // Mutation
   const shareMutation = useMutation({
     mutationFn: async () => {
-      // Giả sử API endpoint là POST /api/files/share
-      // Bạn cần implement endpoint này ở Controller
       return await httpClient.post("/files/share", {
         fileId: file?._id,
         type: shareType,
@@ -69,7 +66,7 @@ export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
         expiresAt: expiresAt ? new Date(expiresAt) : null,
         accessLevel,
         showLatestVersion: showLatest,
-        userId: "CURRENT_USER_ID", // Thay bằng ID thật
+        userId: "CURRENT_USER_ID",
       });
     },
     onSuccess: () => {
@@ -154,7 +151,7 @@ export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
             </div>
           </div>
 
-          {/* 3. Note (Chỉ hiện cho Specific hoặc Internal) */}
+          {/* 3. Note */}
           {shareType !== "PUBLIC_LINK" && (
             <div className="space-y-1.5 animate-in fade-in zoom-in-95 duration-200">
               <Label className="text-xs text-slate-500 font-normal">Note</Label>
@@ -215,7 +212,7 @@ export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
             </Label>
           </div>
 
-          {/* Note footer text (Giống hình 3) */}
+          {/* Note footer text */}
           {shareType === "SPECIFIC" && (
             <div className="border-t border-slate-200 pt-3 mt-2">
               <p className="text-xs text-slate-500">

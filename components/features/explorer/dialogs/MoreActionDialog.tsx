@@ -17,7 +17,7 @@ import {
   Share2,
 } from "lucide-react";
 import { IFile, IFolder } from "@/types/explorer";
-import ShareFileDialog from "./ShareFileDialog"; // Import Dialog mới
+import ShareFileDialog from "./ShareFileDialog";
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -38,14 +38,13 @@ export default function MoreActionsDialog({
   if (!item) return null;
 
   const isFile = "mimeType" in item;
-  // Logic check lock
   const isLocked = isFile && (item as IFile).isLocked;
   const lockedByMe =
     isFile && (item as IFile).lockedBy?.toString() === currentUserId;
 
   const handleAction = (action: () => void) => {
     action();
-    onOpenChange(false); // Đóng dialog sau khi chọn hành động
+    onOpenChange(false);
   };
 
   return (
@@ -58,7 +57,6 @@ export default function MoreActionsDialog({
 
           <div className="flex flex-col gap-2 py-4">
             {/* 1. CHECK-OUT (LOCK) */}
-            {/* Hiện khi: Là Folder HOẶC (Là File và chưa bị Lock) */}
             {(!isFile || !isLocked) && (
               <Button
                 variant="outline"
@@ -78,7 +76,6 @@ export default function MoreActionsDialog({
             )}
 
             {/* 2. CHECK-IN (UNLOCK) */}
-            {/* Hiện khi: Là Folder HOẶC (Là File và Đang được Lock bởi mình) */}
             {(!isFile || (isLocked && lockedByMe)) && (
               <Button
                 variant="outline"
@@ -97,7 +94,7 @@ export default function MoreActionsDialog({
               </Button>
             )}
 
-            {/* Case đặc biệt: File bị lock bởi người khác -> Chỉ hiện thông báo */}
+            {/* Case */}
             {isFile && isLocked && !lockedByMe && (
               <div className="flex items-center gap-3 p-3 bg-red-50 text-red-600 rounded-md border border-red-100">
                 <Lock className="h-4 w-4" />
