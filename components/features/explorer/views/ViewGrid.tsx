@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { IFile, IFolder } from "@/types/explorer";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Folder as FolderIcon, LockKeyhole } from "lucide-react";
@@ -14,7 +14,7 @@ interface Props {
   folders: IFolder[];
   files: IFile[];
   selectedIds: string[];
-  onRowClick: (item: IFolder | IFile) => void; // Vẫn giữ prop này để tương thích, nhưng logic chính sẽ là Navigate
+  onRowClick: (item: IFolder | IFile) => void;
   onCheckboxClick: (item: IFolder | IFile) => void;
   onMultiSelect: (items: (IFolder | IFile)[]) => void;
   onNavigate: (item: IFolder | IFile) => void;
@@ -22,12 +22,12 @@ interface Props {
   onSort: (key: "name" | "date" | "size") => void;
 }
 
-// --- COMPONENT CON: DRAGGABLE CARD ---
+// --- COMPONENT: DRAGGABLE CARD ---
 function DraggableCard({
   item,
   isSelected,
-  onCardClickWithEvent, // Hàm xử lý click vào body card
-  onCheckboxClick, // Hàm xử lý click vào checkbox
+  onCardClickWithEvent,
+  onCheckboxClick,
 }: {
   item: IFile | IFolder;
   isSelected: boolean;
@@ -59,18 +59,16 @@ function DraggableCard({
     setDropRef(node);
   };
 
-  // Xử lý click vào Card (Body) -> Truyền lên cha để quyết định (Navigate hay Shift Select)
   const handleCardInteraction = (e: React.MouseEvent) => {
     onCardClickWithEvent(e, item);
   };
 
-  // Xử lý click vào Checkbox -> Chỉ Select, chặn sự kiện nổi bọt (không Navigate)
   const handleCheckboxInteraction = (e: React.MouseEvent) => {
-    e.stopPropagation(); // [QUAN TRỌNG] Ngăn không cho sự kiện click lan ra Card (gây navigate)
+    e.stopPropagation();
     onCheckboxClick(item);
   };
 
-  // --- RENDER GIAO DIỆN FOLDER (Dạng thẻ chữ nhật nhỏ) ---
+  // --- RENDER FOLDER ---
   if (isFolder) {
     return (
       <div
@@ -94,13 +92,12 @@ function DraggableCard({
             onClick={handleCheckboxInteraction}
             className={cn(
               "data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600 size-5 border-slate-400 bg-white shadow-sm transition-opacity z-20",
-              // Logic hiển thị: Hiện khi hover HOẶC đã select.
               isSelected
                 ? "opacity-100"
                 : "opacity-0 group-hover:opacity-100 absolute"
             )}
           />
-          {/* Folder Icon: Ẩn đi khi hover (để nhường chỗ cho checkbox) hoặc khi đã select */}
+          {/* Folder Icon: */}
           <FolderIcon
             className={cn(
               "size-5 text-slate-600 fill-slate-600 transition-opacity",
@@ -119,7 +116,7 @@ function DraggableCard({
     );
   }
 
-  // --- RENDER GIAO DIỆN FILE  ---
+  // --- RENDER FILE  ---
   return (
     <div
       ref={setNodeRef}
@@ -162,12 +159,12 @@ function DraggableCard({
           )}
         </div>
 
-        {/* INFO AREA (ĐÃ SỬA: Checkbox nằm ở đây) */}
+        {/* INFO AREA */}
         <div className="p-3 bg-white flex-1 flex flex-col justify-center">
           <div className="flex items-center gap-3">
-            {/* WRAPPER CHO ICON/CHECKBOX (Giống Folder) */}
+            {/* WRAPPER CHO ICON/CHECKBOX */}
             <div className="flex items-center justify-center size-5 shrink-0 relative">
-              {/* Checkbox: Hiện khi Hover hoặc Selected */}
+              {/* Checkbox */}
               <Checkbox
                 checked={isSelected}
                 onClick={handleCheckboxInteraction}
@@ -178,7 +175,7 @@ function DraggableCard({
                     : "opacity-0 group-hover:opacity-100"
                 )}
               />
-              {/* Icon nhỏ: Ẩn khi Hover hoặc Selected */}
+              {/* Icon */}
               <div
                 className={cn(
                   "transition-opacity duration-200",
@@ -192,7 +189,7 @@ function DraggableCard({
               </div>
             </div>
 
-            {/* Tên File */}
+            {/* File Name */}
             <span
               className="truncate text-sm font-medium text-slate-700 w-full"
               title={item.name}

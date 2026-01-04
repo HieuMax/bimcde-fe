@@ -20,20 +20,17 @@ interface Props {
 export default function EditView({ item, onBack, onClose, onSave }: Props) {
   const isFile = "mimeType" in item;
 
-  // Helper: Lấy tên không kèm đuôi mở rộng (để user sửa cho dễ)
   const getNameWithoutExt = (fullName: string) => {
     if (!isFile) return fullName;
     const lastDotIndex = fullName.lastIndexOf(".");
-    // Chỉ cắt nếu có dấu chấm và không phải file ẩn bắt đầu bằng dấu chấm
     return lastDotIndex > 0 ? fullName.substring(0, lastDotIndex) : fullName;
   };
 
   const [name, setName] = useState(getNameWithoutExt(item.name));
-  const [tags, setTags] = useState(""); // Placeholder cho Tags
+  const [tags, setTags] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
   const handleSave = async () => {
-    // Nếu tên rỗng hoặc không thay đổi gì -> Back về luôn
     if (!name.trim() || name === getNameWithoutExt(item.name)) {
       onBack();
       return;
@@ -41,10 +38,9 @@ export default function EditView({ item, onBack, onClose, onSave }: Props) {
 
     setIsSaving(true);
     try {
-      await onSave(name); // Logic ghép đuôi file sẽ do Action/Service xử lý
+      await onSave(name);
     } catch (error) {
       console.error(error);
-      // Toast lỗi đã được xử lý ở useExplorerActions
     } finally {
       setIsSaving(false);
     }

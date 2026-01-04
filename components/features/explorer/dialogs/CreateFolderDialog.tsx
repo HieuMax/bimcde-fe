@@ -7,7 +7,6 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
-  // DialogFooter không dùng để tự custom layout cho giống ảnh
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,14 +17,14 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmit: (name: string) => Promise<void>;
-  currentFolderName?: string; // Thêm prop này để hiện tên folder cha
+  currentFolderName?: string;
 }
 
 export default function CreateFolderDialog({
   open,
   onOpenChange,
   onSubmit,
-  currentFolderName = "Explorer", // Mặc định là Root nếu không truyền
+  currentFolderName = "Explorer",
 }: Props) {
   const [name, setName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -50,11 +49,9 @@ export default function CreateFolderDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px] p-6 bg-white gap-0">
         <DialogHeader className="text-left space-y-2">
-          {/* Tiêu đề động */}
           <DialogTitle className="text-xl font-normal text-slate-900">
             Create Folder In {currentFolderName}
           </DialogTitle>
-          {/* Dòng mô tả thêm */}
           <DialogDescription className="text-sm text-slate-500 font-normal">
             Please enter a name for the new folder
           </DialogDescription>
@@ -68,7 +65,6 @@ export default function CreateFolderDialog({
             >
               Name
             </Label>
-            {/* Custom Input: Chỉ gạch chân, bỏ border box */}
             <Input
               id="name"
               value={name}
@@ -79,7 +75,6 @@ export default function CreateFolderDialog({
             />
           </div>
 
-          {/* Đường kẻ ngang phân cách */}
           <div className="h-px bg-slate-100 mt-8 mb-4" />
 
           {/* Custom Footer */}
@@ -96,7 +91,6 @@ export default function CreateFolderDialog({
             <Button
               type="submit"
               disabled={isSubmitting || !name.trim()}
-              // Màu nút giống trong ảnh (Dusty Blue)
               className="bg-[#7da0b1] hover:bg-[#688a9a] text-white min-w-[100px] rounded-md"
             >
               {isSubmitting && (

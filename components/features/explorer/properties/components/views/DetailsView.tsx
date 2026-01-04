@@ -11,7 +11,7 @@ import CommentList from "../comments/CommentList";
 import CommentInput from "../comments/CommentInput";
 import { useComments } from "../../../hooks/useComments";
 import ShareFileDialog from "../../../dialogs/ShareFileDialog";
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from "next/navigation";
 
 interface Props {
   item: IFile | IFolder;
@@ -39,7 +39,9 @@ export default function DetailsView({
 }: Props) {
   const isFile = "mimeType" in item;
   const [isShareOpen, setIsShareOpen] = useState(false);
-  // Dùng hook logic tách biệt
+  const params = useParams();
+  const projectId = params?.projectId as string;
+
   const {
     comments,
     totalComments,
@@ -57,22 +59,36 @@ export default function DetailsView({
   } = useComments(item._id, isFile ? "file" : "folder");
 
   const router = useRouter();
+
   const handleViewFile = () => {
     if (isFile) {
-      // Ví dụ đường dẫn: /explorer/file/12345
+      // Example: /explorer/file/12345
       // router.push(`/explorer/file/${item._id}`);
-      const fileExt = (item as IFile).name.toString().split('.').pop()?.toLowerCase();
+      const fileExt = (item as IFile).name
+        .toString()
+        .split(".")
+        .pop()
+        ?.toLowerCase();
+      if (!fileExt) return;
 
-      // SUPPORT FOR 3D EXT
-      const supportFiles = ['ifc'];
+      const IFC_FILES = ["ifc"];
+      const DOC_FILES = ["docs", "pdf", "png", "jpg"];
 
-      if (fileExt && supportFiles.includes(fileExt)) {
-        router.push(`/viewer?urls=${encodeURIComponent(JSON.stringify([item.location]))}`);
+      // IFC → 3D Viewer
+      if (IFC_FILES.includes(fileExt)) {
+        router.push(
+          `/viewer?urls=${encodeURIComponent(JSON.stringify([item.location]))}`
+        );
+        return;
       }
-      // Hoặc mở tab mới (như logic cũ)
-      // window.open((item as IFile).location, "_blank");
+      // DOC / PDF → Project Viewer
+      if (DOC_FILES.includes(fileExt)) {
+        router.push(`/projects/${projectId}/viewer/${item._id}`);
+        return;
+      }
     }
   };
+
   return (
     <div className="flex flex-col h-full relative">
       {/* HEADER */}
@@ -106,20 +122,20 @@ export default function DetailsView({
           <ThumbnailSection item={item} />
           <Separator />
           <ToolbarSection
-            item={item} // [MỚI] Truyền item để check type
+            item={item}
             onDownload={onDownload}
             onOpenMove={onOpenMove}
             onDelete={onDelete}
             onOpenShare={() => setIsShareOpen(true)}
-            onNavigate={handleViewFile} // [MỚI]
-            onToggleLock={onToggleLock} // Placeholder cho Checkin/out logic
+            onNavigate={handleViewFile}
+            onToggleLock={onToggleLock}
             onAddTags={onAddTags}
           />
           <Separator />
           <InfoSection item={item} onOpenHistory={onOpenHistory} />
           <Separator className="mx-4 w-auto" />
 
-          {/* Permission Section (Giản lược để code gọn, bạn có thể tách ra PermissionSection.tsx) */}
+          {/* Permission Section */}
           <div className="p-4 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-medium text-foreground">

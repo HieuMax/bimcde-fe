@@ -8,7 +8,7 @@ import {
   Download,
   Trash2,
   X,
-  FolderInput, // Icon Move to
+  FolderInput,
   Lock,
   Unlock,
   Tags,
@@ -28,7 +28,7 @@ interface Props {
   onDelete: () => void;
   onToggleLock: (action: "LOCK" | "UNLOCK") => void;
   onMoveItems: (destinationId: string) => Promise<void>;
-  projectId: string; // Thêm projectId
+  projectId: string;
 }
 
 export default function BulkPropertiesPanel({
@@ -199,7 +199,7 @@ export default function BulkPropertiesPanel({
                   </span>
                 </div>
 
-                {/* Nút X xóa item khỏi selection */}
+                {/* X Button */}
                 <Button
                   variant="ghost"
                   size="icon"

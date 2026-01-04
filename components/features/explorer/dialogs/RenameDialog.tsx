@@ -27,7 +27,6 @@ export default function RenameDialog({
   const [name, setName] = useState(currentName);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Reset name khi mở dialog mới
   useEffect(() => {
     if (open) setName(currentName);
   }, [open, currentName]);
