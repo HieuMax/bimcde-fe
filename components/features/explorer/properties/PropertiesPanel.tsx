@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState } from "react";
-import { cn } from "@/lib/utils";
 import { IFile, IFolder } from "@/types/explorer";
 
 // Import Views
@@ -24,7 +23,7 @@ interface Props {
   onRename: (newName: string) => Promise<void>;
   onMoveItem: (destinationId: string) => Promise<void>;
   onToggleLock: (action: "LOCK" | "UNLOCK") => void;
-  projectId: string; // Thêm projectId
+  projectId: string;
 }
 
 export default function PropertiesPanel({
@@ -42,7 +41,6 @@ export default function PropertiesPanel({
   const [view, setView] = useState<ViewMode>("details");
   const queryClient = useQueryClient();
 
-  // Reset view về details khi đóng hoặc đổi item
   React.useEffect(() => {
     if (!open) setView("details");
   }, [open, item?._id]);

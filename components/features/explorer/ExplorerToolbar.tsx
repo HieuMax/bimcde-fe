@@ -64,7 +64,7 @@ export default function ExplorerToolbar({
         <nav className="flex items-center text-sm text-slate-600 overflow-hidden">
           {/* 1. Nút Home (Root) */}
           <Link
-            href={`/projects/${projectId}`}
+            href={`/projects/${projectId}/data`}
             className={`
               flex items-center hover:bg-slate-100 p-1.5 rounded transition-colors
               ${
@@ -82,7 +82,7 @@ export default function ExplorerToolbar({
             <div key={folder._id} className="flex items-center shrink-0">
               <ChevronRight className="w-4 h-4 text-slate-400 mx-1" />
               <Link
-                href={`/projects/${projectId}?folderId=${folder._id}`}
+                href={`/projects/${projectId}/data?folderId=${folder._id}`}
                 className="hover:bg-slate-100 px-2 py-1 rounded transition-colors truncate max-w-[150px] hover:text-blue-600"
                 title={folder.name}
               >
@@ -113,7 +113,7 @@ export default function ExplorerToolbar({
               size="sm"
               className={`h-7 px-2 ${
                 viewMode === "list"
-                  ? "bg-white shadow-sm text-blue-600"
+                  ? "bg-white shadow-sm text-gray-700"
                   : "text-slate-500"
               }`}
               onClick={() => setViewMode("list")}
@@ -125,7 +125,7 @@ export default function ExplorerToolbar({
               size="sm"
               className={`h-7 px-2 ${
                 viewMode === "grid"
-                  ? "bg-white shadow-sm text-blue-600"
+                  ? "bg-white shadow-sm text-gray-700"
                   : "text-slate-500"
               }`}
               onClick={() => setViewMode("grid")}
@@ -147,7 +147,7 @@ export default function ExplorerToolbar({
           {/* --- NÚT NEW VỚI DROPDOWN MENU --- */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button className="bg-blue-500 hover:bg-blue-600 text-white px-6 py-4 rounded text-base font-medium flex items-center transition-colors disabled:opacity-50 outline-none ring-0 focus-visible:ring-0 focus-visible:ring-offset-0">
+              <Button className="bg-[#406D87] hover:bg-[#345a70] px-6 py-4 rounded text-base font-medium flex items-center transition-colors disabled:opacity-50 outline-none ring-0 focus-visible:ring-0 focus-visible:ring-offset-0">
                 New
               </Button>
             </DropdownMenuTrigger>

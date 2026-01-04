@@ -10,13 +10,13 @@ import { toast } from "sonner";
 import { explorerService } from "@/services/explorer.service";
 
 interface Props {
-  fileIds?: string[]; // Make optional
-  folderIds?: string[]; // Add folderIds
+  fileIds?: string[];
+  folderIds?: string[];
   initialTags?: ITag[];
   onBack: () => void;
   onClose: () => void;
   onSuccess?: () => void;
-  projectId: string; // Thêm projectId
+  projectId: string;
 }
 
 export default function TagsView({

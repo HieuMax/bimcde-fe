@@ -34,13 +34,13 @@ import {
 import { IFile, IFolder } from "@/types/explorer";
 
 interface Props {
-  item: IFile | IFolder; // [MỚI] Cần nhận item để check type
+  item: IFile | IFolder;
   onDownload: () => void;
   onOpenMove: () => void;
   onDelete: () => void;
   onOpenShare: () => void;
-  onNavigate: () => void; // [MỚI] Hàm navigate sang trang chi tiết
-  onToggleLock: (action: "LOCK" | "UNLOCK") => void; // Giả sử đã có hàm này
+  onNavigate: () => void;
+  onToggleLock: (action: "LOCK" | "UNLOCK") => void;
   onAddTags: () => void;
 }
 
@@ -56,9 +56,7 @@ export default function ToolbarSection({
 }: Props) {
   const isFile = "mimeType" in item;
 
-  // --- LOGIC 1: ITEM LÀ FOLDER ---
-  // Hiển thị: Permissions, Download, Move, Delete
-  // Dropdown: Activity, Checkin/out, Export, Tags
+  // --- LOGIC 1: ITEM FOLDER ---
   if (!isFile) {
     return (
       <div className="flex items-center justify-between px-4 py-2">
@@ -140,12 +138,10 @@ export default function ToolbarSection({
     );
   }
 
-  // --- LOGIC 2: ITEM LÀ FILE ---
-  // Hiển thị: View, Permissions, Share
-  // Dropdown: Download, Move, Delete, Activity, QR, Release, Todo, Checkin/out, Export, Tags
+  // --- LOGIC 2: ITEM FILE ---
   return (
     <div className="flex items-center justify-between px-4 py-2">
-      {/* 1. View Button (Nổi bật hơn chút) */}
+      {/* 1. View Button */}
       <Button
         onClick={onNavigate}
         className="bg-slate-800 hover:bg-slate-700 text-white h-9 px-4 text-sm font-medium mr-auto"
@@ -168,7 +164,7 @@ export default function ToolbarSection({
         onClick={onOpenShare}
       />
 
-      {/* 4. More Dropdown (Chứa rất nhiều action) */}
+      {/* 4. More Dropdown */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
@@ -184,7 +180,7 @@ export default function ToolbarSection({
           align="end"
           className="w-60 max-h-[400px] overflow-y-auto"
         >
-          {/* Nhóm 1: Các action bị ẩn khỏi toolbar */}
+          {/* GR 1 */}
           <DropdownMenuItem onClick={onDownload} className="cursor-pointer">
             <Download className="mr-2 h-4 w-4 text-slate-500" />
             <span>Download</span>
@@ -203,7 +199,7 @@ export default function ToolbarSection({
 
           <DropdownMenuSeparator />
 
-          {/* Nhóm 2: Activity & QR */}
+          {/* GR 2: Activity & QR */}
           <DropdownMenuItem className="cursor-pointer">
             <History className="mr-2 h-4 w-4 text-slate-500" />
             <span>See activity</span>
@@ -215,7 +211,7 @@ export default function ToolbarSection({
 
           <DropdownMenuSeparator />
 
-          {/* Nhóm 3: Management */}
+          {/* GR 3: Management */}
           <DropdownMenuItem className="cursor-pointer">
             <Archive className="mr-2 h-4 w-4 text-slate-500" />
             <span>Add to Release</span>
@@ -227,7 +223,7 @@ export default function ToolbarSection({
 
           <DropdownMenuSeparator />
 
-          {/* Nhóm 4: Checkin/out */}
+          {/* GR 4: Checkin/out */}
           <DropdownMenuItem
             onClick={() => onToggleLock("LOCK")}
             className="cursor-pointer"
@@ -245,7 +241,7 @@ export default function ToolbarSection({
 
           <DropdownMenuSeparator />
 
-          {/* Nhóm 5: Misc */}
+          {/* G5 5: Misc */}
           <DropdownMenuItem className="cursor-pointer">
             <FileDown className="mr-2 h-4 w-4 text-slate-500" />
             <span>Export to Excel</span>

@@ -219,4 +219,9 @@ export const explorerService = {
     });
     return data;
   },
+
+  getFileDetail: async (id: string) => {
+    const data = await api.get(`/files/${id}`);
+    return data;
+  },
 };

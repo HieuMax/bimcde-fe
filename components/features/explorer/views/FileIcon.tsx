@@ -16,6 +16,5 @@ export default function FileIcon({
   if (mimeType.includes("sheet") || mimeType.includes("excel"))
     return <FileSpreadsheet className={`${className} text-green-600`} />;
 
-  // Mặc định cho các file BIM/CAD
   return <FileCode className={`${className} text-blue-600`} />;
 }

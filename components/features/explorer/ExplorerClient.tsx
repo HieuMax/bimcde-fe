@@ -27,7 +27,6 @@ import { useExplorerSelection } from "./hooks/useExplorerSelection";
 import { useExplorerActions } from "./hooks/useExplorerActions";
 import { ViewMode, IFile, IFolder } from "@/types/explorer";
 import { useAuth } from "@/app/context/authContext";
-import Sidebar from "@/components/layout/Sidebar";
 
 // --- [OPTIMIZATION] DYNAMIC IMPORTS (Lazy Loading) ---
 // Chỉ tải code khi cần hiển thị. Giúp trang load ban đầu nhanh hơn hẳn.
@@ -61,7 +60,6 @@ interface Props {
 export default function ExplorerClient({ projectId, folderId }: Props) {
   const router = useRouter();
   const { user } = useAuth();
-  console.log(user?._id);
   // --- STATE ---
   const [viewMode, setViewMode] = useState<ViewMode>("list");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -158,9 +156,9 @@ export default function ExplorerClient({ projectId, folderId }: Props) {
 
   const handleNavigate = (item: IFolder | IFile) => {
     if ("mimeType" in item) {
-      window.open((item as IFile).location, "_blank");
+      router.push(`/projects/${projectId}/viewer/${item._id}`);
     } else {
-      router.push(`/projects/${projectId}?folderId=${item._id}`);
+      router.push(`/projects/${projectId}/data?folderId=${item._id}`);
     }
   };
 

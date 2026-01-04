@@ -15,7 +15,7 @@ import { ArrowDown, ArrowUp, Folder, LockKeyhole } from "lucide-react";
 import { format } from "date-fns";
 import { filesize } from "filesize";
 import FileIcon from "./FileIcon";
-
+import { useRouter, useParams } from "next/navigation";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 
 export type SortConfig = {
@@ -54,6 +54,40 @@ function DraggableRow({
 
   const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  const router = useRouter();
+  const params = useParams();
+  const projectId = params?.projectId as string;
+
+  const handleViewFile = (item: IFile | IFolder) => {
+    const isFile = "mimeType" in item;
+
+    // Folder → mở folder
+    if (!isFile) {
+      router.push(`/projects/${projectId}/explorer/${item._id}`);
+      return;
+    }
+
+    const fileExt = item.name.split(".").pop()?.toLowerCase();
+    if (!fileExt) return;
+
+    const IFC_FILES = ["ifc"];
+    const DOC_FILES = ["docs", "pdf", "png", "jpg"];
+
+    // IFC → 3D Viewer
+    if (IFC_FILES.includes(fileExt)) {
+      router.push(
+        `/viewer?urls=${encodeURIComponent(JSON.stringify([item.location]))}`
+      );
+      return;
+    }
+
+    // DOC / PDF → Project Viewer
+    if (DOC_FILES.includes(fileExt)) {
+      router.push(`/projects/${projectId}/viewer/${item._id}`);
+      return;
+    }
+  };
+
   const handleRowInteraction = (e: React.MouseEvent) => {
     if (clickTimeoutRef.current) {
       clearTimeout(clickTimeoutRef.current);
@@ -70,7 +104,7 @@ function DraggableRow({
 
   const handleNameClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    onNavigate(item);
+    handleViewFile(item);
   };
 
   const handleCheckboxInteraction = (e: React.MouseEvent) => {
@@ -128,7 +162,7 @@ function DraggableRow({
       } ${isOver ? "bg-blue-100 ring-2 ring-blue-400 z-10" : ""}`}
       onClick={handleRowInteraction}
     >
-      {/* 1. CỘT ICON & CHECKBOX: Responsive width (nhỏ trên mobile, to trên desktop) */}
+      {/* ICON & CHECKBOX CELL */}
       <TableCell className="py-2 md:py-4 relative w-14 md:w-20 text-center p-0">
         <div className="flex items-center justify-center w-full h-full relative">
           <div
@@ -164,7 +198,7 @@ function DraggableRow({
         </div>
       </TableCell>
 
-      {/* 2. CỘT TÊN: Hiển thị đầy đủ thông tin phụ trên Mobile */}
+      {/* NAME CELL */}
       <TableCell className="font-medium pl-2 md:pl-4">
         <div className="flex flex-col gap-0.5 justify-center">
           <span
@@ -177,7 +211,7 @@ function DraggableRow({
             <span className="truncate text-sm md:text-base">{item.name}</span>
           </span>
 
-          {/* MOBILE ONLY: Hiển thị ngày và size ngay dưới tên (chỉ hiện trên màn hình nhỏ < md) */}
+          {/* MOBILE ONLY */}
           <div className="flex items-center gap-2 text-xs text-slate-400 md:hidden font-normal">
             <span>{formattedDate}</span>
             <span>•</span>
@@ -186,24 +220,24 @@ function DraggableRow({
         </div>
       </TableCell>
 
-      {/* 3. CỘT MODIFIED BY: Ẩn trên Mobile và Tablet, chỉ hiện trên Desktop lớn (lg) */}
+      {/* MODIFIED BY CELL*/}
       <TableCell className="text-slate-500 hidden lg:table-cell">
         {isFolder
           ? (item as IFolder).createdBy || "Unknown"
           : (item as IFile).modifiedBy || "Unknown"}
       </TableCell>
 
-      {/* 4. CỘT DATE: Ẩn trên Mobile, hiện trên Tablet (md) trở lên */}
+      {/* DATE CELL */}
       <TableCell className="text-slate-500 hidden md:table-cell whitespace-nowrap">
         {formattedDate}
       </TableCell>
 
-      {/* 5. CỘT SIZE: Ẩn trên Mobile, hiện trên Tablet (md) trở lên */}
+      {/* SIZE CELL */}
       <TableCell className="text-slate-500 hidden md:table-cell whitespace-nowrap">
         {formattedSize}
       </TableCell>
 
-      {/* 6. CỘT TAGS: Ẩn trên Mobile/Tablet nhỏ, chỉ hiện trên Desktop lớn (xl) */}
+      {/* TAGS CELL */}
       <TableCell className="hidden xl:table-cell">
         {"tags" in item &&
           (
@@ -296,7 +330,6 @@ export default function ViewList({
     return <div className="p-10 text-center text-slate-400">Empty folder</div>;
 
   return (
-    // Wrapper div để xử lý overflow nếu cần thiết
     <div className="w-full overflow-x-auto">
       <Table className="w-full relative">
         <TableHeader>
@@ -304,7 +337,7 @@ export default function ViewList({
             {/* 1. Header ICON: Width responsive */}
             <TableHead className="w-14 md:w-20"></TableHead>
 
-            {/* 2. Header NAME: Luôn hiện */}
+            {/* 2. Header NAME */}
             <TableHead
               className="cursor-pointer hover:bg-slate-50 transition-colors select-none group pl-2 md:pl-4"
               onClick={() => onSort("name")}
@@ -323,22 +356,22 @@ export default function ViewList({
               </div>
             </TableHead>
 
-            {/* 3. Header MODIFIED BY: Ẩn < lg */}
+            {/* 3. Header MODIFIED BY */}
             <TableHead className="hidden lg:table-cell whitespace-nowrap">
               Modified by
             </TableHead>
 
-            {/* 4. Header MODIFIED ON: Ẩn < md */}
+            {/* 4. Header MODIFIED ON */}
             <TableHead className="hidden md:table-cell whitespace-nowrap">
               Modified on
             </TableHead>
 
-            {/* 5. Header SIZE: Ẩn < md */}
+            {/* 5. Header SIZE */}
             <TableHead className="md:w-22 lg:w-48 hidden md:table-cell whitespace-nowrap">
               Size
             </TableHead>
 
-            {/* 6. Header TAGS: Ẩn < xl */}
+            {/* 6. Header TAGS */}
             <TableHead className="w-40 hidden xl:table-cell whitespace-nowrap">
               Tags
             </TableHead>
