@@ -73,16 +73,14 @@ export default function ProjectsPage() {
           <Button
             variant="ghost"
             onClick={() => setView("grid")}
-            className={view === "grid" ? "bg-gray-300" : ""}
-          >
+            className={view === "grid" ? "bg-gray-300" : ""}>
             <Grid size={18} />
           </Button>
 
           <Button
             variant="ghost"
             onClick={() => setView("list")}
-            className={view === "list" ? "bg-gray-300" : ""}
-          >
+            className={view === "list" ? "bg-gray-300" : ""}>
             <List size={18} />
           </Button>
 
@@ -169,7 +167,7 @@ function NewProjectDialog({ onCreated }: { onCreated: () => void }) {
       name: formData.name,
       size: "0 MB",
       thumbnail: formData.thumbnail ?? DEFAULT_THUMBNAIL,
-      lastVisitedOn: new Date().toString(),
+      lastAccessed: new Date().toString(),
       lastModifiedOn: new Date().toString(),
       startDate: formData.startDate,
       endDate: formData.endDate,
@@ -284,8 +282,7 @@ function NewProjectDialog({ onCreated }: { onCreated: () => void }) {
           {/* Submit */}
           <Button
             onClick={handleSubmit}
-            className="bg-[#0f6cbd] text-white w-24 ml-auto"
-          >
+            className="bg-[#0f6cbd] text-white w-24 ml-auto">
             Submit
           </Button>
         </div>
@@ -309,8 +306,7 @@ function GridView({ projects }: { projects: Project[] }) {
         <div
           key={p._id}
           className="bg-white shadow rounded overflow-hidden cursor-pointer"
-          onClick={() => handleProjectClick(p._id)}
-        >
+          onClick={() => handleProjectClick(p._id)}>
           <div className="h-40 bg-gray-200">
             <Image
               src={p.thumbnail || DEFAULT_THUMBNAIL}
@@ -339,8 +335,7 @@ function ListView({ projects }: { projects: Project[] }) {
   const router = useRouter();
 
   const handleProjectClick = (id: any) => {
-    localStorage.setItem("selectedProjectId", id);
-    router.push(`/pages/details`);
+    router.push(`/projects/${id}`);
   };
   return (
     <div className="bg-white shadow rounded">
@@ -356,8 +351,7 @@ function ListView({ projects }: { projects: Project[] }) {
         <div
           key={p._id}
           className="grid grid-cols-[40%_15%_15%_15%_15%] items-center p-3 hover:bg-gray-100 cursor-pointer"
-          onClick={() => handleProjectClick(p._id)}
-        >
+          onClick={() => handleProjectClick(p._id)}>
           <div className="flex items-center gap-2">
             <Image
               src={p.thumbnail || DEFAULT_THUMBNAIL}
@@ -371,8 +365,31 @@ function ListView({ projects }: { projects: Project[] }) {
           </div>
 
           <div>{p.size}</div>
-          <div>{p.lastVisitedOn?.toString()}</div>
-          <div>{p.lastModifiedOn?.toString()}</div>
+          <div>
+            {p.lastAccessed
+              ? new Date(p.lastAccessed).toLocaleString("en-US", {
+                  month: "short",
+                  day: "2-digit",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: true,
+                })
+              : ""}
+          </div>
+
+          <div>
+            {p.lastModifiedOn && !isNaN(new Date(p.lastModifiedOn).getTime())
+              ? new Date(p.lastModifiedOn).toLocaleString("en-US", {
+                  month: "short",
+                  day: "2-digit",
+                  year: "numeric",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  hour12: true,
+                })
+              : "No Date Available"}
+          </div>
 
           <div className="flex justify-end">
             <PopoverProject />

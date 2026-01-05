@@ -65,7 +65,7 @@ type ProjectFormData = z.infer<typeof projectSchema>;
 /* =======================
    Page
 ======================= */
-export default  function ProjectDetailsPage({
+export default function ProjectDetailsPage({
   params,
 }: {
   params: Promise<{ projectId: string }>;
@@ -161,21 +161,22 @@ export default  function ProjectDetailsPage({
   }, []);
   /* ---------- Submit ---------- */
   const onSubmit = async (data: ProjectFormData) => {
-    const id = localStorage.getItem("selectedProjectId");
-    if (!id) return;
-    console.log(data);
+    const projectId = (await params).projectId;
+
+    if (!projectId) return;
 
     setActionLoading(true);
     console.log("SAVE:", data);
-    await put(`/projects/updateProject/${id}`, data);
+    await put(`/projects/updateProject/${projectId}`, data);
     setActionLoading(false);
   };
 
   const leaveProject = async () => {
-    const id = localStorage.getItem("selectedProjectId");
-    if (!id) return;
+    const projectId = (await params).projectId;
+
+    if (!projectId) return;
     setActionLoading(true);
-    const response = await put(`/projects/leaveProject/${id}`);
+    const response = await put(`/projects/leaveProject/${projectId}`);
 
     if (response.success) {
       window.location.href = "/pages/projects";
