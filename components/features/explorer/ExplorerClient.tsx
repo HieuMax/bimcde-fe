@@ -158,7 +158,7 @@ export default function ExplorerClient({ projectId, folderId }: Props) {
 
   const handleNavigate = (item: IFolder | IFile) => {
     if ("mimeType" in item) {
-      window.open((item as IFile).location, "_blank");
+      router.push(`/projects/${projectId}/files/${item._id}`);
     } else {
       router.push(`/projects/${projectId}?folderId=${item._id}`);
     }

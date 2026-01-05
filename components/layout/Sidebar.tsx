@@ -11,7 +11,7 @@ import {
   Users,
 } from "lucide-react";
 import Link from "next/link";
-import { useParams } from "next/navigation"; // 1. Import useParams
+import { useParams, usePathname } from "next/navigation"; // 1. Import useParams
 import { cn } from "@/lib/utils";
 import FolderTree from "@/components/features/explorer/sidebar/FolderTree";
 
@@ -19,6 +19,7 @@ export default function Sidebar() {
   // 2. Lấy projectId từ URL
   const params = useParams();
   const projectId = params?.projectId as string;
+  const pathname = usePathname();
 
   // State để toggle phần Folder Tree
   const [isExplorerExpanded, setIsExplorerExpanded] = useState(true); // Mặc định nên mở explorer
@@ -26,6 +27,8 @@ export default function Sidebar() {
 
   // Nếu không có projectId (ví dụ đang ở trang list projects), có thể hiển thị loading hoặc UI khác
   if (!projectId) return null;
+
+  if (pathname?.includes("/files/")) return null;
 
   return (
     <aside className="w-64 bg-[#004B7D] text-white flex flex-col h-screen border-r border-slate-700 overflow-y-auto scrollbar-thin scrollbar-thumb-white/20">
