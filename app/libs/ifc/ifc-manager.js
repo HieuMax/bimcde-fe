@@ -187,9 +187,14 @@ export class IfcManager {
     }
 
     const tree = await enrichNode(rawTree);
+    const layers = this.buildLayersFromTree(tree);
+    // console.log('Spatial Tree with flags:', tree);
 
-    console.log('Spatial Tree with flags:', tree);
-    return tree;
+    return {
+      tree,
+      layers,
+    };
+    // return tree;
   }
 
   /**
@@ -380,5 +385,106 @@ export class IfcManager {
     subset.visible = !isModelHidden;
 
     this.hiddenSubsets.set(modelID, subset);
+  }
+
+  /**
+   *
+   * LAYER BUILDING FROM SPATIAL TREE
+   *
+   */
+  buildLayersFromTree(tree) {
+    const layerMap = new Map();
+
+    function traverse(node) {
+      const isLeaf = !node.children || node.children.length === 0;
+
+      if (isLeaf && node.properties) {
+        const label = node.type; // ex: IFCWALL - we can refine it
+        const typeId = node.properties?.type; // numeric IFC type id
+
+        if (!label || !typeId) return;
+
+        if (!layerMap.has(typeId)) {
+          layerMap.set(typeId, {
+            label,
+            typeId,
+          });
+        }
+      }
+
+      if (node.children) {
+        node.children.forEach(traverse);
+      }
+    }
+
+    traverse(tree);
+    return Array.from(layerMap.values());
+  }
+
+  async toggleTypeVisibility(modelID, ifcType) {
+    const model = this.ifcModels.find((m) => m.modelID === modelID);
+    if (!model) return;
+
+    await this.initializeAllExpressIDs(modelID);
+
+    const ids = await this.ifcLoader.ifcManager.getAllItemsOfType(modelID, ifcType, false);
+
+    if (!ids || ids.length === 0) return;
+
+    if (!this.hiddenExpressIDs.has(modelID)) {
+      this.hiddenExpressIDs.set(modelID, new Set());
+    }
+
+    const hiddenSet = this.hiddenExpressIDs.get(modelID);
+
+    const isCurrentlyVisible = ids.some((id) => !hiddenSet.has(id));
+
+    if (isCurrentlyVisible) {
+      ids.forEach((id) => hiddenSet.add(id));
+
+      if (this.highlightModelID === modelID && ids.includes(this.highlightExpressID)) {
+        this.removeHighlight();
+      }
+    } else {
+      ids.forEach((id) => hiddenSet.delete(id));
+    }
+
+    this.rebuildSubset(modelID);
+  }
+
+  // This function has yet completed
+  async isolateTypeVisibility(modelID, ifcType) {
+    const model = this.ifcModels.find((m) => m.modelID === modelID);
+    if (!model) return;
+
+    await this.initializeAllExpressIDs(modelID);
+
+    const allIDs = model._allExpressIDs;
+
+    const visibleIDs = await this.ifcLoader.ifcManager.getAllItemsOfType(modelID, ifcType, false);
+
+    if (!visibleIDs || visibleIDs.length === 0) return;
+
+    const hiddenSet = new Set();
+
+    for (const id of allIDs) {
+      if (!visibleIDs.includes(id)) {
+        hiddenSet.add(id);
+      }
+    }
+
+    this.hiddenExpressIDs.set(modelID, hiddenSet);
+
+    if (this.highlightModelID === modelID && !visibleIDs.includes(this.highlightExpressID)) {
+      this.removeHighlight();
+    }
+
+    this.rebuildSubset(modelID);
+  }
+
+  unIsolateModel(modelID) {
+    this.hiddenExpressIDs.delete(modelID);
+    this.removeHighlight();
+    this.rebuildSubset(modelID);
   }
 }
