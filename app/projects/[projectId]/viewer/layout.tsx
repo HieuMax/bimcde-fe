@@ -5,7 +5,7 @@ export default function ViewerLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="w-full min-h-screen bg-[#F3F3F7] overflow-hidden">
+    <div className="w-full h-full min-h-0 flex flex-col bg-[#F3F3F7] overflow-hidden">
       {children}
     </div>
   );
