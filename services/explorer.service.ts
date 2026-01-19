@@ -224,4 +224,33 @@ export const explorerService = {
     const data = await api.get(`/files/${id}`);
     return data;
   },
+  // Tạo view: POST /api/files/:fileId/views
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  createView: async (payload: any) => {
+    const { fileId, ...body } = payload;
+    const res = await api.post(`/files/${fileId}/views`, body);
+    // Backend: { success: true, data: result }
+    // Cần lấy: result
+    return res.data?.data; 
+  },
+
+  getViewsByFile: async (fileId: string) => {
+    const res = await api.get(`/files/${fileId}/views`);
+    // Backend: { success: true, data: views }
+    // Cần lấy: views (mảng)
+    return res.data?.data || []; 
+  },
+
+  getViewDetail: async (viewId: string) => {
+    const res = await api.get(`/files/views/${viewId}`);
+    // Backend: { success: true, data: view }
+    return res.data?.data;
+  },
+
+  deleteView: async (viewId: string, userId: string) => {
+    const res = await api.delete(`/files/views/${viewId}`, {
+      data: { userId }
+    });
+    return res.data;
+  }
 };

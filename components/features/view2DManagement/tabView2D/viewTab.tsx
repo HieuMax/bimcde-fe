@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { Camera } from 'lucide-react';
-import { ViewItem } from '@/app/types/api';
+import { useState } from "react";
+import { Camera } from "lucide-react";
+import { ViewItem } from "@/types/viewType";
 
 type ViewsTabProps = {
   views: ViewItem[];
@@ -17,11 +17,11 @@ export default function ViewsTab({
   onSelectView,
   onCreateView,
 }: ViewsTabProps) {
-  const [filter, setFilter] = useState<'all' | 'mine'>('all');
+  const [filter, setFilter] = useState<"all" | "mine">("all");
 
   const filtered =
-    filter === 'mine'
-      ? views.filter(v => v.assignedTo === currentUser)
+    filter === "mine"
+      ? views.filter((v) => v.assignedTo === currentUser)
       : views;
 
   return (
@@ -46,7 +46,7 @@ export default function ViewsTab({
           className="w-full rounded border border-gray-300 px-2 py-1
                      text-xs focus:outline-none focus:border-blue-500"
           value={filter}
-          onChange={e => setFilter(e.target.value as 'all' | 'mine')}
+          onChange={(e) => setFilter(e.target.value as "all" | "mine")}
         >
           <option value="all">All views</option>
           <option value="mine">Created by me</option>
@@ -55,9 +55,11 @@ export default function ViewsTab({
 
       <div className="flex-1 overflow-y-auto p-2">
         {filtered.length === 0 ? (
-           <div className="text-center text-gray-400 text-xs mt-10">No views found</div>
+          <div className="text-center text-gray-400 text-xs mt-10">
+            No views found
+          </div>
         ) : (
-          filtered.map(v => (
+          filtered.map((v) => (
             <div
               key={v._id}
               onClick={() => onSelectView(v)}
@@ -71,7 +73,9 @@ export default function ViewsTab({
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  <div className="w-full h-full flex items-center justify-center text-[8px] text-gray-400">No Img</div>
+                  <div className="w-full h-full flex items-center justify-center text-[8px] text-gray-400">
+                    No Img
+                  </div>
                 )}
               </div>
               <div className="flex-1 min-w-0">
@@ -79,7 +83,9 @@ export default function ViewsTab({
                   {v.name}
                 </div>
                 <div className="text-[10px] text-gray-400">
-                  {v.assignedTo === currentUser ? 'Me' : v.assignedTo || 'Unknown'}
+                  {v.assignedTo === currentUser
+                    ? "Me"
+                    : v.assignedTo || "Unknown"}
                 </div>
               </div>
             </div>

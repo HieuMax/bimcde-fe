@@ -1,22 +1,19 @@
-'use client';
-import dynamic from 'next/dynamic';
-import FileDetailTab from './tabView2D/detailTab';
-import TodosTab from './tabView2D/todoTab';
-import ViewsTab from './tabView2D/viewTab';
+"use client";
+import dynamic from "next/dynamic";
+import FileDetailTab from "./tabView2D/detailTab";
+import TodosTab from "./tabView2D/todoTab";
+import ViewsTab from "./tabView2D/viewTab";
 
-import {
-  FileItem,
-  ViewItem,
-  TodoItem,
-  PageItem,
-} from '@/app/types/api';
-const PagesTab = dynamic(() => import('./tabView2D/pageTab'), { 
+import { FileItem, ViewItem, TodoItem, PageItem } from "@/app/types/api";
+const PagesTab = dynamic(() => import("./tabView2D/pageTab"), {
   ssr: false,
-  loading: () => <div className="p-4 text-xs text-gray-400">Loading sidebar...</div>
+  loading: () => (
+    <div className="p-4 text-xs text-gray-400">Loading sidebar...</div>
+  ),
 });
-const CURRENT_USER = { name: 'hao nguyen' };
+const CURRENT_USER = { name: "hao nguyen" };
 
-type ActiveTool = 'filedetail' | 'page' | 'view' | 'todo';
+type ActiveTool = "filedetail" | "page" | "view" | "todo";
 
 type LeftPanelData = {
   file?: FileItem | null;
@@ -31,10 +28,8 @@ type LeftPanelBodyProps = {
   activeTool: ActiveTool;
   data: LeftPanelData;
 
-  // --- SỬA LẠI DÒNG NÀY ---
-  // Đổi từ (src, index) thành (item: PageItem) để khớp với PagesTab mới
-  onSelectPage: (item: PageItem) => void; 
-  
+  onSelectPage: (item: PageItem) => void;
+
   onSelectView: (view: ViewItem) => void;
   onSelectTodo: (todo: TodoItem) => void;
 
@@ -51,23 +46,23 @@ export default function LeftPanelBody({
   onCreateView,
   onCreateTodo,
 }: LeftPanelBodyProps) {
-
   switch (activeTool) {
-    case 'filedetail':
-      return <FileDetailTab file={data.file ?? null} view={data.view ?? null} />;
+    case "filedetail":
+      return (
+        <FileDetailTab file={data.file ?? null} view={data.view ?? null} />
+      );
 
-    case 'page':
+    case "page":
       return (
         <PagesTab
           pages={data.pages}
           currentPageIndex={data.pageIndex}
-          // Truyền hàm callback đã sửa type xuống
           onSelectPage={onSelectPage}
           pdfUrl={data.file?.fileUrl}
         />
       );
 
-    case 'view':
+    case "view":
       return (
         <ViewsTab
           views={data.views}
@@ -77,7 +72,7 @@ export default function LeftPanelBody({
         />
       );
 
-    case 'todo':
+    case "todo":
       return (
         <TodosTab
           todos={data.todos}

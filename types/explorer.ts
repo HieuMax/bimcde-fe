@@ -2,6 +2,24 @@ import { ITag } from "./tag";
 
 export type ViewMode = "list" | "grid";
 
+export type ToolType = "cursor" | "hand" | "pentagon" | "cloud" | "rectangle" | "circle" | "pencil" | "arrow";
+
+export interface IPoint {
+  x: number;
+  y: number;
+}
+
+export interface IAnnotation {
+  id: string;
+  type: ToolType;
+  color: string;
+  x?: number;
+  y?: number;
+  w?: number;
+  h?: number;
+  points?: IPoint[];
+}
+
 export interface IFolderVersion {
   version: number;
   name: string;

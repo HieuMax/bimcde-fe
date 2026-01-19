@@ -1,13 +1,13 @@
-'use client';
+"use client";
+import { useMemo } from "react";
+import dynamic from "next/dynamic";
+import ImageViewer from "./imageViewer";
+import { FileItem } from "@/types/api";
+import { ToolType, IAnnotation } from "@/types/explorer";
 
-import { FileItem } from '@/app/types/api';
-import dynamic from 'next/dynamic';
-import ImageViewer from './imageViewer'; 
-import { useMemo } from 'react';
-
-const PdfViewerClient = dynamic(() => import('./PdfViewer'), {
+const PdfViewerClient = dynamic(() => import("./PdfViewer"), {
   ssr: false,
-  loading: () => <div className="flex-1 bg-gray-700 flex items-center justify-center text-white">Loading PDF...</div>
+  loading: () => <div className="text-white">Loading PDF...</div>,
 });
 
 interface FileViewportProps {
@@ -20,64 +20,58 @@ interface FileViewportProps {
   onRotate: (d: number) => void;
   onPrev: () => void;
   onNext: () => void;
+
+  // New Props
+  activeTool: ToolType;
+  annotations: IAnnotation[];
+  onAnnotationsChange: (anns: IAnnotation[]) => void;
 }
 
-export default function FileViewport({
-  file,
-  currentSrc,
-  pageIndex,
-  zoom,
-  rotate,
-  onZoom,
-  onRotate,
-  onPrev,
-  onNext,
-}: FileViewportProps) {
-  
-  // LOGIC URL & CACHE BUSTING
+export default function FileViewport(props: FileViewportProps) {
   const { viewType, finalUrl, uniqueKey } = useMemo(() => {
-
-    const isImageMode = currentSrc && !currentSrc.toLowerCase().endsWith('.pdf');
-    
-    const rawUrl = isImageMode ? currentSrc : (file?.fileUrl ?? currentSrc ?? '');
-
+    const isImageMode =
+      props.currentSrc && !props.currentSrc.toLowerCase().endsWith(".pdf");
+    const rawUrl = isImageMode
+      ? props.currentSrc
+      : props.file?.fileUrl ?? props.currentSrc ?? "";
     return {
-      viewType: isImageMode ? 'IMAGE' : 'PDF',
+      viewType: isImageMode ? "IMAGE" : "PDF",
       finalUrl: rawUrl,
-      uniqueKey: `${rawUrl}-${pageIndex}`
+      uniqueKey: `${rawUrl}-${props.pageIndex}`,
     };
-  }, [file, currentSrc, pageIndex]);
+  }, [props.file, props.currentSrc, props.pageIndex]);
 
-  // CASE 1: IMAGE VIEWER (Ưu tiên)
-  if (viewType === 'IMAGE') {
+  // IMAGE MODE: Nhúng Annotation
+  if (viewType === "IMAGE") {
     return (
-      <ImageViewer
-        key={uniqueKey}
-        src={finalUrl}
-        zoom={zoom}
-        rotate={rotate}
-        pageIndex={pageIndex}
-        totalPages={1}
-        onZoom={onZoom}
-        onRotate={onRotate}
-        onPrev={onPrev}
-        onNext={onNext}
-      />
+      <ImageViewer key={uniqueKey} src={finalUrl} {...props} totalPages={1} />
     );
   }
 
-  // CASE 2: PDF VIEWER
-  if (finalUrl && finalUrl.length > 10) { 
+  // PDF MODE:
+  // Lưu ý: Nếu muốn vẽ lên PDF, bạn cần bọc PdfViewer trong 1 div relative
+  // và đặt AnnotationLayer (Canvas) đè lên trên.
+  // Tuy nhiên PDF rất khó scale canvas khớp với PDF renderer (canvas vs svg/canvas của pdfjs).
+  // Tạm thời chỉ hỗ trợ xem PDF hoặc logic vẽ lên PDF cần PdfViewer render ra ảnh từng trang.
+  if (finalUrl && finalUrl.length > 10) {
     return (
-      <div className='flex-1 relative w-full h-full bg-gray-700'>
-        <PdfViewerClient 
-          key={uniqueKey} 
+      <div className="flex-1 relative w-full h-full bg-gray-700">
+        <PdfViewerClient
+          key={uniqueKey}
           src={finalUrl}
-          currentPageIndex={pageIndex} 
+          currentPageIndex={props.pageIndex}
         />
+        {/* NẾU MUỐN VẼ LÊN PDF: Uncomment và chỉnh CSS absolute overlay */}
+        {/* <div className="absolute inset-0 z-50 pointer-events-none">
+             AnnotationLayer here but needs sync zoom/scroll with PDF Viewer 
+            </div> */}
       </div>
     );
   }
 
-  return <div className="flex-1 bg-gray-200 flex items-center justify-center text-gray-400">Select a document</div>;
+  return (
+    <div className="flex-1 bg-gray-200 flex items-center justify-center text-gray-400">
+      Select a document
+    </div>
+  );
 }

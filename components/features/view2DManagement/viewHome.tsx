@@ -1,29 +1,24 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-
-// --- IMPORT SERVICE MỚI ---
-import { explorerService } from "@/services/explorer.service"; // Import service bạn vừa sửa
-
+import { explorerService } from "@/services/explorer.service";
 import LeftPanelTool from "./leftPanelTool";
 import LeftPanelBody from "./leftPanelBody";
-
+import FileViewport from "./viewPort";
+import { pdfjs } from "react-pdf";
 import ViewDetailPanel from "./tabView2D/properties2DView/viewProperties";
 import TodoDetailPanel from "./tabView2D/properties2DView/todoProperties";
-import CreateViewPanel from "./createModel/createView";
+import CreateViewPanel, { CreateViewFormData } from "./createModel/createView";
 import CreateTodoPanel from "./createModel/createTodo";
-import FileViewport from "./viewPort";
+import type { FileItem, ViewItem, TodoItem, PageItem } from "@/types/viewType";
+import { ToolType, IAnnotation } from "@/types/explorer";
+import { toast } from "sonner";
 
-import { pdfjs } from "react-pdf";
-
-// Config worker cho PDF
 if (typeof window !== "undefined") {
   pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 }
-
-// --- IMPORT TYPES ---
-import type { FileItem, ViewItem, TodoItem, PageItem } from "@/types/api";
 
 type RightPanelState =
   | { type: "viewDetail"; data: ViewItem }
@@ -32,21 +27,23 @@ type RightPanelState =
   | { type: "createTodo" }
   | null;
 
-type ActiveTool = "filedetail" | "page" | "view" | "todo";
+type ActiveTab = "filedetail" | "page" | "view" | "todo";
 
 /* ========= COMPONENT ========= */
 
 export default function DetailView2D({
   mode = "view",
   fileId,
-  onLoaded, // Callback để báo cho trang cha biết đã load xong (để set tên trên toolbar)
+  onLoaded,
+  activeTool,
+  onToolSelect,
 }: {
   mode?: "view" | "file";
   fileId?: string;
   onLoaded?: (file: FileItem) => void;
+  activeTool: ToolType;
+  onToolSelect?: (tool: ToolType) => void;
 }) {
-  // Lấy params từ URL: /projects/[projectId]/viewer/[viewId]
-  // Lưu ý: viewId ở đây chính là ID của file cần lấy chi tiết
   const params = useParams() as { projectId: string; viewId: string };
 
   const [file, setFile] = useState<FileItem | null>(null);
@@ -61,8 +58,10 @@ export default function DetailView2D({
   const [currentSrc, setCurrentSrc] = useState<string | null>(null);
   const [pageIndex, setPageIndex] = useState<number>(1);
 
-  const [activeTool, setActiveTool] = useState<ActiveTool>(
-    mode === "file" ? "page" : "view"
+  const [annotations, setAnnotations] = useState<IAnnotation[]>([]);
+
+  const [activeTab, setActiveTab] = useState<ActiveTab>(
+    mode === "file" ? "page" : "view",
   );
 
   const [isLeftPanelOpen, setIsLeftPanelOpen] = useState<boolean>(true);
@@ -74,52 +73,75 @@ export default function DetailView2D({
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Helper: Đếm số trang PDF
   const getPdfTotalPages = async (url: string) => {
     try {
       const loadingTask = pdfjs.getDocument(url);
       const pdf = await loadingTask.promise;
       return pdf.numPages;
-    } catch (error) {
-      console.error("Lỗi đếm trang PDF:", error);
+    } catch {
       return 1;
     }
   };
 
-  /* ===== sync active tool ===== */
   useEffect(() => {
-    setActiveTool(mode === "file" ? "page" : "view");
+    setActiveTab(mode === "file" ? "page" : "view");
   }, [mode]);
 
-  /* ===== LOAD DATA ===== */
   useEffect(() => {
     async function load() {
       try {
         setLoading(true);
         setError(null);
+        // ID được truyền vào từ Page
+        const incomingId = fileId || params.viewId;
+        if (!incomingId) throw new Error("Missing ID");
 
-        // 1. Xác định ID file cần fetch
-        // Ưu tiên props fileId truyền vào, nếu không thì lấy params.viewId từ URL
-        const targetId = fileId || params.viewId;
+        let targetFileId = incomingId;
+        let initialViewData: ViewItem | null = null;
 
-        if (!targetId) {
-          throw new Error("Missing File ID (viewId)");
+        // --- LOGIC MỚI: XỬ LÝ DỰA VÀO MODE ---
+        if (mode === "view") {
+          try {
+            const viewData = await explorerService.getViewDetail(incomingId);
+            if (!viewData) throw new Error("View not found");
+
+            initialViewData = viewData;
+            targetFileId = viewData.fileId;
+
+            // Setup trạng thái từ View
+            if (viewData.viewportState) {
+              const vp =
+                typeof viewData.viewportState === "string"
+                  ? JSON.parse(viewData.viewportState)
+                  : viewData.viewportState;
+
+              setZoom(vp.zoom || 1);
+              setRotate(vp.rotate || 0);
+              setPageIndex(vp.pageIndex || 1);
+            }
+            if (viewData.annotations) {
+              const ann =
+                typeof viewData.annotations === "string"
+                  ? JSON.parse(viewData.annotations)
+                  : viewData.annotations;
+              setAnnotations(ann);
+            }
+            setSelectedView(viewData);
+          } catch (err) {
+            // throw new Error("Cannot load view details");
+          }
         }
 
-        // 2. Gọi API Service mới
-        const response: any = await explorerService.getFileDetail(targetId);
-        // Xử lý trường hợp response trả về nguyên cục data hoặc bọc trong .data
-        const rawData = response.data || response;
+        // 2. Load thông tin File (Dù là mode nào cũng cần File)
+        const fileRes: any = await explorerService.getFileDetail(targetFileId);
+        // Do explorerService cũ của bạn có thể trả về res.json(file) trực tiếp
+        const rawData = fileRes.data || fileRes;
 
-        if (!rawData) throw new Error("No data returned");
-
-        // 3. Mapping Data (Quan trọng)
-        // API cũ trả về object phẳng, API mới trả về versions[].
-        // Cần lấy location từ version hiện tại để làm fileUrl.
+        if (!rawData) throw new Error("File not found");
 
         const currentVer =
           rawData.versions?.find(
-            (v: any) => v.version === rawData.currentVersion
+            (v: any) => v.version === rawData.currentVersion,
           ) || rawData.versions?.[0];
         const fileUrl = currentVer?.location || "";
         const mimeType = currentVer?.mimeType || "";
@@ -130,35 +152,41 @@ export default function DetailView2D({
           projectId: rawData.projectId,
           fileUrl: fileUrl,
           fileType: mimeType.toLowerCase().includes("pdf") ? "PDF" : "IMAGE",
-          previewSrc: fileUrl, // Dùng luôn link gốc để preview
+          previewSrc: fileUrl,
           uploadedBy: currentVer?.uploadedBy,
           createdAt: rawData.createdAt,
-          // Map thêm các trường khác nếu cần
         } as unknown as FileItem;
 
-        // 4. Set State và Callback
         setFile(mappedFile);
-        setCurrentSrc(mappedFile.previewSrc || mappedFile.fileUrl || null);
 
-        // Gọi callback để update Toolbar ở trang cha
-        if (onLoaded) {
-          onLoaded(mappedFile);
+        // Nếu là load View thì dùng ảnh của View (nếu có), không thì dùng ảnh gốc
+        if (mode === "view" && initialViewData?.previewSrc) {
+          // Có thể giữ nguyên logic previewSrc
+        } else {
+          setCurrentSrc(mappedFile.previewSrc || mappedFile.fileUrl || null);
         }
 
-        // Hiện tại chưa có API lấy Views/Todos trong service mới, set rỗng để tránh lỗi
-        setViews([]);
-        setTodos([]);
+        if (onLoaded) onLoaded(mappedFile);
 
-        /* ===== DERIVE PAGES (Tách trang PDF hoặc Ảnh) ===== */
+        // 3. Load danh sách Views của File này
+        try {
+          // Service đã sửa return res.data.data -> Trả về mảng
+          const apiViews = await explorerService.getViewsByFile(targetFileId);
+          setViews(Array.isArray(apiViews) ? apiViews : []);
+        } catch (err) {
+          console.warn("Failed to load views", err);
+          setViews([]);
+        }
+
+        // ... Logic xử lý Pages giữ nguyên ...
         let derivedPages: PageItem[] = [];
-
+        // (Copy đoạn logic PDF/Image pages cũ vào đây)
         if (
           mappedFile.fileType === "PDF" ||
           mappedFile.fileUrl?.toLowerCase().endsWith(".pdf")
         ) {
-          const total = mappedFile.fileUrl
-            ? await getPdfTotalPages(mappedFile.fileUrl)
-            : 1;
+          // ... giữ nguyên code cũ
+          const total = await getPdfTotalPages(mappedFile.fileUrl!); // ! vì check trên rồi
           derivedPages = Array.from({ length: total }).map((_, i) => ({
             _id: `${mappedFile._id}-page-${i + 1}`,
             index: i + 1,
@@ -167,7 +195,7 @@ export default function DetailView2D({
             source: "pdf",
           }));
         } else {
-          // Mặc định cho file ảnh đơn
+          // ... giữ nguyên code cũ
           derivedPages = [
             {
               _id: mappedFile._id,
@@ -178,215 +206,152 @@ export default function DetailView2D({
             },
           ];
         }
-
         setPages(derivedPages);
-        setPageIndex(1);
+
+        // Nếu không phải load view thì reset pageIndex về 1
+        if (mode !== "view") {
+          setPageIndex(1);
+        }
       } catch (e) {
-        console.error("Load detail failed:", e);
+        console.error(e);
         setError((e as Error).message);
       } finally {
         setLoading(false);
       }
     }
-
     load();
   }, [mode, fileId, params.viewId]);
 
-  // Logic reload pages khi chọn file từ danh sách (Sidebar)
-  useEffect(() => {
-    if (activeTool !== "page") return;
-    if (selectedView?.previewSrc) return;
-    if (!selectedFile) return;
+  const handleSelectView = async (v: ViewItem) => {
+    setSelectedView(v);
+  };
 
-    async function reLoadPagesForPageTab() {
-      if (
-        selectedFile?.fileType !== "PDF" &&
-        !selectedFile?.fileUrl?.toLocaleLowerCase().endsWith(".pdf")
-      ) {
-        setPages([
-          {
-            _id: selectedFile?._id || "",
-            index: 1,
-            imageSrc: currentSrc ?? "",
-            fileId: selectedFile?._id || "",
-          },
-        ]);
-        setPageIndex(1);
-        return;
-      }
-      const total = await getPdfTotalPages(selectedFile.fileUrl!);
-      const derivedPages: PageItem[] = Array.from({ length: total }).map(
-        (_, i) => ({
-          _id: `${selectedFile._id}-page-${i + 1}`,
-          index: i + 1,
-          pageNumber: i + 1,
-          fileId: selectedFile._id,
-        })
-      );
+  // --- LOGIC LƯU VIEW (QUAN TRỌNG) ---
+  const handleSaveNewView = async (formData: CreateViewFormData) => {
+    if (!file) return;
 
-      setPages(derivedPages);
-      setPageIndex((prev) => Math.min(prev, derivedPages.length));
+    const sharedVal = formData.sharedWith.trim();
+
+    try {
+      const payload = {
+        name: formData.title,
+        description: formData.description,
+        sharedWith: sharedVal,
+
+        fileId: file._id,
+        projectId: params.projectId,
+
+        annotations: JSON.stringify(annotations),
+        viewportState: JSON.stringify({
+          zoom,
+          rotate,
+          pageIndex,
+        }),
+        previewSrc: currentSrc ?? undefined,
+      };
+      const newView = await explorerService.createView(payload);
+
+      setViews((prev) => [newView, ...prev]);
+
+      toast.success("View saved successfully!");
+
+      setRightPanel(null);
+      setIsLeftPanelOpen(true);
+      setActiveTab("view");
+    } catch (err: any) {
+      console.error("Failed to save view:", err);
+      toast.error(err.response?.data?.message || "Failed to save view");
     }
-    reLoadPagesForPageTab();
-  }, [activeTool, selectedFile, selectedView, currentSrc]);
+  };
 
-  /* ===== RENDER STATES ===== */
-  if (loading) {
+  if (loading)
     return (
-      <div className="flex items-center justify-center h-full text-gray-500">
-        Loading 2D Management...
-      </div>
+      <div className="flex h-full items-center justify-center">Loading...</div>
     );
-  }
+  if (error) return <div className="p-6 text-red-600">{error}</div>;
 
-  if (error) {
-    return <div className="p-6 text-red-600">{error}</div>;
-  }
-
-  /* ===== UI ===== */
   return (
-    <div
-      className="flex h-full w-full overflow-hidden"
-      style={{ height: "calc(100vh - 120px)" }}
-    >
-      <LeftPanelTool
-        activeKey={activeTool}
-        viewCount={views.length}
-        onClick={(key) => {
-          const tool = key as ActiveTool;
-          if (tool === activeTool) {
-            setIsLeftPanelOpen((prev) => !prev);
-          } else {
-            setActiveTool(tool);
-            setIsLeftPanelOpen(true);
-          }
-          setRightPanel(null);
-        }}
-      />
+    <div className="flex h-full w-full overflow-hidden flex-col">
+      <div className="flex-1 h-full flex overflow-hidden relative">
+        <LeftPanelTool
+          activeKey={activeTab}
+          viewCount={views.length}
+          onClick={(key) => {
+            const tab = key as ActiveTab;
+            if (tab === activeTab) setIsLeftPanelOpen(!isLeftPanelOpen);
+            else {
+              setActiveTab(tab);
+              setIsLeftPanelOpen(true);
+            }
+            setRightPanel(null);
+          }}
+        />
 
-      {isLeftPanelOpen && (
-        <div className="w-72 border-r border-gray-300 bg-white">
-          <LeftPanelBody
-            activeTool={activeTool}
-            data={{
-              file: selectedFile || file,
-              view: selectedView,
-              pages,
-              pageIndex,
-              views,
-              todos,
-            }}
-            onSelectPage={(item: PageItem) => {
-              setPageIndex(item.pageNumber ?? item.index);
-              if (item.imageSrc) setCurrentSrc(item.imageSrc);
-              else setCurrentSrc(null);
-            }}
-            onSelectView={async (v) => {
-              // Xử lý khi chọn View (nếu sau này có dữ liệu views)
-              setSelectedView(v);
-              setSelectedTodo(null);
+        {isLeftPanelOpen && (
+          <div className="w-72 border-r h-full border-gray-300 bg-white shrink-0">
+            <LeftPanelBody
+              activeTool={activeTab}
+              data={{
+                file: selectedFile || file,
+                view: selectedView,
+                pages,
+                pageIndex,
+                views,
+                todos,
+              }}
+              onSelectPage={(item) => {
+                setPageIndex(item.pageNumber ?? item.index);
+                setCurrentSrc(item.imageSrc || null);
+              }}
+              onSelectView={handleSelectView}
+              onSelectTodo={() => {}}
+              onCreateView={() => setRightPanel({ type: "createView" })}
+              onCreateTodo={() => setRightPanel({ type: "createTodo" })}
+            />
+          </div>
+        )}
 
-              let fileData: FileItem;
+        <FileViewport
+          file={selectedFile || file}
+          currentSrc={currentSrc}
+          pageIndex={pageIndex}
+          zoom={zoom}
+          rotate={rotate}
+          // Truyền props activeTool từ Page -> ViewHome -> ViewPort
+          activeTool={activeTool}
+          annotations={annotations}
+          onAnnotationsChange={setAnnotations}
+          onZoom={(d) => setZoom((z) => Math.max(0.1, Math.min(5, z + d)))}
+          onRotate={(d) => setRotate((r) => (r + d) % 360)}
+          onPrev={() => setPageIndex((p) => Math.max(1, p - 1))}
+          onNext={() => setPageIndex((p) => Math.min(pages.length, p + 1))}
+        />
 
-              // Kiểm tra xem ID là object hay string
-              if (typeof v.fileId === "object" && v.fileId !== null) {
-                fileData = v.fileId as unknown as FileItem;
-              } else {
-                // Gọi API lấy thông tin file từ ID
-                const res: any = await explorerService.getFileDetail(
-                  v.fileId as string
-                );
-                const raw = res.data || res;
-                const ver =
-                  raw.versions?.find(
-                    (x: any) => x.version === raw.currentVersion
-                  ) || raw.versions?.[0];
-
-                fileData = {
-                  _id: raw._id,
-                  name: raw.name,
-                  projectId: raw.projectId,
-                  fileUrl: ver?.location || "",
-                  fileType: ver?.mimeType?.includes("pdf") ? "PDF" : "IMAGE",
-                  previewSrc: ver?.location,
-                } as unknown as FileItem;
-              }
-
-              setSelectedFile(fileData);
-
-              const snapshot = v.previewSrc ?? null;
-              setCurrentSrc(snapshot);
-              setPages([
-                {
-                  _id: v._id,
-                  index: 1,
-                  imageSrc: snapshot ?? "",
-                  fileId: fileData._id,
-                  source: "view",
-                },
-              ]);
-
-              setPageIndex(1);
-              setRightPanel({ type: "viewDetail", data: v });
-            }}
-            onSelectTodo={(t) => {
-              setSelectedTodo(t);
-              setSelectedView(null);
-              setSelectedFile(null);
-
-              if (t.relatedImage) {
-                setCurrentSrc(t.relatedImage);
-              }
-
-              setRightPanel({ type: "todoDetail", data: t });
-            }}
-            onCreateView={() => setRightPanel({ type: "createView" })}
-            onCreateTodo={() => setRightPanel({ type: "createTodo" })}
+        {rightPanel?.type === "viewDetail" && (
+          <ViewDetailPanel
+            view={rightPanel.data}
+            onClose={() => setRightPanel(null)}
           />
-        </div>
-      )}
-
-      <FileViewport
-        file={selectedFile || file}
-        currentSrc={currentSrc}
-        pageIndex={pageIndex}
-        zoom={zoom}
-        rotate={rotate}
-        onZoom={(d: number) =>
-          setZoom((z) => Math.max(0.2, Math.min(3, z + d)))
-        }
-        onRotate={(d: number) => setRotate((r) => (r + d) % 360)}
-        onPrev={() => setPageIndex((p) => Math.max(1, p - 1))}
-        onNext={() => setPageIndex((p) => Math.min(pages.length, p + 1))}
-      />
-
-      {rightPanel?.type === "viewDetail" && (
-        <ViewDetailPanel
-          view={rightPanel.data}
-          onClose={() => setRightPanel(null)}
-        />
-      )}
-
-      {rightPanel?.type === "todoDetail" && (
-        <TodoDetailPanel
-          todo={rightPanel.data}
-          onClose={() => setRightPanel(null)}
-        />
-      )}
-
-      {rightPanel?.type === "createView" && (
-        <CreateViewPanel
-          onClose={() => setRightPanel(null)}
-          onSave={() => setRightPanel(null)}
-        />
-      )}
-
-      {rightPanel?.type === "createTodo" && (
-        <CreateTodoPanel
-          onClose={() => setRightPanel(null)}
-          onSave={() => setRightPanel(null)}
-        />
-      )}
+        )}
+        {rightPanel?.type === "todoDetail" && (
+          <TodoDetailPanel
+            todo={rightPanel.data}
+            onClose={() => setRightPanel(null)}
+          />
+        )}
+        {rightPanel?.type === "createView" && (
+          <CreateViewPanel
+            onClose={() => setRightPanel(null)}
+            onSave={handleSaveNewView}
+          />
+        )}
+        {rightPanel?.type === "createTodo" && (
+          <CreateTodoPanel
+            onClose={() => setRightPanel(null)}
+            onSave={() => setRightPanel(null)}
+          />
+        )}
+      </div>
     </div>
   );
 }
