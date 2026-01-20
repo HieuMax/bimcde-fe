@@ -1,18 +1,20 @@
 'use client';
 
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams, useRouter, useParams } from 'next/navigation';
 import React, { useEffect, useMemo } from 'react';
 import IfcViewer from '@/app/components/ifcs/IfcViewer';
-import { Box, Layers } from 'lucide-react';
+import { Box, Layers, ClipboardCheck } from 'lucide-react';
 
 export default function ViewerClient() {
   const router = useRouter();
+  const { projectId } = useParams()
   const searchParams = useSearchParams();
 
   const [state, setState] = React.useState('models');
   const ctaBtn = [
     { icon: <Box />, label: 'models' },
     { icon: <Layers />, label: 'layers' },
+    { icon: <ClipboardCheck />, label: 'todos' },
   ];
 
   const ifcUrls = useMemo(() => {
@@ -29,7 +31,7 @@ export default function ViewerClient() {
   useEffect(() => {
     if (!ifcUrls.length) return;
 
-    router.replace('/viewer', { scroll: false });
+    router.replace(`/projects/${projectId}/viewer3d`, { scroll: false });
   }, [ifcUrls, router]);
 
   return (
@@ -60,7 +62,10 @@ export default function ViewerClient() {
         </div>
       </div>
       <div className="w-full h-full overflow-hidden">
-        <IfcViewer ifcUrls={ifcUrls} state={state} />
+        <IfcViewer
+          ifcUrls={ifcUrls}
+          state={state}
+          projectId={projectId} />
       </div>
     </div>
   );
