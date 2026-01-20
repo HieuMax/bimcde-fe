@@ -10,14 +10,13 @@ import {
   EyeOff,
   ChevronDown,
   ChevronRight,
-  ChevronLeft,
   Info,
   EllipsisVertical,
 } from 'lucide-react';
 import './ifc.css';
 import LoadingBar from '../LoadingBar';
 
-export default function IfcViewer({ ifcUrls, state, projectId }) {
+export default function IfcViewer({ ifcUrls, state, projectId, isCollapsed }) {
   const canvasRef = useRef(null);
   const loaderRef = useRef(null);
   const sceneRef = useRef(null);
@@ -34,7 +33,7 @@ export default function IfcViewer({ ifcUrls, state, projectId }) {
   const EXPANDED_WIDTH = 400;
   const COLLAPSED_WIDTH = 250;
 
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  // const [isCollapsed, setIsCollapsed] = useState(false);
 
   const mouseDownPos = useRef({ x: 0, y: 0 });
   const isDragging = useRef(false);
@@ -43,34 +42,6 @@ export default function IfcViewer({ ifcUrls, state, projectId }) {
   const [models, setModels] = useState([]);
 
   const [hiddenLayers, setHiddenLayers] = useState(new Set());
-
-  // Todo list
-  // const [todos, setTodos] = useState<Todo[]>([])
-  // const [isOpen, setIsOpen] = useState(false)
-  // const [selectedTodoId, setSelectedTodoId] = useState<string | undefined>()
-
-  // const selectedTodo = todos.find((todo) => todo.id === selectedTodoId)
-
-  // const handleAddTodo = (newTodo: Omit<Todo, 'id'>) => {
-  //   const todo: Todo = {
-  //     ...newTodo,
-  //     id: Date.now().toString(),
-  //   }
-  //   setTodos([...todos, todo])
-  //   setSelectedTodoId(todo.id)
-  //   setIsOpen(false)
-  // }
-
-  // const handleDeleteTodo = (id: string) => {
-  //   setTodos(todos.filter((todo) => todo.id !== id))
-  //   if (selectedTodoId === id) {
-  //     setSelectedTodoId(undefined)
-  //   }
-  // }
-
-  // const handleUpdateTodo = (id: string, updatedTodo: Omit<Todo, 'id'>) => {
-  //   setTodos(todos.map((todo) => (todo.id === id ? { ...updatedTodo, id } : todo)))
-  // }
 
   useEffect(() => {
     if (!ifcUrls?.length || !canvasRef.current) return;
@@ -223,20 +194,6 @@ export default function IfcViewer({ ifcUrls, state, projectId }) {
               transition: 'width 0.25s ease',
             }}
           >
-            <div className="flex justify-between items-center">
-              {/* <h3>{state == 'models' ? 'Selected Models' : 'Layers'}</h3>
-              <span>
-                {isCollapsed ? (
-                  <ChevronRight
-                    style={{ cursor: 'pointer' }}
-                    onClick={() => setIsCollapsed(false)}
-                  />
-                ) : (
-                  <ChevronLeft style={{ cursor: 'pointer' }} onClick={() => setIsCollapsed(true)} />
-                )}
-              </span> */}
-            </div>
-
             {/* Model */}
             {state == 'models' &&
               models.map((m, idx) => {
@@ -506,10 +463,10 @@ export default function IfcViewer({ ifcUrls, state, projectId }) {
               <>
                 <TodoList
                   projectId={projectId}
-                  // todos={todos}
-                  // selectedTodoId={selectedTodoId}
-                  // onSelectTodo={setSelectedTodoId}
-                  // onAddTodo={() => setIsOpen(true)}
+                // todos={todos}
+                // selectedTodoId={selectedTodoId}
+                // onSelectTodo={setSelectedTodoId}
+                // onAddTodo={() => setIsOpen(true)}
                 />
               </>
             }
