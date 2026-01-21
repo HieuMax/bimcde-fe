@@ -23,10 +23,18 @@ interface NewTodoDrawerProps {
   projectId: string
   todoToEdit?: ITodo | null
   mode: "view" | "edit" | "create"
+  initialData?: {
+    items?: {
+      fileUrl: string;
+      modelId: string;
+      expressId: string[];
+    }[];
+    title?: string;
+  } | null;
 }
 
 
-export function NewTodoDrawer({ open, onOpenChange, projectId, todoToEdit, mode }: NewTodoDrawerProps) {
+export function NewTodoDrawer({ open, onOpenChange, projectId, todoToEdit, mode, initialData }: NewTodoDrawerProps) {
   const queryClient = useQueryClient()
 
   // Initial state helper
@@ -39,6 +47,7 @@ export function NewTodoDrawer({ open, onOpenChange, projectId, todoToEdit, mode 
     assignees: "",
     type: "undefined" as "undefined" | "comment" | "issue" | "request" | "fault" | "inquiry" | "solution" | "remark" | "clash",
     tags: "",
+    items: [] as { fileUrl: string; modelId: string; expressId: string[] }[],
   }
 
   const [currentMode, setCurrentMode] = useState(mode)
@@ -79,6 +88,12 @@ export function NewTodoDrawer({ open, onOpenChange, projectId, todoToEdit, mode 
           assignees: todoToEdit.assignees?.join(", ") || "",
           type: (todoToEdit.type as any) || "undefined",
           tags: todoToEdit.tags?.join(", ") || "",
+          items: todoToEdit?.items || [],
+        })
+      } else if (initialData && mode === 'create') {
+        setFormData({
+          ...defaultState,
+          items: initialData?.items || [],
         })
       } else {
         // Reset to default if creating new
@@ -132,7 +147,7 @@ export function NewTodoDrawer({ open, onOpenChange, projectId, todoToEdit, mode 
       .map((t) => t.trim())
       .filter((t) => t.length > 0)
 
-    const payload = {
+    const payload: any = {
       title: formData.title.trim(),
       description: formData.description.trim() || undefined,
       dueDate: formData.dueDate || undefined,
@@ -142,6 +157,11 @@ export function NewTodoDrawer({ open, onOpenChange, projectId, todoToEdit, mode 
       type: formData.type,
       tags: tagsArray.length > 0 ? tagsArray : undefined,
       projectId,
+    }
+
+    if (!todoToEdit) {
+      // For create, include items
+      payload.items = initialData?.items || [];
     }
 
     if (todoToEdit) {
@@ -457,7 +477,7 @@ const PriorityDot = ({ priority }: { priority: "high" | "normal" | "low" }) => (
 
 interface FieldProps {
   label: string
-  value?: string
+  value?: string | string[]
   children?: React.ReactNode
 }
 
@@ -465,7 +485,7 @@ const ViewField = ({ label, value }: FieldProps) => (
   <div className="space-y-1">
     <Label className="text-xs text-muted-foreground">{label}</Label>
     <div className="text-sm text-foreground min-h-[20px]">
-      {value || <span className="italic text-muted-foreground">—</span>}
+      {Array.isArray(value) ? value.join(', ') : value || <span className="italic text-muted-foreground">—</span>}
     </div>
   </div>
 )

@@ -16,15 +16,17 @@ import {
 import './ifc.css';
 import LoadingBar from '../LoadingBar';
 
-export default function IfcViewer({ ifcUrls, state, projectId, isCollapsed }) {
+export default function IfcViewer({ ifcUrls, state, projectId, isCollapsed, setSelectdItemsForNavbar }) {
   const canvasRef = useRef(null);
   const loaderRef = useRef(null);
   const sceneRef = useRef(null);
 
+  const modelUrlMap = useRef({})
+
   const [isLoading, setIsLoading] = useState(false);
   const [selectedModelIndex, setSelectedModelIndex] = useState(null);
   const [openModel, setOpenModel] = useState({});
-  const [selectedTreePath, setSelectedTreePath] = useState(null);
+  const [selectedTreePaths, setSelectedTreePaths] = useState([]);
   const [selectedItems, setSelectedItems] = useState([]);
   const [hiddenItems, setHiddenItems] = useState({});
   const [openMenuKey, setOpenMenuKey] = useState(null);
@@ -76,9 +78,17 @@ export default function IfcViewer({ ifcUrls, state, projectId, isCollapsed }) {
             const result = loaderRef.current.pick(event, scene.getCamera(), scene.getRenderer());
 
             if (result) {
+              const sourceUrl = modelUrlMap.current[result.modelID]
+              const enrichedItem = { ...result, fileUrl: sourceUrl }
+              if (setSelectdItemsForNavbar) {
+                setSelectdItemsForNavbar([enrichedItem]);
+              }
               setSelectedItems([result]);
             } else {
               setSelectedItems([]);
+              if (setSelectdItemsForNavbar) {
+                setSelectdItemsForNavbar([]);
+              }
             }
           }
         });
@@ -89,12 +99,15 @@ export default function IfcViewer({ ifcUrls, state, projectId, isCollapsed }) {
         for (const url of ifcUrls) {
           loaderRef.current.loadIfcUrl(url).then(async (model) => {
             const modelID = model.modelID;
+
+            modelUrlMap.current[modelID] = url
             const { tree, layers } = await loaderRef.current.getSpatialTree(modelID);
 
             setModels((prev) => [
               ...prev,
               {
-                id: modelID,
+                id: prev.length,
+                ifcModelID: modelID,
                 // name: file.name,
                 name: url.split('/').pop(),
                 tree,
@@ -144,6 +157,32 @@ export default function IfcViewer({ ifcUrls, state, projectId, isCollapsed }) {
       window.dispatchEvent(new Event('resize'));
     }, 250);
   }, [isCollapsed]);
+
+
+  useEffect(() => {
+    if (!selectedTreePaths.length) {
+      setSelectedItems([]);
+      if (setSelectdItemsForNavbar) {
+        setSelectdItemsForNavbar([]);
+      }
+      return;
+    }
+
+    const selectedItemsArray = selectedTreePaths.map(({ modelIndex, expressID }) => {
+      const sourceUrl = modelUrlMap.current[modelIndex];
+      return {
+        modelID: modelIndex,
+        expressID: expressID,
+        fileUrl: sourceUrl
+      };
+    });
+
+    setSelectedItems(selectedItemsArray);
+
+    if (setSelectdItemsForNavbar) {
+      setSelectdItemsForNavbar(selectedItemsArray);
+    }
+  }, [selectedTreePaths]);
 
   const onToggleLayer = (modelId, typeId) => {
     loaderRef.current.toggleTypeVisibility(modelId, typeId);
@@ -197,7 +236,7 @@ export default function IfcViewer({ ifcUrls, state, projectId, isCollapsed }) {
             {/* Model */}
             {state == 'models' &&
               models.map((m, idx) => {
-                const isActive = selectedModelIndex === idx && selectedTreePath == null;
+                const isActive = selectedModelIndex === idx && selectedTreePaths.length === 0;
 
                 return (
                   <div
@@ -211,7 +250,7 @@ export default function IfcViewer({ ifcUrls, state, projectId, isCollapsed }) {
                     }}
                     onClick={() => {
                       setSelectedModelIndex(idx);
-                      setSelectedTreePath(null);
+                      setSelectedTreePaths([]);
                     }}
                     style={{
                       display: 'flex',
@@ -300,11 +339,11 @@ export default function IfcViewer({ ifcUrls, state, projectId, isCollapsed }) {
                       {!isCollapsed && openModel[idx] && (
                         <TreeNode
                           idx={0}
-                          modelId={m.id}
+                          modelId={m.ifcModelID}
                           node={m.tree}
                           onSelect={loaderRef}
-                          selectedTreePath={selectedTreePath}
-                          setSelectedTreePath={setSelectedTreePath}
+                          selectedTreePaths={selectedTreePaths}
+                          setSelectedTreePaths={setSelectedTreePaths}
                         />
                       )}
                     </div>

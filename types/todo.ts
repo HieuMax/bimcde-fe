@@ -7,15 +7,15 @@ export interface ITodo {
   completion: number; // 0-100
   assignees?: string[];
   type:
-    | "undefined"
-    | "comment"
-    | "issue"
-    | "request"
-    | "fault"
-    | "inquiry"
-    | "solution"
-    | "remark"
-    | "clash";
+  | "undefined"
+  | "comment"
+  | "issue"
+  | "request"
+  | "fault"
+  | "inquiry"
+  | "solution"
+  | "remark"
+  | "clash";
   tags?: string[];
   dueDate?: string; // ISO date string
   projectId: string;
@@ -24,6 +24,11 @@ export interface ITodo {
     fullName?: string;
     email?: string;
   };
+  items?: {
+    fileUrl: string;
+    modelId: string;
+    expressId: string[];
+  }[];
   createdAt: string;
   updatedAt: string;
 }
@@ -39,6 +44,11 @@ export interface CreateTodoDto {
   tags?: string[];
   dueDate?: string;
   projectId: string;
+  items?: {
+    fileUrl: string;
+    modelId: string;
+    expressId: string[];
+  }[];
 }
 
 export interface UpdateTodoDto {
@@ -51,4 +61,9 @@ export interface UpdateTodoDto {
   type?: "undefined" | "comment" | "issue" | "request" | "fault" | "inquiry" | "solution" | "remark" | "clash";
   tags?: string[];
   dueDate?: string;
+  items?: {
+    fileUrl: string;
+    modelId: string;
+    expressId: string[];
+  }[];
 }

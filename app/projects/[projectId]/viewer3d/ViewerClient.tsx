@@ -5,6 +5,22 @@ import React, { useEffect, useMemo, useState } from 'react';
 import IfcViewer from '@/app/components/ifcs/IfcViewer';
 import { Box, Layers, ClipboardCheck, ChevronRight, ChevronLeft } from 'lucide-react';
 import { Navbar } from '@/components/layout/navbar/Navbar';
+import { NewTodoDrawer } from '@/components/todos/NewTodoDrawer';
+
+interface SelectedItem {
+  modelID?: string;
+  fileUrl?: string;
+  expressID?: string;
+}
+
+interface NewTodoInitialData {
+  items?: {
+    fileUrl: string;
+    modelId: string;
+    expressId: string[];
+  }[];
+  title?: string;
+}
 
 export default function ViewerClient() {
   const router = useRouter();
@@ -12,6 +28,10 @@ export default function ViewerClient() {
   const searchParams = useSearchParams();
 
   const [state, setState] = React.useState('models');
+  const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([])
+
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [drawerInitialData, setDrawerInitialData] = useState<NewTodoInitialData | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const ctaBtn = [
     { icon: <Box />, label: 'models' },
@@ -38,8 +58,30 @@ export default function ViewerClient() {
     console.log("Refresh Action Clicked");
   };
 
-  const handleAction = () => {
-    console.log("Primary Action Clicked");
+  const onAddTodo = () => {
+    if (selectedItems.length > 0) {
+      // console.log('Selected items:', selectedItems);
+      const grouped = new Map();
+      selectedItems.forEach(item => {
+        const key = `${item.fileUrl}-${item.modelID}`;
+        if (!grouped.has(key)) {
+          grouped.set(key, { fileUrl: item.fileUrl || '', modelId: String(item.modelID || ''), expressId: [] });
+        }
+        grouped.get(key).expressId.push(String(item.expressID || ''));
+      });
+      const items = Array.from(grouped.values());
+      // console.log('Grouped items:', items);
+      const initialData = {
+        items,
+        title: `Issue on ${selectedItems.length > 1 ? `${selectedItems.length} items` : `#${items[0]?.expressId[0] || ''}`}`
+      };
+      setDrawerInitialData(initialData);
+      setIsDrawerOpen(true);
+
+      // alert(`Selected ${selectedItems.length} item(s)`);
+    } else {
+      setIsDrawerOpen(true);
+    }
   };
 
   useEffect(() => {
@@ -53,7 +95,7 @@ export default function ViewerClient() {
       <Navbar
         onBack={handleBack}
         onRefresh={handleRefresh}
-        onAction={handleAction}
+        onAddTodo={onAddTodo}
       />
       {/* handle navbar and extend when click item can create todo related to it */}
       <div className="flex">
@@ -92,12 +134,21 @@ export default function ViewerClient() {
         </div>
         <div className="w-full h-full overflow-hidden">
           <IfcViewer
+            setSelectdItemsForNavbar={setSelectedItems}
             isCollapsed={isCollapsed}
             ifcUrls={ifcUrls}
             state={state}
             projectId={projectId} />
         </div>
       </div>
+
+      <NewTodoDrawer
+        open={isDrawerOpen}
+        onOpenChange={setIsDrawerOpen}
+        projectId={projectId as string}
+        mode="create"
+        initialData={drawerInitialData}
+      />
     </div>
   );
 }
