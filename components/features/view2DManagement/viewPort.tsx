@@ -1,23 +1,29 @@
 'use client';
 
-import { FileItem } from '@/app/types/api';
 import dynamic from 'next/dynamic';
-import ImageViewer from './imageViewer'; 
+import ImageViewer from './imageViewer';
 import { useMemo } from 'react';
+import { IFile } from '@/types/explorer';
 
 const PdfViewerClient = dynamic(() => import('./PdfViewer'), {
   ssr: false,
-  loading: () => <div className="flex-1 bg-gray-700 flex items-center justify-center text-white">Loading PDF...</div>
+  loading: () => (
+    <div className="flex-1 bg-gray-700 flex items-center justify-center text-white">
+      Loading PDF...
+    </div>
+  ),
 });
 
 interface FileViewportProps {
-  file: FileItem | null;
+  file: IFile | null;
   currentSrc: string | null;
   pageIndex: number;
+
   zoom: number;
-  rotate: number;
+  pageRotation: number;
+
   onZoom: (d: number) => void;
-  onRotate: (d: number) => void;
+  onRotatePage: (d: number) => void;
   onPrev: () => void;
   onNext: () => void;
 }
@@ -27,57 +33,103 @@ export default function FileViewport({
   currentSrc,
   pageIndex,
   zoom,
-  rotate,
+  pageRotation,
   onZoom,
-  onRotate,
+  onRotatePage,
   onPrev,
   onNext,
 }: FileViewportProps) {
-  
-  // LOGIC URL & CACHE BUSTING
-  const { viewType, finalUrl, uniqueKey } = useMemo(() => {
+  const { viewType, finalUrl } = useMemo(() => {
+    const isImageMode =
+      currentSrc && !currentSrc.toLowerCase().endsWith('.pdf');
 
-    const isImageMode = currentSrc && !currentSrc.toLowerCase().endsWith('.pdf');
-    
-    const rawUrl = isImageMode ? currentSrc : (file?.fileUrl ?? currentSrc ?? '');
+    const rawUrl = isImageMode
+      ? currentSrc
+      : file?.fileUrl ?? currentSrc ?? '';
 
     return {
       viewType: isImageMode ? 'IMAGE' : 'PDF',
       finalUrl: rawUrl,
-      uniqueKey: `${rawUrl}-${pageIndex}`
     };
-  }, [file, currentSrc, pageIndex]);
+  }, [file, currentSrc]);
 
-  // CASE 1: IMAGE VIEWER (Ưu tiên)
-  if (viewType === 'IMAGE') {
-    return (
-      <ImageViewer
-        key={uniqueKey}
-        src={finalUrl}
-        zoom={zoom}
-        rotate={rotate}
-        pageIndex={pageIndex}
-        totalPages={1}
-        onZoom={onZoom}
-        onRotate={onRotate}
-        onPrev={onPrev}
-        onNext={onNext}
-      />
-    );
-  }
+  /* ===== IMAGE ===== */
+  // if (viewType === 'IMAGE' && finalUrl) {
+  //   return (
+  //     <ImageViewer
+  //       src={finalUrl}
+  //       zoom={zoom}
+  //       rotate={pageRotation}
+  //       pageIndex={pageIndex}
+  //       totalPages={1}
+  //       onZoom={onZoom}
+  //       onRotate={onRotatePage}
+  //       onPrev={onPrev}
+  //       onNext={onNext}
+  //     />
+  //   );
+  // }
 
-  // CASE 2: PDF VIEWER
-  if (finalUrl && finalUrl.length > 10) { 
+  /* ===== PDF ===== */
+  // if (viewType === 'PDF' && finalUrl) {
+  //   return (
+  //     <div className="flex-1 relative w-full h-full bg-gray-700">
+  //       <PdfViewerClient
+  //         src={finalUrl}
+  //         currentPageIndex={pageIndex}
+  //         zoom={zoom}
+  //         pageRotation={pageRotation}
+  //         onRotatePage={onRotatePage}
+  //         onZoom={onZoom}
+  //         onPrev={onPrev}
+  //         onNext={onNext}
+  //       />
+  //     </div>
+  //   );
+  // }
+
+  // return (
+  //   <div className="flex-1 bg-gray-200 flex items-center justify-center text-gray-400">
+  //     Select a document
+  //   </div>
+  // );
     return (
-      <div className='flex-1 relative w-full h-full bg-gray-700'>
-        <PdfViewerClient 
-          key={uniqueKey} 
+    <div className="absolute inset-0 overflow-hidden">
+      {/* ===== IMAGE ===== */}
+      {viewType === 'IMAGE' && finalUrl && (
+        <ImageViewer
           src={finalUrl}
-          currentPageIndex={pageIndex} 
+          zoom={zoom}
+          rotate={pageRotation}
+          pageIndex={pageIndex}
+          totalPages={1}
+          onZoom={onZoom}
+          onRotate={onRotatePage}
+          onPrev={onPrev}
+          onNext={onNext}
         />
-      </div>
-    );
-  }
+      )}
 
-  return <div className="flex-1 bg-gray-200 flex items-center justify-center text-gray-400">Select a document</div>;
+      {/* ===== PDF ===== */}
+      {viewType === 'PDF' && finalUrl && (
+        <PdfViewerClient
+          src={finalUrl}
+          currentPageIndex={pageIndex}
+          zoom={zoom}
+          pageRotation={pageRotation}
+          onRotatePage={onRotatePage}
+          onZoom={onZoom}
+          onPrev={onPrev}
+          onNext={onNext}
+        />
+      )}
+
+      {!finalUrl && (
+        <div className="flex h-full items-center justify-center text-gray-400">
+          Select a document
+        </div>
+      )}
+    </div>
+  );
+
 }

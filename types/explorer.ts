@@ -26,31 +26,95 @@ export interface IFolder {
 export interface IFileVersion {
   version: number;
   fileName: string;
+
   storageKey: string;
   location: string;
   size: number;
   mimeType: string;
-  uploadedBy: string;
+  uploadedBy: {
+    _id: string;
+    fullName: string;
+    email?: string;
+  } | string;
+
   createdAt: string;
 }
+
+// Merge FileItem và FileDetail vào IFile để thống nhất
+export type FileType = "PDF" | "IMAGE"; // Từ view.ts
 
 export interface IFile {
   _id: string;
   name: string;
   folderId: string | null;
+  projectName?: string;
   currentVersion: number;
-  versions: IFileVersion[];
+  versions?: IFileVersion[];
 
-  // Flatten fields for display
+  // Flatten fields for display (từ explorer.ts)
   size: number;
   mimeType: string;
   location: string;
+  locationPath?: string[];
   updatedAt: string;
   isLocked: boolean;
   lockedBy?: string;
-  modifiedBy: string;
-  thumbnail: string;
+  modifiedBy?: string; 
+  thumbnail?: string;
   tags?: ITag[];
+
+  // Thêm từ view.ts (FileItem)
+  projectId: string;
+  fileUrl: string;
+  fileType: FileType;
+  previewSrc?: string;
+  uploadedBy?: string; // Thêm để hỗ trợ display
+  createdAt?: string;
+  createdBy?: IFolder['createdBy'];
+
+  // Thêm fields mới để tối ưu (ví dụ: search/filter)
+  description?: string; // Mô tả file
+  lastAccessed?: string; // Để track performance/access
+}
+
+// Merge PageItem
+export interface PageItem {
+  _id: string;
+  index: number; 
+  pageNumber?: number;
+  fileId: string;
+  imageSrc?: string;
+  source?: "pdf" | "file" | "view";
+  thumbnail?: string; // Thêm field mới cho thumbnail nhỏ
+}
+
+// Merge ViewItem
+export interface ViewItem {
+  _id: string;
+  name?: string;
+  projectId: string;
+  fileId: string;
+  previewSrc?: string;
+  pageIndex?: number;
+  scale?: number;
+  rotation?: number;
+  createdBy?: string;
+  createdAt?: string;
+  assignedTo?: string;
+  description?: string;
+  tags?: ITag[];
+}
+
+// Merge TodoItem
+export interface TodoItem {
+  _id: string;
+  title: string;
+  description?: string;
+  status?: "open" | "in_progress" | "done";
+  relatedImage?: string;
+  viewId?: string;
+  createdAt?: string;
+  priority?: "low" | "medium" | "high"; // Thêm field mới cho priority
 }
 
 export type ExplorerItem = IFile | IFolder;
@@ -68,4 +132,22 @@ export interface IExplorerResponse {
   }[];
   subFolders: IFolder[];
   files: IFile[];
+}
+
+// Merge FileDetailResponse (nếu cần, nhưng giờ IFile đã bao quát)
+export interface FileDetailResponse {
+  _id: string;
+  name: string;
+  projectId: string;
+  versions: IFileVersion[]; // Sửa để dùng IFileVersion thống nhất
+  currentVersion: number;
+  createdAt?: string;
+}
+
+// Merge FileDetailData
+export interface FileDetailData {
+  file: IFile;
+  folder?: IFolder | null;
+  projectName: string;
+  locationPath: string;
 }

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { Camera } from 'lucide-react';
-import { ViewItem } from '@/app/types/api';
+import { ViewItem } from '@/types/view';
 
 type ViewsTabProps = {
   views: ViewItem[];
@@ -27,7 +27,7 @@ export default function ViewsTab({
   return (
     <div className="flex flex-col h-full bg-white">
       <div className="p-4 flex items-center justify-between bg-gray-50">
-        <h3 className="text-lg font-semibold mb-3 uppercase tracking-wider">
+        <h3 className="text-sm font-bold uppercase tracking-wider">
           Views ({views.length})
         </h3>
         <button

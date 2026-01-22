@@ -1,3 +1,4 @@
+// bimcde-fe\app\projects\page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -43,7 +44,7 @@ export default function ProjectsPage() {
       if (res.success) {
         setProjects(res.result || []);
       } else {
-        console.error("Lỗi khi tải danh sách dự án:", res.data.message);
+        console.error("Lỗi khi tải danh sách dự án:", (res as any)?.data?.message ?? res?.message);
       }
     } catch (e) {
       console.error("Failed to load project list:", e);
@@ -340,7 +341,7 @@ function ListView({ projects }: { projects: Project[] }) {
 
   const handleProjectClick = (id: any) => {
     localStorage.setItem("selectedProjectId", id);
-    router.push(`/pages/details`);
+    router.push(`/pages/${id}`);
   };
   return (
     <div className="bg-white shadow rounded">

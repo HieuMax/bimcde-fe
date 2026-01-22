@@ -1,10 +1,9 @@
 'use client';
+
 import React, { useState, useRef, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import {
   ArrowLeft,
-  Hand,
-  MousePointerSquareDashed,
   Download,
   MoreHorizontal,
   Maximize,
@@ -15,19 +14,29 @@ import {
   Package,
   Share,
   SendHorizonalIcon,
+  CalendarPlus2,
+  ImagePlus,
+  MousePointer,
+  HandMetal,
 } from 'lucide-react';
+
 interface DetailToolbarProps {
   name: string;
   onBack: () => void;
-  onToggleFullscreen?: () => void; 
+  onToggleFullscreen?: () => void;
   isFullscreen?: boolean;
   onShare?: () => void;
+  canShare?: boolean;
+  onOpenViewPanel?: () => void;
+  onOpenTodoPanel?: () => void;
 }
 
 export default function DetailToolbar({
   onToggleFullscreen,
   isFullscreen = false,
-  onShare
+  onShare,
+  onOpenTodoPanel,
+  onOpenViewPanel,
 }: DetailToolbarProps) {
   const router = useRouter();
   const params = useParams();
@@ -44,7 +53,8 @@ export default function DetailToolbar({
     }
     if (showNavMenu) {
       document.addEventListener('mousedown', handleClickOutside);
-      return () => document.removeEventListener('mousedown', handleClickOutside);
+      return () =>
+        document.removeEventListener('mousedown', handleClickOutside);
     }
   }, [showNavMenu]);
 
@@ -53,7 +63,6 @@ export default function DetailToolbar({
     { id: 'views', label: 'Views', icon: View, path: `/projects/${projectId}/data/views` },
     { id: 'todo', label: 'ToDo', icon: CircleCheckBig, path: `/projects/${projectId}/todo` },
     { id: 'releases', label: 'Releases', icon: Package, path: `/projects/${projectId}/data/releases` },
-    
   ];
 
   const handleNavigation = (path: string) => {
@@ -64,8 +73,11 @@ export default function DetailToolbar({
   return (
     <header className="w-full h-12 bg-white border-b border-slate-300 flex items-center px-1">
       <div className="flex items-center h-full">
+
+        {/* ===== BACK + MENU ===== */}
         <div className="relative h-full flex items-center" ref={menuRef}>
           <button
+            type="button"                        
             onClick={() => setShowNavMenu(!showNavMenu)}
             className="h-10 px-3 flex items-center gap-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded"
           >
@@ -80,6 +92,7 @@ export default function DetailToolbar({
                 return (
                   <button
                     key={item.id}
+                    type="button"
                     onClick={() => handleNavigation(item.path)}
                     className="w-full px-3 py-2 flex items-center gap-3 text-sm hover:bg-blue-50"
                   >
@@ -94,62 +107,83 @@ export default function DetailToolbar({
 
         <div className="w-px h-6 bg-slate-300 mx-2" />
 
+        {/* ===== TOOLS ===== */}
         <div className="flex items-center gap-1">
-          <ToolButton icon={<Hand size={18} />} />
-          <ToolButton icon={<MousePointerSquareDashed size={18} />} />
-          
+          <ToolButton icon={<HandMetal size={18} />} />
+          <ToolButton icon={<MousePointer size={18} />} />
         </div>
-        <div className="w-px h-6 bg-slate-300 mx-2" />
-      </div>
 
-      <div className="flex items-center gap-1 z-10">
-        <ToolButton icon={<Share size={18} />}  />
-        <ToolButton icon={<CircleCheckBig size={18} />} />
-        <ToolButton icon={<View size={18} />} />
-        <ToolButton icon={<Download size={18} />}/>
-      </div>
-
-      <div className="flex items-center gap-1">
-        <ToolButton
-        icon={<SendHorizonalIcon size={18} />}
-        onClick={(e) => {
-          e.stopPropagation();
-          onShare?.();
-        }}
-      />
-
-        <ToolButton icon={<MoreHorizontal size={18} />} />
-      </div>
         <div className="w-px h-6 bg-slate-300 mx-2" />
 
-      <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 z-10">
+          <ToolButton icon={<Share size={18} />} />
+          <ToolButton icon={<CircleCheckBig size={18} />} />
+          <ToolButton icon={<View size={18} />} />
+          <ToolButton icon={<Download size={18} />} />
+        </div>
+
+        <div className="w-px h-6 bg-slate-300 mx-2" />
+
+        {/* ===== CREATE ===== */}
+        <div className="flex items-center gap-1 z-10">
+          <ToolButton
+            icon={<ImagePlus size={18} />}
+            onClick={() => onOpenViewPanel?.()}    
+          />
+          <ToolButton
+            icon={<CalendarPlus2 size={18} />}
+            onClick={(e) => {
+              e.preventDefault();                  
+              e.stopPropagation();
+              onOpenTodoPanel?.();                
+            }}
+          />
+        </div>
+
+        <div className="w-px h-6 bg-slate-300 mx-2" />
+
+        {/* ===== SHARE ===== */}
+        <div className="flex items-center gap-1">
+          <ToolButton
+            icon={<SendHorizonalIcon size={18} />}
+            onClick={(e) => {
+              e.preventDefault();                  
+              e.stopPropagation();
+              onShare?.();
+            }}
+          />
+          <ToolButton icon={<MoreHorizontal size={18} />} />
+        </div>
+      </div>
+
+      {/* ===== FULLSCREEN ===== */}
       <button
-          onClick={onToggleFullscreen}
-          className={`
-            w-12 h-10 flex items-center justify-center
-            rounded-lg transition text-gray-700
-            ${isFullscreen ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-100'}
-          `}
-          title={isFullscreen ? "Exit Full Screen" : "Full Screen Mode"}
-        >
-          {isFullscreen ? <Minimize size={20} /> : <Maximize size={18} />}
-        </button>
-      </div>
-      
+        type="button"                             
+        onClick={onToggleFullscreen}
+        className={`
+          w-12 h-10 flex items-center justify-center
+          rounded-lg transition text-gray-700
+          ${isFullscreen ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-100'}
+        `}
+      >
+        {isFullscreen ? <Minimize size={20} /> : <Maximize size={18} />}
+      </button>
     </header>
   );
-  function ToolButton({
-    icon,
-    onClick,
-  }: {
-    icon: React.ReactNode;
-    onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
-  }) {
-    return (
-      <button
-        type="button"
-        onClick={onClick}
-        className="
+}
+
+function ToolButton({
+  icon,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
+}) {
+  return (
+    <button
+      type="button"                              
+      onClick={onClick}
+      className="
         w-9 h-9
         flex items-center justify-center
         rounded
@@ -157,11 +191,9 @@ export default function DetailToolbar({
         hover:bg-gray-100
         transition
         pointer-events-auto
-        "
-      >
-        {icon}
-      </button>
-    );
-  }
-
+      "
+    >
+      {icon}
+    </button>
+  );
 }

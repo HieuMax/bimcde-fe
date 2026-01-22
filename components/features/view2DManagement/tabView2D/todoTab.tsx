@@ -24,7 +24,7 @@ export default function TodosTab({
     <div className="p-4">
       {/* ===== Header ===== */}
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold mb-3 uppercase">ToDos</h3>
+        <h3 className="text-sm font-bold uppercase tracking-wider">ToDos</h3>
 
         <button
           onClick={onCreateTodo}

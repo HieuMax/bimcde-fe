@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useEffect, useState, useRef } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 
-// --- IMPORT SERVICE MỚI ---
-import { explorerService } from "@/services/explorer.service"; // Import service bạn vừa sửa
+import { explorerService } from "@/services/explorer.service";
 
 import LeftPanelTool from "./leftPanelTool";
 import LeftPanelBody from "./leftPanelBody";
@@ -15,15 +14,31 @@ import CreateViewPanel from "./createModel/createView";
 import CreateTodoPanel from "./createModel/createTodo";
 import FileViewport from "./viewPort";
 
-import { pdfjs } from "react-pdf";
+import { IFile, IFileVersion } from "@/types/explorer";
 
-// Config worker cho PDF
-if (typeof window !== "undefined") {
+type PdfjsInstance = typeof import("react-pdf").pdfjs;
+
+const pdfjsRef: { current: PdfjsInstance | null } = { current: null };
+
+const ensurePdfjs = async (): Promise<PdfjsInstance | null> => {
+  if (pdfjsRef.current) {
+    return pdfjsRef.current;
+  }
+
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const { pdfjs } = await import("react-pdf");
   pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
-}
+
+  pdfjsRef.current = pdfjs;
+  return pdfjs;
+};
 
 // --- IMPORT TYPES ---
-import type { FileItem, ViewItem, TodoItem, PageItem } from "@/types/api";
+import type { ViewItem, TodoItem, PageItem } from "@/types/view";
+import { ITag } from "@/types/tag";
 
 type RightPanelState =
   | { type: "viewDetail"; data: ViewItem }
@@ -34,27 +49,42 @@ type RightPanelState =
 
 type ActiveTool = "filedetail" | "page" | "view" | "todo";
 
-/* ========= COMPONENT ========= */
-
 export default function DetailView2D({
   mode = "view",
   fileId,
-  onLoaded, // Callback để báo cho trang cha biết đã load xong (để set tên trên toolbar)
+  onLoaded,
+  shareToken,
+
+  onRegisterOpenViewPanel,
+  onRegisterOpenTodoPanel
 }: {
-  mode?: "view" | "file";
+  mode?: "view" | "file" | "share";
   fileId?: string;
-  onLoaded?: (file: FileItem) => void;
+  onLoaded?: (file: IFile) => void;
+  shareToken?: string;
+  
+  onRegisterOpenViewPanel?: (open: () => void) => void;
+  onRegisterOpenTodoPanel?: (open: () => void) => void;
+
 }) {
   // Lấy params từ URL: /projects/[projectId]/viewer/[viewId]
   // Lưu ý: viewId ở đây chính là ID của file cần lấy chi tiết
-  const params = useParams() as { projectId: string; viewId: string };
+  const params = useParams() as { projectId?: string; viewId?: string };
+  const searchParams = useSearchParams();
+  const urlShareToken = searchParams.get("shareToken");
+  
+  const activeShareToken = shareToken || urlShareToken || undefined;
 
-  const [file, setFile] = useState<FileItem | null>(null);
+  const hasCalledOnLoaded = useRef(false);
+
+  const [file, setFile] = useState<IFile | null>(null);
+  const [fileDetail, setFileDetail] = useState<IFile | null>(null);
+  const [selectedFile, setSelectedFile] = useState<IFile | null>(null);
+
   const [views, setViews] = useState<ViewItem[]>([]);
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const [pages, setPages] = useState<PageItem[]>([]);
 
-  const [selectedFile, setSelectedFile] = useState<FileItem | null>(null);
   const [selectedView, setSelectedView] = useState<ViewItem | null>(null);
   const [selectedTodo, setSelectedTodo] = useState<TodoItem | null>(null);
 
@@ -65,18 +95,29 @@ export default function DetailView2D({
     mode === "file" ? "page" : "view"
   );
 
-  const [isLeftPanelOpen, setIsLeftPanelOpen] = useState<boolean>(true);
+
   const [rightPanel, setRightPanel] = useState<RightPanelState>(null);
 
   const [zoom, setZoom] = useState<number>(1);
-  const [rotate, setRotate] = useState<number>(0);
+
+  const [pageRotations, setPageRotations] = useState<Record<number, number>>({});
 
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
+  const isShareMode = !!shareToken;
+  const [isLeftPanelOpen, setIsLeftPanelOpen] = useState<boolean>(
+    !isShareMode
+  );
+  
   // Helper: Đếm số trang PDF
   const getPdfTotalPages = async (url: string) => {
     try {
+      const pdfjs = await ensurePdfjs();
+      if (!pdfjs) {
+        return 1;
+      }
+
       const loadingTask = pdfjs.getDocument(url);
       const pdf = await loadingTask.promise;
       return pdf.numPages;
@@ -86,103 +127,221 @@ export default function DetailView2D({
     }
   };
 
+  type FileLike = {
+    _id?: string;
+    name?: string;
+    folderId?: string | null;
+    projectId?: string;
+    projectName?: string;
+    location?: string;
+
+    currentVersion?: number;
+    versions?: Array<{
+      version: number;
+      location?: string;
+      size?: number;
+      mimeType?: string;
+    }>;
+
+    size?: number;
+    mimeType?: string;
+    fileUrl?: string;
+    previewSrc?: string;
+
+    createdAt?: string;
+    updatedAt?: string;
+    createdBy?: string;
+    modifiedBy?: string;
+
+    isLocked?: boolean;
+    lockedBy?: string;
+    tags?: ITag[];
+  };
+  function toIFile(raw: FileLike): IFile {
+    const ver =
+      raw.versions?.find(v => v.version === raw.currentVersion) ??
+      raw.versions?.[0];
+
+    return {
+      _id: raw._id!,
+      name: raw.name!,
+      folderId: raw.folderId ?? null,
+      projectId: raw.projectId!,
+
+      projectName: raw.projectName,
+
+      currentVersion: raw.currentVersion ?? 1,
+      versions: [], 
+
+      size: ver?.size ?? raw.size ?? 0,
+      mimeType: ver?.mimeType ?? raw.mimeType ?? "",
+      fileUrl: raw.fileUrl ?? ver?.location ?? "",
+      previewSrc: raw.previewSrc ?? ver?.location,
+
+      location: raw.location  ?? "NO ROOT",
+      updatedAt: raw.updatedAt ?? new Date().toISOString(),
+
+      createdAt: raw.createdAt,
+      createdBy: raw.createdBy,
+      modifiedBy: raw.modifiedBy,
+
+      isLocked: raw.isLocked ?? false,
+      lockedBy: raw.lockedBy,
+      tags: raw.tags ?? [],
+
+      fileType:
+        (ver?.mimeType ?? raw.mimeType)?.includes("pdf")
+          ? "PDF"
+          : "IMAGE",
+    };
+  }
+
+  const rotateCurrentPage = (delta: number) => {
+    setPageRotations(prev => ({
+      ...prev,
+      [pageIndex]: ((prev[pageIndex] ?? 0) + delta) % 360,
+    }));
+  };
+
+  /* ===== REGISTER TOOLBAR HANDLERS ===== */
+  useEffect(() => {
+    onRegisterOpenViewPanel?.(() => {
+      setRightPanel({ type: "createView" });
+    });
+  }, [onRegisterOpenViewPanel]);
+
+  useEffect(() => {
+    onRegisterOpenTodoPanel?.(() => {
+      setRightPanel({ type: "createTodo" });
+    });
+  }, [onRegisterOpenTodoPanel]);
+
   /* ===== sync active tool ===== */
   useEffect(() => {
     setActiveTool(mode === "file" ? "page" : "view");
   }, [mode]);
-
+  
   /* ===== LOAD DATA ===== */
   useEffect(() => {
     async function load() {
       try {
         setLoading(true);
         setError(null);
+        
+        console.log("[DetailView2D] load() called", { fileId, params, shareToken });
 
-        // 1. Xác định ID file cần fetch
-        // Ưu tiên props fileId truyền vào, nếu không thì lấy params.viewId từ URL
-        const targetId = fileId || params.viewId;
+        const isShareMode = !!shareToken;
+
+        // const targetId = isShareMode ? (fileId ?? params.viewId) : (fileId ?? params.viewId);
+        const targetId = fileId ?? params.viewId;
 
         if (!targetId) {
-          throw new Error("Missing File ID (viewId)");
+          setLoading(false);
+          return;
         }
 
-        // 2. Gọi API Service mới
-        const response: any = await explorerService.getFileDetail(targetId);
-        // Xử lý trường hợp response trả về nguyên cục data hoặc bọc trong .data
-        const rawData = response.data || response;
+        // 1. GỌI API
+        const raw: IFile = await explorerService.getFileDetail(targetId, activeShareToken);
+        console.log("[DetailView2D] Raw Data received:", raw);
 
-        if (!rawData) throw new Error("No data returned");
+        // 2. XỬ LÝ DỮ LIỆU
+        const hasVersions = Array.isArray(raw.versions) && raw.versions.length > 0;
+        const currentVer: IFileVersion | undefined = hasVersions
+          ? raw.versions!.find((v: IFileVersion) => v.version === raw.currentVersion) ?? raw.versions![0]
+          : undefined;
 
-        // 3. Mapping Data (Quan trọng)
-        // API cũ trả về object phẳng, API mới trả về versions[].
-        // Cần lấy location từ version hiện tại để làm fileUrl.
+        // [QUAN TRỌNG] Cho phép URL rỗng (để hiển thị Layout kể cả khi mất file)
+        const finalUrl = raw.fileUrl || currentVer?.location || "";
+        // Chuẩn hóa object File
+        const file: IFile = {
+          ...raw,
+          size: currentVer?.size ?? raw.size ?? 0,
+          mimeType: currentVer?.mimeType ?? raw.mimeType ?? "application/pdf",
+          
+          createdBy: hasVersions && currentVer?.uploadedBy && typeof currentVer.uploadedBy === "object"
+            ? (currentVer.uploadedBy as any).fullName
+            : raw.createdBy,
 
-        const currentVer =
-          rawData.versions?.find(
-            (v: any) => v.version === rawData.currentVersion
-          ) || rawData.versions?.[0];
-        const fileUrl = currentVer?.location || "";
-        const mimeType = currentVer?.mimeType || "";
+          modifiedBy: hasVersions && currentVer?.uploadedBy && typeof currentVer.uploadedBy === "object"
+            ? (currentVer.uploadedBy as any).fullName
+            : raw.modifiedBy,
 
-        const mappedFile: FileItem = {
-          _id: rawData._id,
-          name: rawData.name,
-          projectId: rawData.projectId,
-          fileUrl: fileUrl,
-          fileType: mimeType.toLowerCase().includes("pdf") ? "PDF" : "IMAGE",
-          previewSrc: fileUrl, // Dùng luôn link gốc để preview
-          uploadedBy: currentVer?.uploadedBy,
-          createdAt: rawData.createdAt,
-          // Map thêm các trường khác nếu cần
-        } as unknown as FileItem;
+          location: raw.location ?? "ROOT",
+          projectName: raw.projectName,
+          // Gán URL (có thể là rỗng)
+          fileUrl: finalUrl,
+          previewSrc: raw.previewSrc || finalUrl,
 
-        // 4. Set State và Callback
-        setFile(mappedFile);
-        setCurrentSrc(mappedFile.previewSrc || mappedFile.fileUrl || null);
+          fileType: 
+            (currentVer?.mimeType ?? raw.mimeType ?? "").includes("pdf") ||
+            finalUrl.toLowerCase().includes(".pdf")
+              ? "PDF"
+              : "IMAGE",
+        };
 
-        // Gọi callback để update Toolbar ở trang cha
-        if (onLoaded) {
-          onLoaded(mappedFile);
+        // Cập nhật State (Lúc này Toolbar sẽ hiển thị tên file)
+        setFile(file);
+        setSelectedFile(file);
+        setCurrentSrc(file.fileUrl);
+
+        if (isShareMode) {
+          setViews([]);
+          setTodos([]);
+          setRightPanel(null);
+        } else {
+          setViews([]);
+          setTodos([]);
         }
 
-        // Hiện tại chưa có API lấy Views/Todos trong service mới, set rỗng để tránh lỗi
-        setViews([]);
-        setTodos([]);
+        if (onLoaded && !hasCalledOnLoaded.current) {
+          hasCalledOnLoaded.current = true;
+          onLoaded(file);
+        }
 
-        /* ===== DERIVE PAGES (Tách trang PDF hoặc Ảnh) ===== */
+        // 3. XỬ LÝ TRANG (FALLBACK NẾU URL RỖNG)
         let derivedPages: PageItem[] = [];
 
-        if (
-          mappedFile.fileType === "PDF" ||
-          mappedFile.fileUrl?.toLowerCase().endsWith(".pdf")
-        ) {
-          const total = mappedFile.fileUrl
-            ? await getPdfTotalPages(mappedFile.fileUrl)
-            : 1;
-          derivedPages = Array.from({ length: total }).map((_, i) => ({
-            _id: `${mappedFile._id}-page-${i + 1}`,
-            index: i + 1,
-            pageNumber: i + 1,
-            fileId: mappedFile._id,
-            source: "pdf",
-          }));
+        if (file.fileType === "PDF") {
+          try {
+             // Nếu URL rỗng, tự ném lỗi để nhảy xuống catch -> hiện trang lỗi đẹp
+             if (!file.fileUrl) throw new Error("URL rỗng (File giả)");
+
+             const total = await getPdfTotalPages(file.fileUrl);
+             derivedPages = Array.from({ length: total }).map((_, i) => ({
+               _id: `${file._id}-page-${i + 1}`,
+               index: i + 1,
+               pageNumber: i + 1,
+               fileId: file._id,
+               source: "pdf",
+             }));
+          } catch (pdfErr) {
+             console.warn("⚠️ Hiển thị Placeholder do không tải được PDF");
+             // TẠO 1 TRANG GIẢ ĐỂ VIEWER HIỂN THỊ THÔNG BÁO LỖI
+             derivedPages = [{
+                _id: "error-page",
+                index: 1,
+                pageNumber: 1,
+                fileId: file._id,
+                source: "pdf" 
+             }];
+          }
         } else {
-          // Mặc định cho file ảnh đơn
-          derivedPages = [
-            {
-              _id: mappedFile._id,
+          // Logic Image
+          derivedPages = [{
+              _id: file._id,
               index: 1,
-              imageSrc: mappedFile.previewSrc ?? "",
-              fileId: mappedFile._id,
+              imageSrc: file.previewSrc ?? file.fileUrl,
+              fileId: file._id,
               source: "file",
-            },
-          ];
+          }];
         }
 
         setPages(derivedPages);
         setPageIndex(1);
+
       } catch (e) {
         console.error("Load detail failed:", e);
+        // Chỉ hiện lỗi đỏ toàn màn hình nếu thực sự nghiêm trọng (VD: Mất mạng)
         setError((e as Error).message);
       } finally {
         setLoading(false);
@@ -190,8 +349,8 @@ export default function DetailView2D({
     }
 
     load();
-  }, [mode, fileId, params.viewId]);
-
+  }, [fileId, activeShareToken, params.viewId, isShareMode, onLoaded]);
+  
   // Logic reload pages khi chọn file từ danh sách (Sidebar)
   useEffect(() => {
     if (activeTool !== "page") return;
@@ -243,150 +402,239 @@ export default function DetailView2D({
     return <div className="p-6 text-red-600">{error}</div>;
   }
 
-  /* ===== UI ===== */
+  // /* ===== UI ===== */
   return (
-    <div
-      className="flex h-full w-full overflow-hidden"
-      style={{ height: "calc(100vh - 120px)" }}
-    >
-      <LeftPanelTool
-        activeKey={activeTool}
-        viewCount={views.length}
-        onClick={(key) => {
-          const tool = key as ActiveTool;
-          if (tool === activeTool) {
-            setIsLeftPanelOpen((prev) => !prev);
-          } else {
-            setActiveTool(tool);
-            setIsLeftPanelOpen(true);
-          }
-          setRightPanel(null);
-        }}
-      />
+  <div className="flex w-full h-full min-h-0 overflow-hidden">
 
-      {isLeftPanelOpen && (
-        <div className="w-72 border-r border-gray-300 bg-white">
-          <LeftPanelBody
-            activeTool={activeTool}
-            data={{
-              file: selectedFile || file,
-              view: selectedView,
-              pages,
-              pageIndex,
-              views,
-              todos,
-            }}
-            onSelectPage={(item: PageItem) => {
-              setPageIndex(item.pageNumber ?? item.index);
-              if (item.imageSrc) setCurrentSrc(item.imageSrc);
-              else setCurrentSrc(null);
-            }}
-            onSelectView={async (v) => {
-              // Xử lý khi chọn View (nếu sau này có dữ liệu views)
-              setSelectedView(v);
-              setSelectedTodo(null);
+    {/* ===== LEFT TOOL ===== */}
+    <LeftPanelTool
+      activeKey={activeTool}
+      viewCount={views.length}
+      onClick={(key) => {
+        const tool = key as ActiveTool;
+        if (tool === activeTool) {
+          setIsLeftPanelOpen((prev) => !prev);
+        } else {
+          setActiveTool(tool);
+          setIsLeftPanelOpen(true);
+        }
+        setRightPanel(null);
+      }}
+    />
 
-              let fileData: FileItem;
+    {/* ===== LEFT PANEL ===== */}
+    {isLeftPanelOpen && (
+      <div className="w-72 shrink-0 h-full border-r border-gray-300 bg-white overflow-auto">
+        <LeftPanelBody
+          activeTool={activeTool}
+          data={{
+            file: selectedFile || file,
+            view: selectedView,
+            pages,
+            pageIndex,
+            views,
+            todos,
+          }}
+          onSelectPage={(item) => {
+            setPageIndex(item.pageNumber ?? item.index);
+            setCurrentSrc(item.imageSrc ?? null);
+          }}
+          onSelectView={async (v) => {
+            setSelectedView(v);
+            setSelectedTodo(null);
+            setRightPanel({ type: "viewDetail", data: v });
+          }}
+          onSelectTodo={(t) => {
+            setSelectedTodo(t);
+            setSelectedView(null);
+            setRightPanel({ type: "todoDetail", data: t });
+          }}
+          onCreateView={() => setRightPanel({ type: "createView" })}
+          onCreateTodo={() => setRightPanel({ type: "createTodo" })}
+        />
+      </div>
+    )}
 
-              // Kiểm tra xem ID là object hay string
-              if (typeof v.fileId === "object" && v.fileId !== null) {
-                fileData = v.fileId as unknown as FileItem;
-              } else {
-                // Gọi API lấy thông tin file từ ID
-                const res: any = await explorerService.getFileDetail(
-                  v.fileId as string
-                );
-                const raw = res.data || res;
-                const ver =
-                  raw.versions?.find(
-                    (x: any) => x.version === raw.currentVersion
-                  ) || raw.versions?.[0];
-
-                fileData = {
-                  _id: raw._id,
-                  name: raw.name,
-                  projectId: raw.projectId,
-                  fileUrl: ver?.location || "",
-                  fileType: ver?.mimeType?.includes("pdf") ? "PDF" : "IMAGE",
-                  previewSrc: ver?.location,
-                } as unknown as FileItem;
-              }
-
-              setSelectedFile(fileData);
-
-              const snapshot = v.previewSrc ?? null;
-              setCurrentSrc(snapshot);
-              setPages([
-                {
-                  _id: v._id,
-                  index: 1,
-                  imageSrc: snapshot ?? "",
-                  fileId: fileData._id,
-                  source: "view",
-                },
-              ]);
-
-              setPageIndex(1);
-              setRightPanel({ type: "viewDetail", data: v });
-            }}
-            onSelectTodo={(t) => {
-              setSelectedTodo(t);
-              setSelectedView(null);
-              setSelectedFile(null);
-
-              if (t.relatedImage) {
-                setCurrentSrc(t.relatedImage);
-              }
-
-              setRightPanel({ type: "todoDetail", data: t });
-            }}
-            onCreateView={() => setRightPanel({ type: "createView" })}
-            onCreateTodo={() => setRightPanel({ type: "createTodo" })}
-          />
-        </div>
-      )}
-
+    {/* ===== CENTER VIEWPORT CONTAINER ===== */}
+    <div className="flex-1 min-w-0 min-h-0 relative bg-neutral-800">
       <FileViewport
         file={selectedFile || file}
         currentSrc={currentSrc}
         pageIndex={pageIndex}
         zoom={zoom}
-        rotate={rotate}
-        onZoom={(d: number) =>
+        pageRotation={pageRotations[pageIndex] ?? 0}
+        onRotatePage={rotateCurrentPage}
+        onZoom={(d) =>
           setZoom((z) => Math.max(0.2, Math.min(3, z + d)))
         }
-        onRotate={(d: number) => setRotate((r) => (r + d) % 360)}
         onPrev={() => setPageIndex((p) => Math.max(1, p - 1))}
         onNext={() => setPageIndex((p) => Math.min(pages.length, p + 1))}
       />
-
-      {rightPanel?.type === "viewDetail" && (
-        <ViewDetailPanel
-          view={rightPanel.data}
-          onClose={() => setRightPanel(null)}
-        />
-      )}
-
-      {rightPanel?.type === "todoDetail" && (
-        <TodoDetailPanel
-          todo={rightPanel.data}
-          onClose={() => setRightPanel(null)}
-        />
-      )}
-
-      {rightPanel?.type === "createView" && (
-        <CreateViewPanel
-          onClose={() => setRightPanel(null)}
-          onSave={() => setRightPanel(null)}
-        />
-      )}
-
-      {rightPanel?.type === "createTodo" && (
-        <CreateTodoPanel
-          onClose={() => setRightPanel(null)}
-          onSave={() => setRightPanel(null)}
-        />
-      )}
     </div>
-  );
+
+    {/* ===== RIGHT PANEL ===== */}
+    {rightPanel && (
+      <div className="w-80 shrink-0 h-full border-l border-gray-300 bg-white">
+        {rightPanel.type === "viewDetail" && (
+          <ViewDetailPanel
+            view={rightPanel.data}
+            onClose={() => setRightPanel(null)}
+          />
+        )}
+        {rightPanel.type === "todoDetail" && (
+          <TodoDetailPanel
+            todo={rightPanel.data}
+            onClose={() => setRightPanel(null)}
+          />
+        )}
+        {rightPanel.type === "createView" && (
+          <CreateViewPanel
+            onClose={() => setRightPanel(null)}
+            onSave={() => setRightPanel(null)}
+          />
+        )}
+        {rightPanel.type === "createTodo" && (
+          <CreateTodoPanel
+            onClose={() => setRightPanel(null)}
+            onSave={() => setRightPanel(null)}
+          />
+        )}
+      </div>
+    )}
+  </div>
+);
+
+  // return (
+  //   <div
+  //     className="flex w-full h-full min-h-0 overflow-hidden"
+  //   >
+  //     <LeftPanelTool
+  //       activeKey={activeTool}
+  //       viewCount={views.length}
+  //       onClick={(key) => {
+  //         const tool = key as ActiveTool;
+  //         if (tool === activeTool) {
+  //           setIsLeftPanelOpen((prev) => !prev);
+  //         } else {
+  //           setActiveTool(tool);
+  //           setIsLeftPanelOpen(true);
+  //         }
+  //         setRightPanel(null);
+  //       }}
+  //     />
+
+  //     {isLeftPanelOpen && (
+  //       <div className="w-72 h-full min-h-0 border-r border-gray-300 bg-white overflow-auto">
+  //         <LeftPanelBody
+  //           activeTool={activeTool}
+  //           data={{
+  //             file: selectedFile || file,
+  //             view: selectedView,
+  //             pages,
+  //             pageIndex,
+  //             views,
+  //             todos,
+  //           }}
+  //           onSelectPage={(item: PageItem) => {
+  //             setPageIndex(item.pageNumber ?? item.index);
+  //             if (item.imageSrc) setCurrentSrc(item.imageSrc);
+  //             else setCurrentSrc(null);
+  //           }}
+  //           onSelectView={async (v) => {
+  //             setSelectedView(v);
+  //             setSelectedTodo(null);
+
+  //             let fileDetail: IFile;
+
+  //             if (typeof v.fileId === "object" && v.fileId !== null) {
+  //               // fileId đã là object → convert
+  //               fileDetail = toIFile(v.fileId);
+  //             } else {
+  //               // fileId là string → gọi API
+  //               const res = await explorerService.getFileDetail(v.fileId);
+  //               const raw = (res as any)?.data ?? res;
+  //               fileDetail = toIFile(raw);
+  //             }
+
+  //             const snapshot = v.previewSrc ?? null;
+  //             setCurrentSrc(snapshot);
+
+  //             setPages([
+  //               {
+  //                 _id: v._id,
+  //                 index: 1,
+  //                 imageSrc: snapshot ?? "",
+  //                 fileId: fileDetail._id,
+  //                 source: "view",
+  //               },
+  //             ]);
+
+  //             setPageIndex(1);
+  //             setRightPanel({ type: "viewDetail", data: v });
+  //           }}
+
+  //           onSelectTodo={(t) => {
+  //             setSelectedTodo(t);
+  //             setSelectedView(null);
+  //             setSelectedFile(null);
+
+  //             if (t.relatedImage) {
+  //               setCurrentSrc(t.relatedImage);
+  //             }
+
+  //             setRightPanel({ type: "todoDetail", data: t });
+  //           }}
+  //           onCreateView={() => setRightPanel({ type: "createView" })}
+  //           onCreateTodo={() => setRightPanel({ type: "createTodo" })}
+  //         />
+  //       </div>
+  //     )}
+
+  //     <FileViewport
+  //       file={selectedFile || file}
+  //       currentSrc={currentSrc}
+  //       pageIndex={pageIndex}
+  //       zoom={zoom}
+
+  //       pageRotation={pageRotations[pageIndex] ?? 0}
+  //       onRotatePage={rotateCurrentPage}
+
+  //       onZoom={(d) =>
+  //         setZoom((z) => Math.max(0.2, Math.min(3, z + d)))
+  //       }
+  //       onPrev={() => setPageIndex((p) => Math.max(1, p - 1))}
+  //       onNext={() => setPageIndex((p) => Math.min(pages.length, p + 1))}
+  //     />
+
+  //     {rightPanel?.type === "viewDetail" && (
+  //       <ViewDetailPanel
+  //         view={rightPanel.data}
+  //         onClose={() => setRightPanel(null)}
+  //       />
+  //     )}
+
+  //     {rightPanel?.type === "todoDetail" && (
+  //       <TodoDetailPanel
+  //         todo={rightPanel.data}
+  //         onClose={() => setRightPanel(null)}
+  //       />
+  //     )}
+
+  //     {rightPanel?.type === "createView" && (
+  //       <CreateViewPanel
+  //         onClose={() => setRightPanel(null)}
+  //         onSave={() => setRightPanel(null)}
+  //       />
+  //     )}
+
+  //     {rightPanel?.type === "createTodo" && (
+  //       <CreateTodoPanel
+  //         onClose={() => setRightPanel(null)}
+  //         onSave={() => setRightPanel(null)}
+  //       />
+  //     )}
+  //   </div>
+  // );
+
 }
+// bimcde-fe\components\features\view2DManagement\viewHome.tsx

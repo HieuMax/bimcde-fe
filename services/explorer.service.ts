@@ -1,11 +1,13 @@
-import { IExplorerResponse } from "@/types/explorer";
+import { IExplorerResponse, IFile } from "@/types/explorer";
 import { useApi as apiClient } from "@/app/hooks/useApi";
+import { httpClient } from "@/lib/http-client";
 
 interface FetchOptions {
   headers?: Record<string, string>;
 }
 
 const api = apiClient();
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api";
 
 export const explorerService = {
   getContent: async (
@@ -220,8 +222,30 @@ export const explorerService = {
     return data;
   },
 
-  getFileDetail: async (id: string) => {
-    const data = await api.get(`/files/${id}`);
-    return data;
+  getFileDetail: async (id: string, shareToken?: string) => {
+    if (shareToken) {
+      const res = await httpClient.get<IFile>(
+        `${API_BASE_URL}/files/public/${id}`,
+        { params: { shareToken } }
+      );
+      return res.data;
+    }
+
+    return await api.get(`/files/${id}`);
   },
+
+  getFileByShare: async (shareToken: string) => {
+    const res = await httpClient.get<{
+      projectId: string;
+      fileId: string;
+      accessLevel: string;
+      type: string;
+    }>(`/share/${shareToken}`);
+
+    // Sau bước resolve này, FE sẽ redirect,
+    // nên ở đây thường KHÔNG cần file detail đầy đủ.
+    return res.data;
+  },
+
 };
+// bimcde-fe\services\explorer.service.ts

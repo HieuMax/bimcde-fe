@@ -99,6 +99,20 @@ export default function ExplorerClient({ projectId, folderId }: Props) {
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
   );
 
+  function buildLocationFromExplorer(
+    projectName: string,
+    ancestors?: { name: string }[],
+    currentFolder?: { name: string } | null
+  ) {
+    const parts: string[] = [];
+
+    if (projectName) parts.push(projectName);
+    if (ancestors?.length) parts.push(...ancestors.map(f => f.name));
+    if (currentFolder?.name) parts.push(currentFolder.name);
+
+    return parts.join(" / ");
+  }
+
   const handleDragStart = (event: DragStartEvent) => {
     setActiveDragId(event.active.id as string);
   };
@@ -154,9 +168,16 @@ export default function ExplorerClient({ projectId, folderId }: Props) {
     );
   };
 
+  const location = buildLocationFromExplorer(
+    projectId,
+    ancestors,
+    currentFolder
+  );
   const handleNavigate = (item: IFolder | IFile) => {
     if ("mimeType" in item) {
-      router.push(`/projects/${projectId}/viewer/${item._id}`);
+      router.push(
+        `/projects/${projectId}/viewer/${item._id}?location=${encodeURIComponent(location)}`
+      );
     } else {
       router.push(`/projects/${projectId}/data?folderId=${item._id}`);
     }
