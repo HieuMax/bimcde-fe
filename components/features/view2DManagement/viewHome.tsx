@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-
+import { viewService } from "@/services/view.service";
+import { CreateViewDTO } from "@/types/view";
 // --- IMPORT SERVICE MỚI ---
 import { explorerService } from "@/services/explorer.service"; // Import service bạn vừa sửa
 
@@ -85,7 +86,62 @@ export default function DetailView2D({
       return 1;
     }
   };
+  // [NEW] Hàm giả lập lấy state từ Viewer 2D
+  // Trong thực tế, bạn sẽ lấy thông tin này từ component <FileViewport /> thông qua ref hoặc context
+  const get2DViewerState = () => {
+    return {
+      camera: {
+        position: { x: 0, y: 0, z: 0 },
+        target: { x: 0, y: 0, z: 0 },
+        up: { x: 0, y: 1, z: 0 },
+        projection: "ORTHO" as const, // 2D bắt buộc là ORTHO
+        zoom: zoom, // Lấy state zoom hiện tại của component
+      },
+      markupData: {
+        pageIndex: pageIndex, // Lưu lại đang xem trang nào
+        rotate: rotate, // Lưu lại góc xoay
+      },
+    };
+  };
 
+  // [NEW] Hàm xử lý tạo View
+  const handleCreateView = async (formData: {
+    name: string;
+    description: string;
+    sharedWithUsers: string;
+  }) => {
+    try {
+      const targetFileId = fileId || params.viewId; // Đây là ID của file bản vẽ (Related File)
+
+      const payload: CreateViewDTO = {
+        projectId: params.projectId,
+        name: formData.name,
+        description: formData.description,
+        type: "2D",
+        relatedFileId: targetFileId,
+        // TODO: Logic chụp ảnh thumbnail từ Canvas nếu có
+        thumbnailUrl: "",
+        viewState: get2DViewerState(),
+        sharedWith: {
+          isPublic: false,
+          users: [], // TODO: Xử lý chuỗi formData.sharedWithUsers thành mảng ID
+        },
+      };
+
+      await viewService.createView(payload);
+      toast.success("View created successfully");
+
+      // Đóng panel sau khi tạo xong
+      setRightPanel(null);
+
+      // Có thể gọi lại API lấy danh sách views nếu cần
+      // setViews(prev => [...prev, newView]);
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to create view");
+      throw error; // Ném lỗi để Panel biết và tắt loading
+    }
+  };
   /* ===== sync active tool ===== */
   useEffect(() => {
     setActiveTool(mode === "file" ? "page" : "view");
@@ -377,7 +433,7 @@ export default function DetailView2D({
       {rightPanel?.type === "createView" && (
         <CreateViewPanel
           onClose={() => setRightPanel(null)}
-          onSave={() => setRightPanel(null)}
+          onSave={handleCreateView}
         />
       )}
 

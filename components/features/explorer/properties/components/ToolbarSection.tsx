@@ -32,9 +32,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { IFile, IFolder } from "@/types/explorer";
+import { AddToReleaseDialog } from "../../dialogs/AddToReleaseDialog";
+import { useState } from "react";
 
 interface Props {
   item: IFile | IFolder;
+  projectId: string;
   onDownload: () => void;
   onOpenMove: () => void;
   onDelete: () => void;
@@ -46,6 +49,7 @@ interface Props {
 
 export default function ToolbarSection({
   item,
+  projectId,
   onDownload,
   onOpenMove,
   onDelete,
@@ -55,7 +59,16 @@ export default function ToolbarSection({
   onAddTags,
 }: Props) {
   const isFile = "mimeType" in item;
+  const [isAddToReleaseOpen, setIsAddToReleaseOpen] = useState(false);
 
+  const renderAddToReleaseDialog = () => (
+    <AddToReleaseDialog
+      open={isAddToReleaseOpen}
+      onOpenChange={setIsAddToReleaseOpen}
+      projectId={projectId}
+      itemsToAdd={[item]}
+    />
+  );
   // --- LOGIC 1: ITEM FOLDER ---
   if (!isFile) {
     return (
@@ -212,7 +225,10 @@ export default function ToolbarSection({
           <DropdownMenuSeparator />
 
           {/* GR 3: Management */}
-          <DropdownMenuItem className="cursor-pointer">
+          <DropdownMenuItem
+            className="cursor-pointer"
+            onClick={() => setIsAddToReleaseOpen(true)}
+          >
             <Archive className="mr-2 h-4 w-4 text-slate-500" />
             <span>Add to Release</span>
           </DropdownMenuItem>
@@ -252,6 +268,7 @@ export default function ToolbarSection({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      {renderAddToReleaseDialog()}
     </div>
   );
 }

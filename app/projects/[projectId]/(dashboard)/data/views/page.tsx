@@ -1,5 +1,7 @@
-import React from "react";
+"use client";
 
-export default function page() {
-  return <div>Views page comming soon...</div>;
+import { ViewList } from "@/components/features/view/ViewList";
+
+export default function ViewsPage() {
+  return <ViewList />;
 }

@@ -8,7 +8,7 @@ export interface IComment {
   _id: string;
   content: string;
   targetId: string;
-  targetType: "file" | "folder";
+  targetType: "file" | "folder" | "release";
   createdBy: IUserShort;
   createdAt: string;
   updatedAt: string;
