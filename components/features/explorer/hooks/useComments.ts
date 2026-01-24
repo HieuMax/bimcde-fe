@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { commentService } from "@/services/comment.service";
 import { useAuth } from "@/app/context/authContext";
 
-export function useComments(targetId: string, targetType: "file" | "folder") {
+export function useComments(targetId: string, targetType: "file" | "folder" | "release") {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   if (!user) {
