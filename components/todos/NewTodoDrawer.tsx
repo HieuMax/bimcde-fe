@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar, Eye, MoveLeft } from "lucide-react"
+import { Calendar, Eye, LinkIcon, MoveLeft, Plus, Trash2 } from "lucide-react"
 import { todoService } from "@/services/todo.service"
 import { ITodo } from "@/types/todo"
 import { useRef } from "react";
@@ -33,10 +33,13 @@ interface NewTodoDrawerProps {
     title?: string;
     viewState?: any;
   } | null;
+  currentSelection?: any[]
 }
 
 
-export function NewTodoDrawer({ open, onOpenChange, onRestoreView, projectId, todoToEdit, mode, initialData }: NewTodoDrawerProps) {
+export function NewTodoDrawer({ open, onOpenChange, onRestoreView, projectId, todoToEdit, mode, initialData,
+  currentSelection = [],
+}: NewTodoDrawerProps) {
   const queryClient = useQueryClient()
 
   // Initial state helper
@@ -66,6 +69,15 @@ export function NewTodoDrawer({ open, onOpenChange, onRestoreView, projectId, to
   const [formData, setFormData] = useState(defaultState)
   const dateInputRef = useRef<HTMLInputElement>(null);
 
+  // Helper
+  const getFileName = (url: string) => {
+    try {
+      const parts = url.split('/');
+      return parts[parts.length - 1];
+    } catch {
+      return "Unknown Model";
+    }
+  };
 
   // Effect to populate form when opening
   useEffect(() => {
@@ -161,12 +173,9 @@ export function NewTodoDrawer({ open, onOpenChange, onRestoreView, projectId, to
       tags: tagsArray.length > 0 ? tagsArray : undefined,
       projectId,
       viewState: formData.viewState || undefined,
+      items: formData.items || []
     }
 
-    if (!todoToEdit) {
-      // For create, include items
-      payload.items = initialData?.items || [];
-    }
     console.log(payload)
 
     if (todoToEdit) {
@@ -184,11 +193,78 @@ export function NewTodoDrawer({ open, onOpenChange, onRestoreView, projectId, to
     }, 100)
   }
 
+  // --- LOGIC CONTROL LINKED ITEMS ---
+
+  const handleRemoveLink = (fileUrl: string, idToRemove: string) => {
+    setFormData(prev => {
+      const newItems = prev.items?.map(group => {
+        if (group.fileUrl === fileUrl) {
+          return {
+            ...group,
+            expressId: group.expressId.filter(id => id !== idToRemove)
+          };
+        }
+        return group;
+      }).filter(group => group.expressId.length > 0) || [];
+
+      return { ...prev, items: newItems };
+    });
+  };
+
+  const handleUnlinkAll = () => {
+    setFormData(prev => ({ ...prev, items: [] }));
+  };
+
+  const handleAddSelection = () => {
+    console.log("Current Selection:", currentSelection);
+    if (!currentSelection || currentSelection.length === 0) {
+      toast.error("Please select objects in the 3D Viewer first.");
+      return;
+    }
+
+    setFormData(prev => {
+      const currentItems = [...(prev.items || [])];
+
+      currentSelection.forEach(sel => {
+        const fileUrl = sel.fileUrl;
+        const expressId = String(sel.expressID);
+
+        const existingGroup = currentItems.find(g => g.fileUrl === fileUrl);
+
+        if (existingGroup) {
+          if (!existingGroup.expressId.includes(expressId)) {
+            existingGroup.expressId.push(expressId);
+          }
+        } else {
+          currentItems.push({
+            fileUrl: fileUrl,
+            modelId: String(sel.modelID),
+            expressId: [expressId]
+          });
+        }
+      });
+
+      return { ...prev, items: currentItems };
+    });
+
+    toast.success(`Linked ${currentSelection.length} objects to this Todo.`);
+  };
+
   const isPending = createMutation.isPending || updateMutation.isPending
 
   return (
-    <Sheet open={open} onOpenChange={handleCloseDrawer}>
-      <SheetContent className="w-[400px] sm:w-[540px] flex flex-col p-0">
+    <Sheet open={open} onOpenChange={handleCloseDrawer} modal={false}>
+      <SheetContent className="w-[400px] sm:w-[540px] flex flex-col p-0"
+        onInteractOutside={(e) => {
+          e.preventDefault();
+        }}
+
+        style={{
+          boxShadow: "-5px 0 15px rgba(0,0,0,0.1)",
+          pointerEvents: "auto",
+          zIndex: 50
+        }}
+      >
 
         <SheetHeader className="border-b px-6 py-4 flex items-center">
           <div className="flex items-center gap-2 justify-start w-full">
@@ -224,7 +300,7 @@ export function NewTodoDrawer({ open, onOpenChange, onRestoreView, projectId, to
 
         <div className="flex-1 overflow-y-auto px-6 ">
           <div className="space-y-6">
-            {/* --- PHẦN THÊM MỚI: THUMBNAIL --- */}
+            {/* --- THUMBNAIL --- */}
             {currentMode === "view" && formData.viewState?.thumbnail && (
               <div
                 className="mb-4 mt-4 relative group cursor-pointer border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all"
@@ -235,14 +311,12 @@ export function NewTodoDrawer({ open, onOpenChange, onRestoreView, projectId, to
                   }
                 }}
               >
-                {/* Ảnh Thumbnail */}
                 <img
                   src={formData.viewState.thumbnail}
                   alt="3D Context View"
                   className="w-full h-48 object-cover bg-slate-100"
                 />
 
-                {/* Overlay hiệu ứng khi hover */}
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                   <div className="flex items-center gap-2 text-white font-medium bg-black/50 px-3 py-1.5 rounded-full backdrop-blur-sm">
                     <Eye className="w-4 h-4" />
@@ -255,7 +329,6 @@ export function NewTodoDrawer({ open, onOpenChange, onRestoreView, projectId, to
                 </div>
               </div>
             )}
-            {/* ---------------------------------- */}
 
             {/* Title */}
             {currentMode === "view" ? (
@@ -480,6 +553,78 @@ export function NewTodoDrawer({ open, onOpenChange, onRestoreView, projectId, to
                 />
               </div>
             )}
+
+            {/* --- LINKED OBJECTS --- */}
+            <div className="pt-4 border-t">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-medium flex items-center gap-2">
+                  <LinkIcon className="w-4 h-4" />
+                  Linked Objects
+                  <span className="bg-slate-100 text-xs px-2 py-0.5 rounded-full">
+                    {formData.items?.reduce((acc, g) => acc + g.expressId.length, 0) || 0}
+                  </span>
+                </h3>
+
+                {/* Actions Bar */}
+                {currentMode !== "view" && (
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs px-2"
+                      onClick={handleUnlinkAll}
+                      disabled={!formData.items?.length}
+                    >
+                      Clear All
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="h-7 text-xs px-2 gap-1"
+                      onClick={handleAddSelection}
+                    >
+                      <Plus className="w-3 h-3" /> Add Selection
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              {/* List of Objects */}
+              <div className="space-y-2 max-h-[200px] overflow-y-auto pr-1">
+                {(!formData.items || formData.items.length === 0) && (
+                  <div className="text-sm text-muted-foreground italic px-2">
+                    No objects linked. This is a global view issue.
+                  </div>
+                )}
+
+                {formData.items?.map((group, gIdx) => (
+                  <div key={gIdx} className="bg-slate-50 rounded-md p-2 border">
+                    <div className="text-xs font-semibold text-slate-700 mb-1 truncate" title={group.fileUrl}>
+                      File: {getFileName(group.fileUrl)}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {group.expressId.map((id) => (
+                        <div
+                          key={id}
+                          className="flex items-center gap-1 bg-white border rounded px-1.5 py-0.5 text-xs text-slate-600 shadow-sm group/tag"
+                        >
+                          <span>#{id}</span>
+                          {currentMode !== "view" && (
+                            <button
+                              onClick={() => handleRemoveLink(group.fileUrl, id)}
+                              className="text-slate-400 hover:text-red-500 opacity-0 group-hover/tag:opacity-100 transition-opacity"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* ---------------------------------------------------------------------- */}
 
           </div>
         </div>

@@ -89,9 +89,7 @@ export class IfcManager {
   clearModels() {
     console.log("Clearing IFC models...");
 
-    // --- BỎ COMMENT ĐOẠN NÀY ĐỂ XÓA MODEL CŨ KHỎI SCENE ---
     this.ifcModels.forEach((m) => {
-      // Xóa mesh chính
       if (m.mesh) {
         this.scene.remove(m.mesh);
         if (m.mesh.geometry) m.mesh.geometry.dispose();
@@ -102,17 +100,15 @@ export class IfcManager {
       }
     });
 
-    // Xóa các subset ẩn (nếu có)
     this.hiddenSubsets.forEach((subset) => {
       this.scene.remove(subset);
       subset.geometry.dispose();
       if (subset.material) subset.material.dispose();
     });
     this.hiddenSubsets.clear();
-    // -------------------------------------------------------
 
     this.ifcModels.length = 0;
-    this.hiddenExpressIDs.clear(); // Reset luôn map ẩn hiện
+    this.hiddenExpressIDs.clear();
     this.modelHidden.clear();
   }
 
@@ -229,23 +225,19 @@ export class IfcManager {
   highlightExpressID = null;
   highlightMeshes = [];
 
-  async highlight(modelID, expressID) {
-    this.removeHighlight();
-
-    this.highlightModelID = modelID;
-    this.highlightExpressID = expressID;
-
+  async createHighlightSubset(modelID, ids) {
     const subset = this.ifcLoader.ifcManager.createSubset({
       modelID,
-      ids: [expressID],
+      ids,
       applyBVH: true,
       removePrevious: true,
+      customID: "highlight-subset-" + modelID
     });
 
     if (!subset) return;
 
-    const geometry = subset.geometry.clone();
 
+    const geometry = subset.geometry.clone();
     const glowMaterial = new THREE.MeshPhongMaterial({
       color: 0xffff00,
       emissive: 0xffff00,
@@ -261,6 +253,9 @@ export class IfcManager {
     glowMesh.position.copy(subset.position);
     glowMesh.rotation.copy(subset.rotation);
     glowMesh.scale.copy(subset.scale);
+
+    glowMesh.userData = { isHighlight: true, modelID };
+
     this.scene.add(glowMesh);
     this.highlightMeshes.push(glowMesh);
 
@@ -277,22 +272,108 @@ export class IfcManager {
     edgesMesh.position.copy(subset.position);
     edgesMesh.rotation.copy(subset.rotation);
     edgesMesh.scale.copy(subset.scale);
+
     this.scene.add(edgesMesh);
     this.highlightMeshes.push(edgesMesh);
+  }
 
-    this.rebuildSubset(modelID);
+  // async highlight(modelID, expressID) {
+  //   this.removeHighlight();
+
+  //   this.highlightModelID = modelID;
+  //   this.highlightExpressID = expressID;
+
+  //   const subset = this.ifcLoader.ifcManager.createSubset({
+  //     modelID,
+  //     ids: [expressID],
+  //     applyBVH: true,
+  //     removePrevious: true,
+  //   });
+
+  //   if (!subset) return;
+
+  //   const geometry = subset.geometry.clone();
+
+  //   const glowMaterial = new THREE.MeshPhongMaterial({
+  //     color: 0xffff00,
+  //     emissive: 0xffff00,
+  //     emissiveIntensity: 0.4,
+  //     transparent: true,
+  //     opacity: 0.3,
+  //     depthTest: false,
+  //     side: THREE.DoubleSide,
+  //     wireframe: false,
+  //   });
+
+  //   const glowMesh = new THREE.Mesh(geometry, glowMaterial);
+  //   glowMesh.position.copy(subset.position);
+  //   glowMesh.rotation.copy(subset.rotation);
+  //   glowMesh.scale.copy(subset.scale);
+  //   this.scene.add(glowMesh);
+  //   this.highlightMeshes.push(glowMesh);
+
+  //   const edgesGeom = new THREE.EdgesGeometry(geometry, 25);
+  //   const edgeMaterial = new THREE.LineBasicMaterial({
+  //     color: 0xffff00,
+  //     transparent: true,
+  //     opacity: 0.8,
+  //     depthTest: false,
+  //     linewidth: 3,
+  //   });
+
+  //   const edgesMesh = new THREE.LineSegments(edgesGeom, edgeMaterial);
+  //   edgesMesh.position.copy(subset.position);
+  //   edgesMesh.rotation.copy(subset.rotation);
+  //   edgesMesh.scale.copy(subset.scale);
+  //   this.scene.add(edgesMesh);
+  //   this.highlightMeshes.push(edgesMesh);
+
+  //   this.rebuildSubset(modelID);
+  // }
+
+  async highlight(modelID, expressID) {
+    await this.highlightItems([{ modelID, expressID }]);
+  }
+
+  async highlightItems(items) {
+
+    this.removeHighlight();
+
+    if (!items || items.length === 0) return;
+
+
+    const itemsByModel = {};
+
+    items.forEach(item => {
+      const mId = parseInt(item.modelID);
+      const eId = parseInt(item.expressID || item.expressId);
+      if (!isNaN(mId) && !isNaN(eId)) {
+        if (!itemsByModel[mId]) {
+          itemsByModel[mId] = [];
+        }
+        itemsByModel[mId].push(eId);
+      }
+    });
+
+
+    for (const modelIDStr in itemsByModel) {
+      const modelID = parseInt(modelIDStr);
+      const ids = itemsByModel[modelID];
+
+      await this.createHighlightSubset(modelID, ids);
+    }
   }
 
   removeHighlight() {
     for (const mesh of this.highlightMeshes) {
       this.scene.remove(mesh);
-      mesh.geometry.dispose();
-      mesh.material.dispose();
+      if (mesh.geometry) mesh.geometry.dispose();
+      if (mesh.material) {
+        if (Array.isArray(mesh.material)) mesh.material.forEach(m => m.dispose());
+        else mesh.material.dispose();
+      }
     }
-
     this.highlightMeshes = [];
-    this.highlightModelID = null;
-    this.highlightExpressID = null;
   }
 
   clearHighlightIfBelongsToModel(modelID) {
@@ -526,21 +607,16 @@ export class IfcManager {
   }
 
   async restoreVisibilityState(savedState) {
-    // 1. Reset: Hiện tất cả mọi thứ trước
     const modelsToReset = Array.from(this.hiddenExpressIDs.keys());
     this.hiddenExpressIDs.clear();
 
-    // Reset visual cho các model cũ đang bị ẩn
     modelsToReset.forEach(modelID => this.rebuildSubset(modelID));
 
     if (!savedState || !Array.isArray(savedState)) return;
 
-    // 2. Apply trạng thái mới
     for (const item of savedState) {
       const { modelID, ids } = item;
-      // Tạo Set mới từ mảng ids lưu trong DB
       this.hiddenExpressIDs.set(modelID, new Set(ids));
-      // Rebuild lại model đó để áp dụng ẩn
       this.rebuildSubset(modelID);
     }
   }

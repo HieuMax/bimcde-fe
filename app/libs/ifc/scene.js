@@ -228,53 +228,13 @@ export class ThreeScene {
     };
   }
 
-  // setCameraState(state) {
-  //   if (!state || !state.position || !state.target) return;
-
-  //   // const newPos = new Vector3().fromArray(state.position);
-  //   // const newTarget = new Vector3().fromArray(state.target);
-
-  //   // this.camera.position.copy(newPos);
-  //   // this.controls.target.copy(newTarget);
-
-  //   // this.controls.update();
-  //   const savedPos = state.camera.position;
-  //   const savedTarget = state.camera.target;
-
-  //   // Kiểm tra nếu data hợp lệ (có x, y, z hoặc là mảng)
-  //   if (savedPos && savedTarget) {
-  //     // Trường hợp 1: Data lưu dạng Mảng [x, y, z] (do Schema Mongoose cũ)
-  //     if (Array.isArray(savedPos)) {
-  //       const newPos = new Vector3().fromArray(savedPos);
-  //       const newTarget = new Vector3().fromArray(savedTarget);
-
-  //       this.camera.position.copy(newPos);
-  //       this.controls.target.copy(newTarget);
-  //     }
-  //     // Trường hợp 2: Data lưu dạng Object {x, y, z} (do Schema Types.Mixed mới)
-  //     else {
-  //       this.camera.position.set(savedPos.x, savedPos.y, savedPos.z);
-  //       this.controls.target.set(savedTarget.x, savedTarget.y, savedTarget.z);
-  //     }
-
-  //     this.controls.update(); // Bắt buộc gọi lệnh này để camera cập nhật vị trí mới
-  //   }
-  // }
-
   setCameraState(state) {
-    // Kiểm tra đầu vào: state phải là object chứa position và target
     if (!state || !state.position || !state.target) return;
 
-    // --- SỬA LẠI ĐOẠN NÀY ---
-    // Vì state được truyền vào chính là { position: ..., target: ... }
-    // nên ta lấy trực tiếp, KHÔNG gọi qua .camera nữa
-    const savedPos = state.position;     // Sửa từ state.camera.position thành state.position
-    const savedTarget = state.target;    // Sửa từ state.camera.target thành state.target
-    // ------------------------
+    const savedPos = state.position;
+    const savedTarget = state.target;
 
-    // Kiểm tra nếu data hợp lệ (có x, y, z hoặc là mảng)
     if (savedPos && savedTarget) {
-      // Trường hợp 1: Data lưu dạng Mảng [x, y, z] (Schema cũ)
       if (Array.isArray(savedPos)) {
         const newPos = new Vector3().fromArray(savedPos);
         const newTarget = new Vector3().fromArray(savedTarget);
@@ -282,39 +242,29 @@ export class ThreeScene {
         this.camera.position.copy(newPos);
         this.controls.target.copy(newTarget);
       }
-      // Trường hợp 2: Data lưu dạng Object {x, y, z} (Schema Mixed mới)
       else {
         this.camera.position.set(savedPos.x, savedPos.y, savedPos.z);
         this.controls.target.set(savedTarget.x, savedTarget.y, savedTarget.z);
       }
 
-      this.controls.update(); // Bắt buộc gọi lệnh này để camera cập nhật vị trí mới
+      this.controls.update();
     }
   }
 
   // For thumbnail generation
   getScreenshot() {
-    // 1. Lấy kích thước thực tế của Canvas (Drawing Buffer)
     const width = this.threeCanvas.width;
     const height = this.threeCanvas.height;
 
-    // 2. Reset Viewport và Scissor về toàn màn hình
-    // Đây là bước quan trọng để sửa lỗi ảnh bị nhỏ/lệch
     this.renderer.setViewport(0, 0, width, height);
     this.renderer.setScissorTest(false);
 
-    // 3. Clear buffer cũ để đảm bảo nền sạch sẽ (dùng màu nền xám của bạn)
     this.renderer.setClearColor(0xcccccc, 1);
     this.renderer.clear(true, true, true);
 
-    // 4. Render lại scene chính ở chế độ full màn hình
     this.renderer.render(this.scene, this.camera);
 
-    // 5. Xuất ảnh
     const dataURL = this.renderer.domElement.toDataURL('image/png');
-
-    // Lưu ý: Không cần restore lại viewport ở đây vì hàm setupAnimation 
-    // sẽ tự động set lại trong frame tiếp theo.
 
     return dataURL;
   }

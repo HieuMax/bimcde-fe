@@ -8,7 +8,6 @@ import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Menu, Search, MoreVertical, ChevronDown, Check, Plus, ChevronRight } from "lucide-react"
 import { Input } from "@/components/ui/input"
-import { NewTodoDrawer } from "./NewTodoDrawer"
 import { todoService } from "@/services/todo.service"
 import { ITodo } from "@/types/todo"
 
@@ -16,11 +15,12 @@ interface TodoListProps {
   projectId: string
   onRestoreView?: (viewState: any) => void
   onSelectTodo?: (todo: ITodo) => void;
+  onOpenDrawer: (todo: ITodo | null, mode: "view" | "edit" | "create") => void;
 }
 
 type GroupByType = "none" | "status" | "assignee" | "priority"
 
-export function ToDo({ projectId, onSelectTodo, onRestoreView }: TodoListProps) {
+export function ToDo({ projectId, onSelectTodo, onRestoreView, onOpenDrawer }: TodoListProps) {
   const queryClient = useQueryClient()
 
   // --- STATE ---
@@ -34,9 +34,9 @@ export function ToDo({ projectId, onSelectTodo, onRestoreView }: TodoListProps) 
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({})
 
   // State Drawer
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false)
-  const [todoToEdit, setTodoToEdit] = useState<ITodo | null>(null)
-  const [drawerMode, setDrawerMode] = useState<"view" | "edit" | "create">("view")
+  // const [isDrawerOpen, setIsDrawerOpen] = useState(false)
+  // const [todoToEdit, setTodoToEdit] = useState<ITodo | null>(null)
+  // const [drawerMode, setDrawerMode] = useState<"view" | "edit" | "create">("view")
   const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined)
 
   // --- QUERIES ---
@@ -81,26 +81,25 @@ export function ToDo({ projectId, onSelectTodo, onRestoreView }: TodoListProps) 
     updateStatusMutation.mutate({ id, status: newStatus })
   }
 
-  const handleEdit = (todo: ITodo) => {
-    setTodoToEdit(todo)
-    setDrawerMode("edit")
-    setIsDrawerOpen(true)
-  }
+  // const handleEdit = (todo: ITodo) => {
+  //   setTodoToEdit(todo)
+  //   setDrawerMode("edit")
+  //   setIsDrawerOpen(true)
+  // }
 
   const handleCreateNew = () => {
-    setTodoToEdit(null)
-    setDrawerMode("create")
-    setIsDrawerOpen(true)
+    onOpenDrawer(null, "create");
   }
 
   const handleView = (todo: ITodo) => {
-    setTodoToEdit(todo)
-    setDrawerMode("view")
-    setIsDrawerOpen(true)
+    onOpenDrawer(todo, "view");
+    // setTodoToEdit(todo)
+    // setDrawerMode("view")
+    // setIsDrawerOpen(true)
 
-    if (onSelectTodo) {
-      onSelectTodo(todo);
-    }
+    // if (onSelectTodo) {
+    //   onSelectTodo(todo);
+    // }
   }
 
   // --- DATA PROCESSING ---
@@ -217,7 +216,7 @@ export function ToDo({ projectId, onSelectTodo, onRestoreView }: TodoListProps) 
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleEdit(todo); }}>Edit</DropdownMenuItem>
+                <DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleView(todo); }}>Edit</DropdownMenuItem>
                 {todo.status !== "New" && (<DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleStatusChange(todo._id, "New"); }}>Change to New</DropdownMenuItem>)}
                 {todo.status !== "In Progress" && (<DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleStatusChange(todo._id, "In Progress"); }}>Change to In Progress</DropdownMenuItem>)}
                 {todo.status !== "Done" && (<DropdownMenuItem onClick={(e) => { e.stopPropagation(); handleStatusChange(todo._id, "Done"); }}>Change to Done</DropdownMenuItem>)}
@@ -345,15 +344,6 @@ export function ToDo({ projectId, onSelectTodo, onRestoreView }: TodoListProps) 
           )}
         </div>
       </div>
-
-      <NewTodoDrawer
-        open={isDrawerOpen}
-        onOpenChange={setIsDrawerOpen}
-        projectId={projectId}
-        todoToEdit={todoToEdit}
-        mode={drawerMode}
-        onRestoreView={onRestoreView}
-      />
     </aside>
   )
 }
