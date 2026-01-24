@@ -3,7 +3,7 @@
 import { useSearchParams, useRouter, useParams } from 'next/navigation';
 import React, { useEffect, useMemo, useState } from 'react';
 import IfcViewer from '@/app/components/ifcs/IfcViewer';
-import { Box, Layers, ClipboardCheck, ChevronRight, ChevronLeft } from 'lucide-react';
+import { Box, Layers, ClipboardCheck, ChevronRight, ChevronLeft, Camera, FolderTree, Sheet, BadgeInfo, BookText } from 'lucide-react';
 import { Navbar } from '@/components/layout/navbar/Navbar';
 import { NewTodoDrawer } from '@/components/todos/NewTodoDrawer';
 
@@ -33,11 +33,21 @@ export default function ViewerClient() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [drawerInitialData, setDrawerInitialData] = useState<NewTodoInitialData | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const captureViewRef = React.useRef<() => any>(null);
   const ctaBtn = [
     { icon: <Box />, label: 'models' },
     { icon: <Layers />, label: 'layers' },
     { icon: <ClipboardCheck />, label: 'todos' },
+    { icon: <Camera />, label: 'views' },
+    { icon: <FolderTree />, label: 'organizer' },
+    { icon: <Sheet />, label: 'data-table' },
+    { icon: <BookText />, label: 'topics' },
+    { icon: <BadgeInfo />, label: 'clash-sets' },
   ];
+
+  const handleRegisterCapture = (captureFn: () => any) => {
+    captureViewRef.current = captureFn;
+  };
 
   const ifcUrls = useMemo(() => {
     const raw = searchParams.get('urls');
@@ -59,6 +69,10 @@ export default function ViewerClient() {
   };
 
   const onAddTodo = () => {
+    let viewState = null;
+    if (captureViewRef.current) {
+      viewState = captureViewRef.current(); // Lấy view hiện tại
+    }
     if (selectedItems.length > 0) {
       // console.log('Selected items:', selectedItems);
       const grouped = new Map();
@@ -73,7 +87,8 @@ export default function ViewerClient() {
       // console.log('Grouped items:', items);
       const initialData = {
         items,
-        title: `Issue on ${selectedItems.length > 1 ? `${selectedItems.length} items` : `#${items[0]?.expressId[0] || ''}`}`
+        title: `Issue on ${selectedItems.length > 1 ? `${selectedItems.length} items` : `#${items[0]?.expressId[0] || ''}`}`,
+        viewState: viewState
       };
       setDrawerInitialData(initialData);
       setIsDrawerOpen(true);
@@ -91,14 +106,14 @@ export default function ViewerClient() {
   }, [ifcUrls, router]);
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden">
+    <div className="flex flex-col h-screen w-full overflow-hidden">
       <Navbar
         onBack={handleBack}
         onRefresh={handleRefresh}
         onAddTodo={onAddTodo}
       />
       {/* handle navbar and extend when click item can create todo related to it */}
-      <div className="flex">
+      <div className="flex flex-1">
         <div className="w-10 min-h-full bg-gray-200">
           <div className="mt-[150]">
             <span
@@ -138,7 +153,9 @@ export default function ViewerClient() {
             isCollapsed={isCollapsed}
             ifcUrls={ifcUrls}
             state={state}
-            projectId={projectId} />
+            projectId={projectId}
+            onRegisterCapture={handleRegisterCapture}
+          />
         </div>
       </div>
 

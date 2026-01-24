@@ -29,6 +29,7 @@ export interface ITodo {
     modelId: string;
     expressId: string[];
   }[];
+  viewState?: any;
   createdAt: string;
   updatedAt: string;
 }
@@ -49,6 +50,7 @@ export interface CreateTodoDto {
     modelId: string;
     expressId: string[];
   }[];
+  viewState?: any;
 }
 
 export interface UpdateTodoDto {

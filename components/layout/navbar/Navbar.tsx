@@ -2,15 +2,16 @@
 
 import {
     ArrowLeft,
-    RotateCw,
-    Square,
-    Maximize2,
-    ZoomIn,
-    Trash2,
+    SquareDashed,
+    MousePointer,
+    CopyPlusIcon,
+    MessageCircleDashed,
+    CameraIcon,
+    SquareScissors,
+    Rotate3D,
+    Box,
     ClipboardCheck,
-    Users,
-    MessageCircle,
-    MoreHorizontal,
+    MoreVertical,
     Camera,
     Settings,
     Fullscreen,
@@ -18,6 +19,10 @@ import {
     Lock,
     Download,
     LucideIcon,
+    Ruler,
+    Grid3x3,
+    RotateCcw,
+    ChevronDown,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -26,6 +31,7 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 
 interface NavbarProps {
     onBack?: () => void;
@@ -87,39 +93,165 @@ export function Navbar({ onBack, onRefresh, onAction, onAddTodo }: NavbarProps) 
                             <TooltipContent side="bottom">Go back</TooltipContent>
                         </Tooltip>
 
-                        {/* Refresh */}
-                        <NavIconButton icon={RotateCw} label="Refresh" onClick={onRefresh} />
+                        <div className="w-px h-6 bg-border mx-1" />
+                        {/* Camera Controls */}
+                        <DropdownMenu>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-8 w-12"
+                                        >
+                                            <Box />
+                                            <ChevronDown className="h-2 w-2 ml-0.5" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom">Camera Controls</TooltipContent>
+                            </Tooltip>
 
-                        {/* Primary Action Button */}
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <Button
-                                    className="h-8 px-3 bg-blue-500 hover:bg-blue-600 text-white text-xs ml-1"
-                                    onClick={onAction}
-                                >
-                                    Action
-                                </Button>
-                            </TooltipTrigger>
-                            <TooltipContent side="bottom">Perform action</TooltipContent>
-                        </Tooltip>
+                            <DropdownMenuContent align="start" className="w-40">
+                                <DropdownMenuItem>
+                                    <RotateCcw className="mr-2 h-4 w-4" />
+                                    Rotate
+                                </DropdownMenuItem>
+                                <DropdownMenuItem>
+                                    <Eye className="mr-2 h-4 w-4" />
+                                    Pan
+                                </DropdownMenuItem>
+                                <DropdownMenuItem>
+                                    <Grid3x3 className="mr-2 h-4 w-4" />
+                                    Look around
+                                </DropdownMenuItem>
+                                {/* <DropdownMenuItem>
+                                    <Grid3x3 className="mr-2 h-4 w-4 rotate-90" />
+                                    Walk mode
+                                </DropdownMenuItem>
+                                <DropdownMenuItem>
+                                    <Grid3x3 className="mr-2 h-4 w-4 rotate-90" />
+                                    Path navigation
+                                </DropdownMenuItem> */}
+                            </DropdownMenuContent>
+                        </DropdownMenu>
 
                         {/* Divider */}
                         <div className="w-px h-6 bg-border mx-1" />
 
                         {/* Layout Tools */}
-                        <NavIconButton icon={Square} label="Square" />
-                        <NavIconButton icon={Maximize2} label="Maximize" />
-                        <NavIconButton icon={ZoomIn} label="Zoom in" />
-                        <NavIconButton icon={Trash2} label="Delete" />
+                        <NavIconButton icon={MousePointer} label="Single Selection mode" />
+                        <NavIconButton icon={SquareDashed} label="Area Selection mode" />
+                        <NavIconButton icon={CopyPlusIcon} label="Multiple-select mode" />
+
+                        <div className="w-px h-6 bg-border mx-1" />
+
+                        <NavIconButton icon={Ruler} label="Measurement option" />
+                        <NavIconButton icon={MessageCircleDashed} label="Add markup" />
+                        <NavIconButton icon={SquareScissors} label="Clip plane" />
+                        <NavIconButton icon={CameraIcon} label="Add view" />
                         <NavIconButton icon={ClipboardCheck} label="Add todo" onClick={onAddTodo} />
 
                         {/* Divider */}
                         <div className="w-px h-6 bg-border mx-1" />
 
+                        <DropdownMenu>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-8 w-12"
+                                        >
+                                            <Box />
+                                            <ChevronDown className="h-2 w-2 ml-0.5" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom">Perform action</TooltipContent>
+                            </Tooltip>
+
+                            <DropdownMenuContent align="start" className="w-40">
+                                <DropdownMenuItem>
+                                    <RotateCcw className="mr-2 h-4 w-4" />
+                                    Axon View
+                                </DropdownMenuItem>
+                                <DropdownMenuItem>
+                                    <Eye className="mr-2 h-4 w-4" />
+                                    Top view
+                                </DropdownMenuItem>
+                                <DropdownMenuItem>
+                                    <Grid3x3 className="mr-2 h-4 w-4" />
+                                    Front View
+                                </DropdownMenuItem>
+                                <DropdownMenuItem>
+                                    <Grid3x3 className="mr-2 h-4 w-4 rotate-90" />
+                                    Left View
+                                </DropdownMenuItem>
+                                <DropdownMenuItem>
+                                    <Grid3x3 className="mr-2 h-4 w-4 rotate-90" />
+                                    Back View
+                                </DropdownMenuItem>
+                                <DropdownMenuItem>
+                                    <Grid3x3 className="mr-2 h-4 w-4 rotate-90" />
+                                    Right View
+                                </DropdownMenuItem>
+                                <DropdownMenuItem>
+                                    <Grid3x3 className="mr-2 h-4 w-4 rotate-90" />
+                                    Bottom View
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+
+                        <div className="w-px h-6 bg-border mx-1" />
+
                         {/* Collaboration Tools */}
-                        <NavIconButton icon={Users} label="Users" />
-                        <NavIconButton icon={MessageCircle} label="Messages" />
-                        <NavIconButton icon={MoreHorizontal} label="More options" />
+
+                        <DropdownMenu>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <DropdownMenuTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-8 w-12"
+                                        >
+                                            <Eye />
+                                            <ChevronDown className="h-2 w-2 ml-0.5" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                </TooltipTrigger>
+                                <TooltipContent side="bottom">Visibility Controls</TooltipContent>
+                            </Tooltip>
+
+                            <DropdownMenuContent align="start" className="w-40">
+                                <DropdownMenuItem>
+                                    <RotateCcw className="mr-2 h-4 w-4" />
+                                    Annotations
+                                </DropdownMenuItem>
+                                <DropdownMenuItem>
+                                    <Eye className="mr-2 h-4 w-4" />
+                                    Clip planes
+                                </DropdownMenuItem>
+                                <DropdownMenuItem>
+                                    <Grid3x3 className="mr-2 h-4 w-4" />
+                                    Grids
+                                </DropdownMenuItem>
+                                <DropdownMenuItem>
+                                    <Grid3x3 className="mr-2 h-4 w-4 rotate-90" />
+                                    IFC element types
+                                </DropdownMenuItem>
+                                <DropdownMenuItem>
+                                    <Grid3x3 className="mr-2 h-4 w-4 rotate-90" />
+                                    Object attachments
+                                </DropdownMenuItem>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+
+                        <div className="w-px h-6 bg-border mx-1" />
+                        <NavIconButton icon={MoreVertical} label="More options" />
+
                     </div>
 
                     {/* Spacer */}
@@ -127,11 +259,6 @@ export function Navbar({ onBack, onRefresh, onAction, onAddTodo }: NavbarProps) 
 
                     {/* Right Section */}
                     <div className="flex items-center gap-1">
-                        {/* View Tools */}
-                        <NavIconButton icon={Camera} label="Snapshot" />
-                        <NavIconButton icon={Eye} label="Preview" />
-                        <NavIconButton icon={Lock} label="Lock" />
-
                         {/* Divider */}
                         <div className="w-px h-6 bg-border mx-1" />
 

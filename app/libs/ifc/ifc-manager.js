@@ -487,4 +487,37 @@ export class IfcManager {
     this.removeHighlight();
     this.rebuildSubset(modelID);
   }
+
+  getVisibilityState() {
+    const state = [];
+    this.hiddenExpressIDs.forEach((idsSet, modelID) => {
+      if (idsSet.size > 0) {
+        state.push({
+          modelID: modelID,
+          ids: Array.from(idsSet) // Convert Set to Array
+        });
+      }
+    });
+    return state;
+  }
+
+  async restoreVisibilityState(savedState) {
+    // 1. Reset: Hiện tất cả mọi thứ trước
+    const modelsToReset = Array.from(this.hiddenExpressIDs.keys());
+    this.hiddenExpressIDs.clear();
+
+    // Reset visual cho các model cũ đang bị ẩn
+    modelsToReset.forEach(modelID => this.rebuildSubset(modelID));
+
+    if (!savedState || !Array.isArray(savedState)) return;
+
+    // 2. Apply trạng thái mới
+    for (const item of savedState) {
+      const { modelID, ids } = item;
+      // Tạo Set mới từ mảng ids lưu trong DB
+      this.hiddenExpressIDs.set(modelID, new Set(ids));
+      // Rebuild lại model đó để áp dụng ẩn
+      this.rebuildSubset(modelID);
+    }
+  }
 }

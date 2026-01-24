@@ -12,7 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar, MoveLeft } from "lucide-react"
+import { Calendar, Eye, MoveLeft } from "lucide-react"
 import { todoService } from "@/services/todo.service"
 import { ITodo } from "@/types/todo"
 import { useRef } from "react";
@@ -20,6 +20,7 @@ import { Pencil } from "lucide-react"
 interface NewTodoDrawerProps {
   open: boolean
   onOpenChange: (open: boolean) => void
+  onRestoreView?: (viewState: any) => void
   projectId: string
   todoToEdit?: ITodo | null
   mode: "view" | "edit" | "create"
@@ -30,11 +31,12 @@ interface NewTodoDrawerProps {
       expressId: string[];
     }[];
     title?: string;
+    viewState?: any;
   } | null;
 }
 
 
-export function NewTodoDrawer({ open, onOpenChange, projectId, todoToEdit, mode, initialData }: NewTodoDrawerProps) {
+export function NewTodoDrawer({ open, onOpenChange, onRestoreView, projectId, todoToEdit, mode, initialData }: NewTodoDrawerProps) {
   const queryClient = useQueryClient()
 
   // Initial state helper
@@ -48,6 +50,7 @@ export function NewTodoDrawer({ open, onOpenChange, projectId, todoToEdit, mode,
     type: "undefined" as "undefined" | "comment" | "issue" | "request" | "fault" | "inquiry" | "solution" | "remark" | "clash",
     tags: "",
     items: [] as { fileUrl: string; modelId: string; expressId: string[] }[],
+    viewState: null as any,
   }
 
   const [currentMode, setCurrentMode] = useState(mode)
@@ -61,7 +64,6 @@ export function NewTodoDrawer({ open, onOpenChange, projectId, todoToEdit, mode,
   const formatDate = (date?: string) =>
     date ? new Date(date).toLocaleDateString() : ""
   const [formData, setFormData] = useState(defaultState)
-
   const dateInputRef = useRef<HTMLInputElement>(null);
 
 
@@ -77,7 +79,6 @@ export function NewTodoDrawer({ open, onOpenChange, projectId, todoToEdit, mode,
             formattedDate = d.toISOString().split('T')[0]
           }
         }
-
         setFormData({
           title: todoToEdit.title || "",
           description: todoToEdit.description || "",
@@ -89,11 +90,13 @@ export function NewTodoDrawer({ open, onOpenChange, projectId, todoToEdit, mode,
           type: (todoToEdit.type as any) || "undefined",
           tags: todoToEdit.tags?.join(", ") || "",
           items: todoToEdit?.items || [],
+          viewState: todoToEdit?.viewState || null,
         })
       } else if (initialData && mode === 'create') {
         setFormData({
           ...defaultState,
           items: initialData?.items || [],
+          viewState: initialData?.viewState || null,
         })
       } else {
         // Reset to default if creating new
@@ -157,12 +160,14 @@ export function NewTodoDrawer({ open, onOpenChange, projectId, todoToEdit, mode,
       type: formData.type,
       tags: tagsArray.length > 0 ? tagsArray : undefined,
       projectId,
+      viewState: formData.viewState || undefined,
     }
 
     if (!todoToEdit) {
       // For create, include items
       payload.items = initialData?.items || [];
     }
+    console.log(payload)
 
     if (todoToEdit) {
       updateMutation.mutate(payload)
@@ -219,6 +224,39 @@ export function NewTodoDrawer({ open, onOpenChange, projectId, todoToEdit, mode,
 
         <div className="flex-1 overflow-y-auto px-6 ">
           <div className="space-y-6">
+            {/* --- PHẦN THÊM MỚI: THUMBNAIL --- */}
+            {currentMode === "view" && formData.viewState?.thumbnail && (
+              <div
+                className="mb-4 mt-4 relative group cursor-pointer border rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-all"
+                onClick={() => {
+                  if (onRestoreView) {
+                    onRestoreView(formData.viewState);
+                    toast.success("Restoring 3D View...");
+                  }
+                }}
+              >
+                {/* Ảnh Thumbnail */}
+                <img
+                  src={formData.viewState.thumbnail}
+                  alt="3D Context View"
+                  className="w-full h-48 object-cover bg-slate-100"
+                />
+
+                {/* Overlay hiệu ứng khi hover */}
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <div className="flex items-center gap-2 text-white font-medium bg-black/50 px-3 py-1.5 rounded-full backdrop-blur-sm">
+                    <Eye className="w-4 h-4" />
+                    <span>Restore View</span>
+                  </div>
+                </div>
+
+                <div className="absolute bottom-2 right-2 bg-black/60 text-white text-[10px] px-2 py-0.5 rounded">
+                  3D Snapshot
+                </div>
+              </div>
+            )}
+            {/* ---------------------------------- */}
+
             {/* Title */}
             {currentMode === "view" ? (
               <ViewField label="Title" value={formData.title} />

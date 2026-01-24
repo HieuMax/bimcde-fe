@@ -25,6 +25,7 @@ export const todoService = {
   },
 
   create: async (data: CreateTodoDto) => {
+    console.log(data)
     const res = await api.post(BASE_URL, data);
     return res as ITodo;
   },

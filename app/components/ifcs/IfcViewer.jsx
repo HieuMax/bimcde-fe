@@ -5,6 +5,9 @@ import { ThreeScene } from '@/app/libs/ifc/scene';
 import { IfcManager } from '@/app/libs/ifc/ifc-manager';
 import { TreeNode } from './TreeNode';
 import TodoList from '@/components/todos/TodoList';
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import {
   Eye,
   EyeOff,
@@ -12,11 +15,18 @@ import {
   ChevronRight,
   Info,
   EllipsisVertical,
+  Menu, Search, Check
 } from 'lucide-react';
 import './ifc.css';
 import LoadingBar from '../LoadingBar';
 
-export default function IfcViewer({ ifcUrls, state, projectId, isCollapsed, setSelectdItemsForNavbar }) {
+import { ViewList } from '@/components/views/ViewList';
+import { DataTable } from '@/components/_3d/data_table/DataTable';
+import { Topics } from '@/components/_3d/topics/Topics';
+import { ClashSets } from '@/components/_3d/clash_sets/ClashSets';
+import { Organizer } from '@/components/_3d/organizer/Organizer';
+
+export default function IfcViewer({ ifcUrls, state, projectId, isCollapsed, setSelectdItemsForNavbar, onRegisterCapture }) {
   const canvasRef = useRef(null);
   const loaderRef = useRef(null);
   const sceneRef = useRef(null);
@@ -31,8 +41,13 @@ export default function IfcViewer({ ifcUrls, state, projectId, isCollapsed, setS
   const [hiddenItems, setHiddenItems] = useState({});
   const [openMenuKey, setOpenMenuKey] = useState(null);
   const [selectedLayer, setSelectedLayer] = useState([]);
+  //< "name" | "date-modified" >
+  const [sortBy, setSortBy] = useState("date-modified")
+  const [showSearch, setShowSearch] = useState(false)
+  const [statusFilter, setStatusFilter] = useState(undefined)
+  const [searchQuery, setSearchQuery] = useState("")
 
-  const EXPANDED_WIDTH = 400;
+  const EXPANDED_WIDTH = 370;
   const COLLAPSED_WIDTH = 250;
 
   // const [isCollapsed, setIsCollapsed] = useState(false);
@@ -192,6 +207,78 @@ export default function IfcViewer({ ifcUrls, state, projectId, isCollapsed, setS
 
   const isLayerVisible = (modelID, typeId) => !hiddenLayers.has(layerKey(modelID, typeId));
 
+
+  // Related to camera state
+  const captureCurrentState = () => {
+    if (!sceneRef.current || !loaderRef.current) return null;
+
+    // 1. Capture Camera
+    const cameraState = sceneRef.current.getCameraState();
+
+    // 2. Capture Visibility (Các item đang bị ẩn)
+    const hiddenState = loaderRef.current.getVisibilityState();
+
+    // 3. Capture Selection (Lấy từ state React hiện tại)
+    // Lưu ý: selectedItems là state của bạn: [{ modelID, expressID, fileUrl }]
+    const selectionState = selectedItems.map(item => ({
+      modelID: item.modelID,
+      expressID: item.expressID,
+      fileUrl: item.fileUrl
+    }));
+
+    // 4. Capture Thumbnail (Optional)
+    const thumbnail = sceneRef.current.getScreenshot();
+
+    return {
+      camera: cameraState,
+      visibility: hiddenState,
+      selection: selectionState,
+      thumbnail: thumbnail
+    };
+  };
+
+  // === LOGIC MỚI: RESTORE STATE ===
+  const restoreState = async (viewState) => {
+    if (!viewState || !sceneRef.current || !loaderRef.current) return;
+
+    // 1. Restore Camera
+    sceneRef.current.setCameraState(viewState.camera);
+
+    // 2. Restore Visibility
+    await loaderRef.current.restoreVisibilityState(viewState.visibility);
+
+    // Đồng bộ lại state hiddenItems của React (để nút mắt ẩn/hiện trên UI đúng)
+    const newHiddenItemsReactState = {};
+    viewState.visibility?.forEach(group => {
+      group.ids.forEach(id => {
+        newHiddenItemsReactState[`${group.modelID}-${id}`] = true;
+      });
+    });
+    setHiddenItems(newHiddenItemsReactState);
+
+    // 3. Restore Selection
+    if (viewState.selection && viewState.selection.length > 0) {
+      // Highlight 3D
+      // Giả sử chỉ highlight item đầu tiên hoặc loop qua highlight logic
+      const firstItem = viewState.selection[0];
+      loaderRef.current.highlight(firstItem.modelID, firstItem.expressID); // Logic highlight cũ của bạn chỉ support 1 item?
+
+      // Update React State
+      setSelectedItems(viewState.selection);
+      if (setSelectdItemsForNavbar) setSelectdItemsForNavbar(viewState.selection);
+    } else {
+      loaderRef.current.removeHighlight();
+      setSelectedItems([]);
+      if (setSelectdItemsForNavbar) setSelectdItemsForNavbar([]);
+    }
+  };
+
+  useEffect(() => {
+    if (onRegisterCapture) {
+      onRegisterCapture(captureCurrentState);
+    }
+  }, []);
+
   const Loading = () => {
     if (isLoading) {
       return (
@@ -207,7 +294,7 @@ export default function IfcViewer({ ifcUrls, state, projectId, isCollapsed, setS
   };
 
   return (
-    <div style={{ width: '100%', height: '100vh' }}>
+    <div style={{ width: '100%', height: '100%' }}>
       <Loading />
       <div style={{ display: 'flex', width: '100%', height: '100%', position: 'relative' }}>
         <div className="flex flex-col bg-slate-700">
@@ -218,9 +305,8 @@ export default function IfcViewer({ ifcUrls, state, projectId, isCollapsed, setS
             onMouseUp={(e) => e.stopPropagation()}
             style={{
               width: sidebarWidth,
-
               height: '100%',
-              overflowY: 'auto',
+              overflow: state === 'todos' ? 'hidden' : 'auto',
               background: '#FFFFFF',
               color: '#6F6F6F',
               padding: '5px',
@@ -231,284 +317,466 @@ export default function IfcViewer({ ifcUrls, state, projectId, isCollapsed, setS
               bottom: 0,
               borderRight: '1px solid #e5e7eb',
               transition: 'width 0.25s ease',
+              display: state === 'todos' ? 'flex' : 'block',
+              flexDirection: state === 'todos' ? 'column' : undefined,
             }}
           >
             {/* Model */}
             {state == 'models' &&
-              models.map((m, idx) => {
-                const isActive = selectedModelIndex === idx && selectedTreePaths.length === 0;
-
-                return (
-                  <div
-                    key={idx}
-                    className={isActive ? 'tree-active' : ''}
-                    onMouseEnter={(e) => {
-                      if (!isActive) e.currentTarget.style.background = '#f2f2f2';
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!isActive) e.currentTarget.style.background = 'transparent';
-                    }}
-                    onClick={() => {
-                      setSelectedModelIndex(idx);
-                      setSelectedTreePaths([]);
-                    }}
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      marginBottom: '4px',
-                      cursor: 'pointer',
-                      position: 'relative',
-                      width: '100%',
-                      borderRadius: '4px',
-                      width: `${sidebarWidth - 30}px`,
-                    }}
-                  >
-                    <div
-                      className="flex"
-                      style={{
-                        background: isActive ? '#dbeafe' : 'transparent',
-                        padding: '4px 8px',
-                      }}
-                    >
-                      <span
-                        style={{
-                          cursor: 'pointer',
-                          marginRight: '10px',
-                          display: 'flex',
-                          gap: '4px',
-                        }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (!m.visible) {
-                            return;
-                          }
-                          setOpenModel((prev) => ({ ...prev, [idx]: !prev[idx] }));
-                        }}
+              <div className="flex flex-col items-center justify-between mb-3">
+                <div className="p-4 w-full border-b border-border">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-semibold">Models</h2>
+                    <div className="flex items-center gap-1">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><Menu className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => setSortBy("name")}
+                          >
+                            Name {sortBy === "name" && <Check className="ml-2 h-4 w-4" />}</DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => setSortBy("date-created")}
+                          >
+                            Date created {sortBy === "date-created" && <Check className="ml-2 h-4 w-4" />}</DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                      <Button variant="ghost" size="icon" className="h-8 w-8"
+                        onClick={() => setShowSearch(!showSearch)}
                       >
-                        {openModel[idx] ? <ChevronDown /> : <ChevronRight />}
-                      </span>
-                      <span
-                        style={{
-                          cursor: 'pointer',
-                          marginRight: '10px',
-                          display: 'flex',
-                          gap: '4px',
-                        }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedItems((prev) => {
-                            const filtered = prev.filter((item) => item.modelID !== m.id);
-                            return filtered;
-                          });
-                          loaderRef.current.toggleModelVisibility(m.id);
-                          setModels((prev) =>
-                            prev.map((model) =>
-                              model.id === m.id ? { ...model, visible: !model.visible } : model,
-                            ),
-                          );
-
-                          setHiddenItems((prev) => {
-                            const updated = { ...prev };
-                            Object.keys(updated).forEach((key) => {
-                              if (key.startsWith(`${m.id}-`)) {
-                                delete updated[key];
-                              }
-                            });
-                            return updated;
-                          });
-                          setOpenModel((prev) => ({ ...prev, [idx]: false }));
-                        }}
-                      >
-                        {m.visible ? <Eye /> : <EyeOff />}
-                      </span>
-
-                      <span
-                        style={{
-                          cursor: 'pointer',
-                          fontWeight: isActive ? 'bold' : 'normal',
-                          color: isActive ? '#2D566C' : '#444',
-                          lineClamp: 1,
-                          display: 'block',
-                          wordBreak: 'break-word',
-                        }}
-                      >
-                        {m.name}
-                      </span>
-                    </div>
-                    <div className="">
-                      {!isCollapsed && openModel[idx] && (
-                        <TreeNode
-                          idx={0}
-                          modelId={m.ifcModelID}
-                          node={m.tree}
-                          onSelect={loaderRef}
-                          selectedTreePaths={selectedTreePaths}
-                          setSelectedTreePaths={setSelectedTreePaths}
-                        />
-                      )}
+                        <Search className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
-                );
-              })}
+
+                  {showSearch && (
+                    <div className="mb-3">
+                      <Input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="h-8 text-sm" />
+                    </div>
+                  )}
+                  <div className="w-fit">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild><Button variant="ghost" className="w-full justify-between h-8 px-2 text-sm font-normal">{statusFilter || "All Models"}<ChevronDown className="h-4 w-4 opacity-50" /></Button></DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="w-64">
+                        <DropdownMenuItem onClick={() => setStatusFilter("Selected model")}>Selected model</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setStatusFilter(undefined)}>All Models</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </div>
+
+
+                {
+                  models.map((m, idx) => {
+                    const isActive = selectedModelIndex === idx && selectedTreePaths.length === 0;
+
+                    return (
+                      <div
+                        key={idx}
+                        className={isActive ? 'tree-active' : ''}
+                        onMouseEnter={(e) => {
+                          if (!isActive) e.currentTarget.style.background = '#f2f2f2';
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isActive) e.currentTarget.style.background = 'transparent';
+                        }}
+                        onClick={() => {
+                          setSelectedModelIndex(idx);
+                          setSelectedTreePaths([]);
+                        }}
+                        style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          marginBottom: '4px',
+                          marginTop: '12px',
+                          cursor: 'pointer',
+                          position: 'relative',
+                          width: '100%',
+                          borderRadius: '4px',
+                          width: `${sidebarWidth}px`,
+                        }}
+                      >
+                        <div
+                          className="flex"
+                          style={{
+                            background: isActive ? '#dbeafe' : 'transparent',
+                            padding: '4px 8px',
+                          }}
+                        >
+                          <span
+                            style={{
+                              cursor: 'pointer',
+                              marginRight: '10px',
+                              display: 'flex',
+                              gap: '4px',
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!m.visible) {
+                                return;
+                              }
+                              setOpenModel((prev) => ({ ...prev, [idx]: !prev[idx] }));
+                            }}
+                          >
+                            {openModel[idx] ? <ChevronDown /> : <ChevronRight />}
+                          </span>
+                          <span
+                            style={{
+                              cursor: 'pointer',
+                              marginRight: '10px',
+                              display: 'flex',
+                              gap: '4px',
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedItems((prev) => {
+                                const filtered = prev.filter((item) => item.modelID !== m.id);
+                                return filtered;
+                              });
+                              loaderRef.current.toggleModelVisibility(m.id);
+                              setModels((prev) =>
+                                prev.map((model) =>
+                                  model.id === m.id ? { ...model, visible: !model.visible } : model,
+                                ),
+                              );
+
+                              setHiddenItems((prev) => {
+                                const updated = { ...prev };
+                                Object.keys(updated).forEach((key) => {
+                                  if (key.startsWith(`${m.id}-`)) {
+                                    delete updated[key];
+                                  }
+                                });
+                                return updated;
+                              });
+                              setOpenModel((prev) => ({ ...prev, [idx]: false }));
+                            }}
+                          >
+                            {m.visible ? <Eye /> : <EyeOff />}
+                          </span>
+
+                          <span
+                            style={{
+                              cursor: 'pointer',
+                              fontWeight: isActive ? 'bold' : 'normal',
+                              color: isActive ? '#2D566C' : '#444',
+                              lineClamp: 1,
+                              display: 'block',
+                              wordBreak: 'break-word',
+                            }}
+                          >
+                            {m.name}
+                          </span>
+                        </div>
+                        <div className="">
+                          {!isCollapsed && openModel[idx] && (
+                            <TreeNode
+                              idx={0}
+                              modelId={m.ifcModelID}
+                              node={m.tree}
+                              onSelect={loaderRef}
+                              selectedTreePaths={selectedTreePaths}
+                              setSelectedTreePaths={setSelectedTreePaths}
+                            />
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                }
+              </div>
+            }
 
             {/* Layers */}
             {state == 'layers' &&
-              models.map((m, idx) => {
-                return m.layers.map((layer, idx) => {
-                  const isActive = selectedLayer[0] == layer.typeId;
-                  const key = layerKey(m.id, layer.typeId);
-                  const visible = isLayerVisible(m.id, layer.typeId);
-                  const modelHidden = m.visible === false;
-
-                  const allLayerKeys = m.layers.map((l) => layerKey(m.id, l.typeId));
-
-                  const isIsolated =
-                    hiddenLayers.size > 0 &&
-                    allLayerKeys.every((k) => k === key || hiddenLayers.has(k));
-
-                  return (
-                    <div
-                      className="flex justify-between items-center my-2 cursor-pointers"
-                      key={idx}
-                      style={{
-                        background: isActive ? '#dbeafe' : 'transparent',
-                        padding: '4px 8px',
-                      }}
-                      onClick={() => {
-                        if (modelHidden) return;
-                        setSelectedLayer([layer.typeId]);
-                      }}
-                    >
-                      <div
-                        className="flex"
-                        style={{
-                          opacity: modelHidden ? 0.4 : 1,
-                        }}
-                      >
-                        <span
-                          style={{
-                            cursor: 'pointer',
-                            marginRight: '10px',
-                            display: 'flex',
-                            gap: '4px',
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (modelHidden) return;
-
-                            onToggleLayer(m.id, layer.typeId);
-
-                            setHiddenLayers((prev) => {
-                              const next = new Set(prev);
-                              next.has(key) ? next.delete(key) : next.add(key);
-                              return next;
-                            });
-                          }}
-                        >
-                          {modelHidden ? <EyeOff /> : visible ? <Eye /> : <EyeOff />}{' '}
-                        </span>
-
-                        <span
-                          style={{
-                            cursor: 'pointer',
-                            fontWeight: isActive ? 'bold' : 'normal',
-                            color: isActive ? '#2D566C' : '#444',
-                            lineClamp: 1,
-                            display: 'block',
-                            wordBreak: 'break-word',
-                          }}
-                        >
-                          {layer.label}
-                        </span>
-                      </div>
-
-                      <span
-                        style={{
-                          cursor: 'pointer',
-                          opacity: modelHidden ? 0.4 : 1,
-                          position: 'relative',
-                        }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          if (modelHidden) return;
-
-                          setOpenMenuKey(openMenuKey === key ? null : key);
-                        }}
-                      >
-                        <EllipsisVertical size={16} />
-
-                        {openMenuKey === key && (
-                          <div
-                            style={{
-                              position: 'absolute',
-                              top: '20px',
-                              right: 0,
-                              background: '#fff',
-                              border: '1px solid #e5e7eb',
-                              borderRadius: '6px',
-                              boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                              zIndex: 1000,
-                              minWidth: '140px',
-                            }}
-                            onClick={(e) => e.stopPropagation()}
+              <div className="">
+                <div className="p-4 w-full border-b border-border">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-xl font-semibold">Layers</h2>
+                    <div className="flex items-center gap-1">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><Menu className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => setSortBy("name")}
                           >
-                            {/* Isolate layer */}
-                            <div
-                              className="px-3 py-2 hover:bg-gray-100 text-sm"
-                              onClick={() => {
-                                if (isIsolated) {
-                                  loaderRef.current.unIsolateModel(m.id);
-
-                                  setHiddenLayers(new Set());
-                                } else {
-                                  loaderRef.current.isolateTypeVisibility(m.id, layer.typeId);
-
-                                  setHiddenLayers(
-                                    new Set(
-                                      m.layers
-                                        .map((l) => layerKey(m.id, l.typeId))
-                                        .filter((k) => k !== key),
-                                    ),
-                                  );
-                                }
-
-                                setOpenMenuKey(null);
-                              }}
-                            >
-                              {isIsolated ? 'Unisolate layer' : 'Isolate layer'}
-                            </div>
-
-                            {/* Select layer */}
-                            <div
-                              className="px-3 py-2 hover:bg-gray-100 text-sm"
-                              onClick={() => {
-                                // TODO: Select all item in the layer and highlight them in the viewer
-                                setSelectedLayer([layer.typeId]);
-                                setOpenMenuKey(null);
-                              }}
-                            >
-                              Select layer
-                            </div>
-                          </div>
-                        )}
-                      </span>
+                            Name {sortBy === "name" && <Check className="ml-2 h-4 w-4" />}</DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => setSortBy("model")}
+                          >
+                            Model {sortBy === "model" && <Check className="ml-2 h-4 w-4" />}</DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                      <Button variant="ghost" size="icon" className="h-8 w-8"
+                        onClick={() => setShowSearch(!showSearch)}
+                      >
+                        <Search className="h-4 w-4" />
+                      </Button>
                     </div>
-                  );
-                });
-              })}
+                  </div>
+
+                  {showSearch && (
+                    <div className="mb-3">
+                      <Input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="h-8 text-sm" />
+                    </div>
+                  )}
+                  <div className="w-fit">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild><Button variant="ghost" className="w-full justify-between h-8 px-2 text-sm font-normal">{statusFilter || "All Layers"}<ChevronDown className="h-4 w-4 opacity-50" /></Button></DropdownMenuTrigger>
+                      <DropdownMenuContent align="start" className="w-64">
+                        <DropdownMenuItem onClick={() => setStatusFilter(undefined)}>All Layers</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => setStatusFilter("Isolated layer")}>Isolated layer</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </div>
+
+                {
+                  models.map((m, idx) => {
+                    return m.layers.map((layer, idx) => {
+                      const isActive = selectedLayer[0] == layer.typeId;
+                      const key = layerKey(m.id, layer.typeId);
+                      const visible = isLayerVisible(m.id, layer.typeId);
+                      const modelHidden = m.visible === false;
+
+                      const allLayerKeys = m.layers.map((l) => layerKey(m.id, l.typeId));
+
+                      const isIsolated =
+                        hiddenLayers.size > 0 &&
+                        allLayerKeys.every((k) => k === key || hiddenLayers.has(k));
+
+                      return (
+                        <div
+                          className="flex justify-between items-center my-2 cursor-pointers"
+                          key={idx}
+                          style={{
+                            background: isActive ? '#dbeafe' : 'transparent',
+                            padding: '4px 8px',
+                          }}
+                          onClick={() => {
+                            if (modelHidden) return;
+                            setSelectedLayer([layer.typeId]);
+                          }}
+                        >
+                          <div
+                            className="flex"
+                            style={{
+                              opacity: modelHidden ? 0.4 : 1,
+                            }}
+                          >
+                            <span
+                              style={{
+                                cursor: 'pointer',
+                                marginRight: '10px',
+                                display: 'flex',
+                                gap: '4px',
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (modelHidden) return;
+
+                                onToggleLayer(m.id, layer.typeId);
+
+                                setHiddenLayers((prev) => {
+                                  const next = new Set(prev);
+                                  next.has(key) ? next.delete(key) : next.add(key);
+                                  return next;
+                                });
+                              }}
+                            >
+                              {modelHidden ? <EyeOff /> : visible ? <Eye /> : <EyeOff />}{' '}
+                            </span>
+
+                            <span
+                              style={{
+                                cursor: 'pointer',
+                                fontWeight: isActive ? 'bold' : 'normal',
+                                color: isActive ? '#2D566C' : '#444',
+                                lineClamp: 1,
+                                display: 'block',
+                                wordBreak: 'break-word',
+                              }}
+                            >
+                              {layer.label}
+                            </span>
+                          </div>
+
+                          <span
+                            style={{
+                              cursor: 'pointer',
+                              opacity: modelHidden ? 0.4 : 1,
+                              position: 'relative',
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (modelHidden) return;
+
+                              setOpenMenuKey(openMenuKey === key ? null : key);
+                            }}
+                          >
+                            <EllipsisVertical size={16} />
+
+                            {openMenuKey === key && (
+                              <div
+                                style={{
+                                  position: 'absolute',
+                                  top: '20px',
+                                  right: 0,
+                                  background: '#fff',
+                                  border: '1px solid #e5e7eb',
+                                  borderRadius: '6px',
+                                  boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                                  zIndex: 1000,
+                                  minWidth: '140px',
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                {/* Isolate layer */}
+                                <div
+                                  className="px-3 py-2 hover:bg-gray-100 text-sm"
+                                  onClick={() => {
+                                    if (isIsolated) {
+                                      loaderRef.current.unIsolateModel(m.id);
+
+                                      setHiddenLayers(new Set());
+                                    } else {
+                                      loaderRef.current.isolateTypeVisibility(m.id, layer.typeId);
+
+                                      setHiddenLayers(
+                                        new Set(
+                                          m.layers
+                                            .map((l) => layerKey(m.id, l.typeId))
+                                            .filter((k) => k !== key),
+                                        ),
+                                      );
+                                    }
+
+                                    setOpenMenuKey(null);
+                                  }}
+                                >
+                                  {isIsolated ? 'Unisolate layer' : 'Isolate layer'}
+                                </div>
+
+                                {/* Select layer */}
+                                <div
+                                  className="px-3 py-2 hover:bg-gray-100 text-sm"
+                                  onClick={() => {
+                                    // TODO: Select all item in the layer and highlight them in the viewer
+                                    setSelectedLayer([layer.typeId]);
+                                    setOpenMenuKey(null);
+                                  }}
+                                >
+                                  Select layer
+                                </div>
+                              </div>
+                            )}
+                          </span>
+                        </div>
+                      );
+                    });
+                  })
+                }
+              </div>
+            }
 
             {/* Todos */}
-            {state == 'todos' &&
-              <>
+            {state == 'todos' && (
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  flex: 1,
+                  minHeight: 0,
+                  overflow: 'hidden',
+                  width: '100%',
+                }}
+              >
                 <TodoList
                   projectId={projectId}
-                // todos={todos}
-                // selectedTodoId={selectedTodoId}
-                // onSelectTodo={setSelectedTodoId}
-                // onAddTodo={() => setIsOpen(true)}
+                  onRestoreView={restoreState}
                 />
-              </>
-            }
+              </div>
+            )}
+
+            {/* Views */}
+            {state == 'views' && (
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  flex: 1,
+                  minHeight: 0,
+                  overflow: 'hidden',
+                  width: '100%',
+                }}
+              >
+                <ViewList />
+              </div>
+            )}
+
+            {/* Organizer */}
+            {state == 'organizer' && (
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  flex: 1,
+                  minHeight: 0,
+                  overflow: 'hidden',
+                  width: '100%',
+                }}
+              >
+                <Organizer />
+              </div>
+            )}
+
+            {/* Data table */}
+            {state == 'data-table' && (
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  flex: 1,
+                  minHeight: 0,
+                  overflow: 'hidden',
+                  width: '100%',
+                }}
+              >
+                <DataTable />
+              </div>
+            )}
+
+            {/* Topics */}
+            {state == 'topics' && (
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  flex: 1,
+                  minHeight: 0,
+                  overflow: 'hidden',
+                  width: '100%',
+                }}
+              >
+                <Topics />
+              </div>
+            )}
+
+            {/* Clash sets */}
+            {state == 'clash-sets' && (
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  flex: 1,
+                  minHeight: 0,
+                  overflow: 'hidden',
+                  width: '100%',
+                }}
+              >
+                <ClashSets />
+              </div>
+            )}
           </div>
         </div>
 

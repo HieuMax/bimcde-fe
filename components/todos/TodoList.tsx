@@ -14,11 +14,12 @@ import { ITodo } from "@/types/todo"
 
 interface TodoListProps {
   projectId: string
+  onRestoreView?: (viewState: any) => void;
 }
 
 type GroupByType = "none" | "status" | "assignee" | "priority"
 
-export function ToDo({ projectId }: TodoListProps) {
+export function ToDo({ projectId, onRestoreView }: TodoListProps) {
   const queryClient = useQueryClient()
 
   // --- STATE ---
@@ -43,7 +44,7 @@ export function ToDo({ projectId }: TodoListProps) {
     queryFn: () => todoService.getAll(projectId, statusFilter ? { status: statusFilter } : undefined),
     enabled: !!projectId,
   })
-
+  console.log(todos)
   // --- MUTATIONS ---
   const deleteMutation = useMutation({
     mutationFn: todoService.delete,
@@ -95,6 +96,13 @@ export function ToDo({ projectId }: TodoListProps) {
     setTodoToEdit(todo)
     setDrawerMode("view")
     setIsDrawerOpen(true)
+
+    if (onRestoreView && todo.viewState) {
+      // Có thể thêm tính năng hỏi user: "Bạn có muốn load lại góc nhìn không?" 
+      // hoặc load luôn.
+      onRestoreView(todo.viewState);
+      toast.info("Restoring view state...");
+    }
   }
 
   // --- DATA PROCESSING ---
@@ -226,7 +234,7 @@ export function ToDo({ projectId }: TodoListProps) {
   )
 
   return (
-    <aside className="w-full bg-background flex flex-col h-full">
+    <aside className="w-full bg-background flex flex-col min-h-full">
       {/* Header */}
       <div className="p-4 border-b border-border">
         <div className="flex items-center justify-between mb-3">
@@ -284,7 +292,7 @@ export function ToDo({ projectId }: TodoListProps) {
       </div>
 
       {/* Todo List Area */}
-      <div className="flex-1 overflow-y-auto bg-muted/10">
+      <div className="flex flex-col overflow-y-auto bg-muted/10">
         {isLoading ? (
           <div className="p-4 text-center text-sm text-muted-foreground">Loading todos...</div>
         ) : filteredTodos.length === 0 ? (
@@ -326,18 +334,18 @@ export function ToDo({ projectId }: TodoListProps) {
             })
           )
         )}
-      </div>
 
-      <div className="border-t border-border bg-background">
-        <button onClick={() => setClosedExpanded(!closedExpanded)} className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/50 transition-colors text-sm">
-          <span className="font-medium">Closed ({closedTodos.length})</span>
-          <ChevronDown className={`h-4 w-4 transition-transform ${closedExpanded ? "rotate-180" : ""}`} />
-        </button>
-        {closedExpanded && (
-          <div className="px-4 py-3 bg-muted/20">
-            {closedTodos.length === 0 ? <div className="text-sm text-muted-foreground">No closed tasks</div> : closedTodos.map(renderTodoRow)}
-          </div>
-        )}
+        <div className="border-t border-border bg-background sticky bottom-0">
+          <button onClick={() => setClosedExpanded(!closedExpanded)} className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/50 transition-colors text-sm">
+            <span className="font-medium">Closed ({closedTodos.length})</span>
+            <ChevronDown className={`h-4 w-4 transition-transform ${closedExpanded ? "rotate-180" : ""}`} />
+          </button>
+          {closedExpanded && (
+            <div className="px-4 py-3 bg-muted/20">
+              {closedTodos.length === 0 ? <div className="text-sm text-muted-foreground">No closed tasks</div> : closedTodos.map(renderTodoRow)}
+            </div>
+          )}
+        </div>
       </div>
 
       <NewTodoDrawer
@@ -346,6 +354,7 @@ export function ToDo({ projectId }: TodoListProps) {
         projectId={projectId}
         todoToEdit={todoToEdit}
         mode={drawerMode}
+        onRestoreView={onRestoreView}
       />
     </aside>
   )
