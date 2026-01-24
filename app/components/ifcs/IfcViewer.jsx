@@ -26,7 +26,16 @@ import { Topics } from '@/components/_3d/topics/Topics';
 import { ClashSets } from '@/components/_3d/clash_sets/ClashSets';
 import { Organizer } from '@/components/_3d/organizer/Organizer';
 
-export default function IfcViewer({ ifcUrls, state, projectId, isCollapsed, setSelectdItemsForNavbar, onRegisterCapture }) {
+export default function IfcViewer({
+  ifcUrls,
+  state,
+  projectId,
+  isCollapsed,
+  setSelectdItemsForNavbar,
+  onRegisterCapture,
+  onLoaded,
+  onSelectTodo
+}) {
   const canvasRef = useRef(null);
   const loaderRef = useRef(null);
   const sceneRef = useRef(null);
@@ -109,30 +118,63 @@ export default function IfcViewer({ ifcUrls, state, projectId, isCollapsed, setS
         });
       }
 
+      //
+      // LOADING MODELS
+      //
       if (ifcUrls?.length) {
         loaderRef.current.clearModels();
-        for (const url of ifcUrls) {
-          loaderRef.current.loadIfcUrl(url).then(async (model) => {
-            const modelID = model.modelID;
 
-            modelUrlMap.current[modelID] = url
-            const { tree, layers } = await loaderRef.current.getSpatialTree(modelID);
+        modelUrlMap.current = {};
 
-            setModels((prev) => [
-              ...prev,
-              {
-                id: prev.length,
-                ifcModelID: modelID,
-                // name: file.name,
-                name: url.split('/').pop(),
-                tree,
-                layers,
-                mesh: model.mesh,
-                visible: true,
-              },
-            ]);
+        const loadPromises = ifcUrls.map(url => loaderRef.current.loadIfcUrl(url));
+
+        const loadedModels = await Promise.all(loadPromises);
+        const newModels = [];
+
+        // for (const url of ifcUrls) {
+        //   loaderRef.current.loadIfcUrl(url).then(async (model) => {
+        //     const modelID = model.modelID;
+
+        //     modelUrlMap.current[modelID] = url
+        //     const { tree, layers } = await loaderRef.current.getSpatialTree(modelID);
+
+        //     setModels((prev) => [
+        //       ...prev,
+        //       {
+        //         id: prev.length,
+        //         ifcModelID: modelID,
+        //         // name: file.name,
+        //         name: url.split('/').pop(),
+        //         tree,
+        //         layers,
+        //         mesh: model.mesh,
+        //         visible: true,
+        //       },
+        //     ]);
+        //   });
+        // }
+
+        for (let i = 0; i < loadedModels.length; i++) {
+          const model = loadedModels[i];
+          const url = ifcUrls[i];
+          const modelID = model.modelID;
+
+          // Lưu mapping: ModelID hiện tại <-> URL
+          modelUrlMap.current[modelID] = url;
+
+          const { tree, layers } = await loaderRef.current.getSpatialTree(modelID);
+          newModels.push({
+            id: i, // Hoặc dùng modelID
+            ifcModelID: modelID,
+            name: url.split('/').pop(),
+            tree,
+            layers,
+            mesh: model.mesh,
+            visible: true,
           });
         }
+        setModels(newModels);
+        if (onLoaded) onLoaded();
       }
 
       setIsLoading(false);
@@ -238,46 +280,101 @@ export default function IfcViewer({ ifcUrls, state, projectId, isCollapsed, setS
   };
 
   // === LOGIC MỚI: RESTORE STATE ===
-  const restoreState = async (viewState) => {
+  const restoreState = async (viewState, todoItems = []) => {
     if (!viewState || !sceneRef.current || !loaderRef.current) return;
 
-    // 1. Restore Camera
+    // --- 1. LOGIC MAPPING ID (Chuẩn bị từ điển) ---
+    // Map: OldModelID (trong DB) -> URL file
+    const oldIdToUrl = {};
+    if (todoItems && Array.isArray(todoItems)) {
+      todoItems.forEach(item => {
+        // item.modelId từ DB trả về, ép kiểu sang string cho chắc chắn để làm key
+        oldIdToUrl[String(item.modelId)] = item.fileUrl;
+      });
+    }
+
+    // Map: URL -> NewModelID (Runtime hiện tại của Viewer)
+    const urlToNewId = {};
+    Object.keys(modelUrlMap.current).forEach(id => {
+      const url = modelUrlMap.current[id];
+      urlToNewId[url] = parseInt(id); // ID của web-ifc thường là số nguyên (0, 1...)
+    });
+    // ----------------------------------------------
+
+    // --- 2. RESTORE CAMERA (Không cần map ID) ---
     sceneRef.current.setCameraState(viewState.camera);
 
-    // 2. Restore Visibility
-    await loaderRef.current.restoreVisibilityState(viewState.visibility);
+    // --- 3. RESTORE VISIBILITY (Cần dùng Map ID) ---
+    // Bước A: Reset trạng thái cũ trước
+    const modelsToReset = Array.from(loaderRef.current.hiddenExpressIDs.keys());
+    loaderRef.current.hiddenExpressIDs.clear();
+    modelsToReset.forEach(modelID => loaderRef.current.rebuildSubset(modelID));
 
-    // Đồng bộ lại state hiddenItems của React (để nút mắt ẩn/hiện trên UI đúng)
+    // Biến để cập nhật lại icon mắt trên UI React
     const newHiddenItemsReactState = {};
-    viewState.visibility?.forEach(group => {
-      group.ids.forEach(id => {
-        newHiddenItemsReactState[`${group.modelID}-${id}`] = true;
-      });
-    });
+
+    // Bước B: Apply trạng thái mới với ID đã được Map
+    if (viewState.visibility && Array.isArray(viewState.visibility)) {
+      for (const group of viewState.visibility) {
+        const oldID = String(group.modelID); // Lấy ID cũ
+        const url = oldIdToUrl[oldID];       // Tìm URL tương ứng
+        const newID = urlToNewId[url];       // Tìm ID mới hiện tại từ URL
+
+        // Chỉ xử lý nếu tìm thấy model ID mới (tức là model đó đang được load)
+        if (newID !== undefined) {
+          // Lưu vào IfcManager (Logic 3D)
+          loaderRef.current.hiddenExpressIDs.set(newID, new Set(group.ids));
+          loaderRef.current.rebuildSubset(newID);
+
+          // Lưu vào React State (Logic UI icon mắt)
+          group.ids.forEach(id => {
+            newHiddenItemsReactState[`${newID}-${id}`] = true;
+          });
+        }
+      }
+    }
     setHiddenItems(newHiddenItemsReactState);
 
-    // 3. Restore Selection
-    if (viewState.selection && viewState.selection.length > 0) {
-      // Highlight 3D
-      // Giả sử chỉ highlight item đầu tiên hoặc loop qua highlight logic
-      const firstItem = viewState.selection[0];
-      loaderRef.current.highlight(firstItem.modelID, firstItem.expressID); // Logic highlight cũ của bạn chỉ support 1 item?
+    // --- 4. RESTORE SELECTION (Cần dùng Map ID) ---
+    loaderRef.current.removeHighlight();
+    let newSelectionState = [];
 
-      // Update React State
-      setSelectedItems(viewState.selection);
-      if (setSelectdItemsForNavbar) setSelectdItemsForNavbar(viewState.selection);
-    } else {
-      loaderRef.current.removeHighlight();
-      setSelectedItems([]);
-      if (setSelectdItemsForNavbar) setSelectdItemsForNavbar([]);
+    if (viewState.selection && viewState.selection.length > 0) {
+      // Map lại selection sang ID mới
+      newSelectionState = viewState.selection.map(item => {
+        // Ưu tiên lấy URL trực tiếp từ item selection (nếu có lưu), nếu không thì tra từ todoItems
+        const url = item.fileUrl || oldIdToUrl[String(item.modelID)];
+        const newID = urlToNewId[url];
+
+        if (newID !== undefined) {
+          return {
+            ...item,
+            modelID: newID // Ghi đè modelID cũ bằng cái mới
+          };
+        }
+        return null;
+      }).filter(item => item !== null); // Loại bỏ các item không tìm thấy model
+
+      // Highlight item đầu tiên (hoặc loop nếu muốn highlight nhiều)
+      if (newSelectionState.length > 0) {
+        const firstItem = newSelectionState[0];
+        loaderRef.current.highlight(firstItem.modelID, firstItem.expressID);
+      }
     }
+
+    // Update React State cho Selection
+    setSelectedItems(newSelectionState);
+    if (setSelectdItemsForNavbar) setSelectdItemsForNavbar(newSelectionState);
   };
 
   useEffect(() => {
     if (onRegisterCapture) {
-      onRegisterCapture(captureCurrentState);
+      onRegisterCapture({
+        capture: captureCurrentState,
+        restore: restoreState
+      });
     }
-  }, []);
+  }, [onRegisterCapture, selectedItems]);
 
   const Loading = () => {
     if (isLoading) {
@@ -694,6 +791,7 @@ export default function IfcViewer({ ifcUrls, state, projectId, isCollapsed, setS
                 <TodoList
                   projectId={projectId}
                   onRestoreView={restoreState}
+                  onSelectTodo={onSelectTodo}
                 />
               </div>
             )}

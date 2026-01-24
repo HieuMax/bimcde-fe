@@ -14,12 +14,13 @@ import { ITodo } from "@/types/todo"
 
 interface TodoListProps {
   projectId: string
-  onRestoreView?: (viewState: any) => void;
+  onRestoreView?: (viewState: any) => void
+  onSelectTodo?: (todo: ITodo) => void;
 }
 
 type GroupByType = "none" | "status" | "assignee" | "priority"
 
-export function ToDo({ projectId, onRestoreView }: TodoListProps) {
+export function ToDo({ projectId, onSelectTodo, onRestoreView }: TodoListProps) {
   const queryClient = useQueryClient()
 
   // --- STATE ---
@@ -97,11 +98,8 @@ export function ToDo({ projectId, onRestoreView }: TodoListProps) {
     setDrawerMode("view")
     setIsDrawerOpen(true)
 
-    if (onRestoreView && todo.viewState) {
-      // Có thể thêm tính năng hỏi user: "Bạn có muốn load lại góc nhìn không?" 
-      // hoặc load luôn.
-      onRestoreView(todo.viewState);
-      toast.info("Restoring view state...");
+    if (onSelectTodo) {
+      onSelectTodo(todo);
     }
   }
 

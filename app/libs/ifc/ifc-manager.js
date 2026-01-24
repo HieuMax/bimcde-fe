@@ -60,7 +60,7 @@ export class IfcManager {
       COORDINATE_TO_ORIGIN: firstModel,
       USE_FAST_BOOLS: true,
     });
-
+    console.log("Loading IFC model from URL:", ifcURL);
     const ifcModel = await this.ifcLoader.loadAsync(ifcURL);
 
     if (firstModel) {
@@ -87,9 +87,33 @@ export class IfcManager {
    * Here we support import 1 model at a time -> maybe extend later
    */
   clearModels() {
-    // console.log("Clearing IFC models...");
-    // this.ifcModels.forEach((m) => this.scene.remove(m));
-    // this.ifcModels.length = 0;
+    console.log("Clearing IFC models...");
+
+    // --- BỎ COMMENT ĐOẠN NÀY ĐỂ XÓA MODEL CŨ KHỎI SCENE ---
+    this.ifcModels.forEach((m) => {
+      // Xóa mesh chính
+      if (m.mesh) {
+        this.scene.remove(m.mesh);
+        if (m.mesh.geometry) m.mesh.geometry.dispose();
+        if (m.mesh.material) {
+          if (Array.isArray(m.mesh.material)) m.mesh.material.forEach(mat => mat.dispose());
+          else m.mesh.material.dispose();
+        }
+      }
+    });
+
+    // Xóa các subset ẩn (nếu có)
+    this.hiddenSubsets.forEach((subset) => {
+      this.scene.remove(subset);
+      subset.geometry.dispose();
+      if (subset.material) subset.material.dispose();
+    });
+    this.hiddenSubsets.clear();
+    // -------------------------------------------------------
+
+    this.ifcModels.length = 0;
+    this.hiddenExpressIDs.clear(); // Reset luôn map ẩn hiện
+    this.modelHidden.clear();
   }
 
   raycaster = new Raycaster();
