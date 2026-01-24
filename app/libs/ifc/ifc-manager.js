@@ -60,7 +60,7 @@ export class IfcManager {
       COORDINATE_TO_ORIGIN: firstModel,
       USE_FAST_BOOLS: true,
     });
-
+    console.log("Loading IFC model from URL:", ifcURL);
     const ifcModel = await this.ifcLoader.loadAsync(ifcURL);
 
     if (firstModel) {
@@ -87,9 +87,29 @@ export class IfcManager {
    * Here we support import 1 model at a time -> maybe extend later
    */
   clearModels() {
-    // console.log("Clearing IFC models...");
-    // this.ifcModels.forEach((m) => this.scene.remove(m));
-    // this.ifcModels.length = 0;
+    console.log("Clearing IFC models...");
+
+    this.ifcModels.forEach((m) => {
+      if (m.mesh) {
+        this.scene.remove(m.mesh);
+        if (m.mesh.geometry) m.mesh.geometry.dispose();
+        if (m.mesh.material) {
+          if (Array.isArray(m.mesh.material)) m.mesh.material.forEach(mat => mat.dispose());
+          else m.mesh.material.dispose();
+        }
+      }
+    });
+
+    this.hiddenSubsets.forEach((subset) => {
+      this.scene.remove(subset);
+      subset.geometry.dispose();
+      if (subset.material) subset.material.dispose();
+    });
+    this.hiddenSubsets.clear();
+
+    this.ifcModels.length = 0;
+    this.hiddenExpressIDs.clear();
+    this.modelHidden.clear();
   }
 
   raycaster = new Raycaster();
@@ -205,23 +225,19 @@ export class IfcManager {
   highlightExpressID = null;
   highlightMeshes = [];
 
-  async highlight(modelID, expressID) {
-    this.removeHighlight();
-
-    this.highlightModelID = modelID;
-    this.highlightExpressID = expressID;
-
+  async createHighlightSubset(modelID, ids) {
     const subset = this.ifcLoader.ifcManager.createSubset({
       modelID,
-      ids: [expressID],
+      ids,
       applyBVH: true,
       removePrevious: true,
+      customID: "highlight-subset-" + modelID
     });
 
     if (!subset) return;
 
-    const geometry = subset.geometry.clone();
 
+    const geometry = subset.geometry.clone();
     const glowMaterial = new THREE.MeshPhongMaterial({
       color: 0xffff00,
       emissive: 0xffff00,
@@ -237,6 +253,9 @@ export class IfcManager {
     glowMesh.position.copy(subset.position);
     glowMesh.rotation.copy(subset.rotation);
     glowMesh.scale.copy(subset.scale);
+
+    glowMesh.userData = { isHighlight: true, modelID };
+
     this.scene.add(glowMesh);
     this.highlightMeshes.push(glowMesh);
 
@@ -253,22 +272,108 @@ export class IfcManager {
     edgesMesh.position.copy(subset.position);
     edgesMesh.rotation.copy(subset.rotation);
     edgesMesh.scale.copy(subset.scale);
+
     this.scene.add(edgesMesh);
     this.highlightMeshes.push(edgesMesh);
+  }
 
-    this.rebuildSubset(modelID);
+  // async highlight(modelID, expressID) {
+  //   this.removeHighlight();
+
+  //   this.highlightModelID = modelID;
+  //   this.highlightExpressID = expressID;
+
+  //   const subset = this.ifcLoader.ifcManager.createSubset({
+  //     modelID,
+  //     ids: [expressID],
+  //     applyBVH: true,
+  //     removePrevious: true,
+  //   });
+
+  //   if (!subset) return;
+
+  //   const geometry = subset.geometry.clone();
+
+  //   const glowMaterial = new THREE.MeshPhongMaterial({
+  //     color: 0xffff00,
+  //     emissive: 0xffff00,
+  //     emissiveIntensity: 0.4,
+  //     transparent: true,
+  //     opacity: 0.3,
+  //     depthTest: false,
+  //     side: THREE.DoubleSide,
+  //     wireframe: false,
+  //   });
+
+  //   const glowMesh = new THREE.Mesh(geometry, glowMaterial);
+  //   glowMesh.position.copy(subset.position);
+  //   glowMesh.rotation.copy(subset.rotation);
+  //   glowMesh.scale.copy(subset.scale);
+  //   this.scene.add(glowMesh);
+  //   this.highlightMeshes.push(glowMesh);
+
+  //   const edgesGeom = new THREE.EdgesGeometry(geometry, 25);
+  //   const edgeMaterial = new THREE.LineBasicMaterial({
+  //     color: 0xffff00,
+  //     transparent: true,
+  //     opacity: 0.8,
+  //     depthTest: false,
+  //     linewidth: 3,
+  //   });
+
+  //   const edgesMesh = new THREE.LineSegments(edgesGeom, edgeMaterial);
+  //   edgesMesh.position.copy(subset.position);
+  //   edgesMesh.rotation.copy(subset.rotation);
+  //   edgesMesh.scale.copy(subset.scale);
+  //   this.scene.add(edgesMesh);
+  //   this.highlightMeshes.push(edgesMesh);
+
+  //   this.rebuildSubset(modelID);
+  // }
+
+  async highlight(modelID, expressID) {
+    await this.highlightItems([{ modelID, expressID }]);
+  }
+
+  async highlightItems(items) {
+
+    this.removeHighlight();
+
+    if (!items || items.length === 0) return;
+
+
+    const itemsByModel = {};
+
+    items.forEach(item => {
+      const mId = parseInt(item.modelID);
+      const eId = parseInt(item.expressID || item.expressId);
+      if (!isNaN(mId) && !isNaN(eId)) {
+        if (!itemsByModel[mId]) {
+          itemsByModel[mId] = [];
+        }
+        itemsByModel[mId].push(eId);
+      }
+    });
+
+
+    for (const modelIDStr in itemsByModel) {
+      const modelID = parseInt(modelIDStr);
+      const ids = itemsByModel[modelID];
+
+      await this.createHighlightSubset(modelID, ids);
+    }
   }
 
   removeHighlight() {
     for (const mesh of this.highlightMeshes) {
       this.scene.remove(mesh);
-      mesh.geometry.dispose();
-      mesh.material.dispose();
+      if (mesh.geometry) mesh.geometry.dispose();
+      if (mesh.material) {
+        if (Array.isArray(mesh.material)) mesh.material.forEach(m => m.dispose());
+        else mesh.material.dispose();
+      }
     }
-
     this.highlightMeshes = [];
-    this.highlightModelID = null;
-    this.highlightExpressID = null;
   }
 
   clearHighlightIfBelongsToModel(modelID) {
@@ -486,5 +591,33 @@ export class IfcManager {
     this.hiddenExpressIDs.delete(modelID);
     this.removeHighlight();
     this.rebuildSubset(modelID);
+  }
+
+  getVisibilityState() {
+    const state = [];
+    this.hiddenExpressIDs.forEach((idsSet, modelID) => {
+      if (idsSet.size > 0) {
+        state.push({
+          modelID: modelID,
+          ids: Array.from(idsSet) // Convert Set to Array
+        });
+      }
+    });
+    return state;
+  }
+
+  async restoreVisibilityState(savedState) {
+    const modelsToReset = Array.from(this.hiddenExpressIDs.keys());
+    this.hiddenExpressIDs.clear();
+
+    modelsToReset.forEach(modelID => this.rebuildSubset(modelID));
+
+    if (!savedState || !Array.isArray(savedState)) return;
+
+    for (const item of savedState) {
+      const { modelID, ids } = item;
+      this.hiddenExpressIDs.set(modelID, new Set(ids));
+      this.rebuildSubset(modelID);
+    }
   }
 }

@@ -10,6 +10,7 @@ import {
   Sprite,
   SpriteMaterial,
   CanvasTexture,
+  Vector3,
 } from 'three';
 
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
@@ -214,6 +215,58 @@ export class ThreeScene {
     sprite.scale.set(0.6, 0.6, 0.6);
 
     return sprite;
+  }
+
+  /**
+   * Returns the current camera state including position and target.
+   * @returns 
+   */
+  getCameraState() {
+    return {
+      position: this.camera.position.toArray(), // [x, y, z]
+      target: this.controls.target.toArray()    // [x, y, z]
+    };
+  }
+
+  setCameraState(state) {
+    if (!state || !state.position || !state.target) return;
+
+    const savedPos = state.position;
+    const savedTarget = state.target;
+
+    if (savedPos && savedTarget) {
+      if (Array.isArray(savedPos)) {
+        const newPos = new Vector3().fromArray(savedPos);
+        const newTarget = new Vector3().fromArray(savedTarget);
+
+        this.camera.position.copy(newPos);
+        this.controls.target.copy(newTarget);
+      }
+      else {
+        this.camera.position.set(savedPos.x, savedPos.y, savedPos.z);
+        this.controls.target.set(savedTarget.x, savedTarget.y, savedTarget.z);
+      }
+
+      this.controls.update();
+    }
+  }
+
+  // For thumbnail generation
+  getScreenshot() {
+    const width = this.threeCanvas.width;
+    const height = this.threeCanvas.height;
+
+    this.renderer.setViewport(0, 0, width, height);
+    this.renderer.setScissorTest(false);
+
+    this.renderer.setClearColor(0xcccccc, 1);
+    this.renderer.clear(true, true, true);
+
+    this.renderer.render(this.scene, this.camera);
+
+    const dataURL = this.renderer.domElement.toDataURL('image/png');
+
+    return dataURL;
   }
 }
 
