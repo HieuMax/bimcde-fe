@@ -25,6 +25,7 @@ import { DataTable } from '@/components/_3d/data_table/DataTable';
 import { Topics } from '@/components/_3d/topics/Topics';
 import { ClashSets } from '@/components/_3d/clash_sets/ClashSets';
 import { Organizer } from '@/components/_3d/organizer/Organizer';
+import { PropertiesDrawer } from './PropertiesDrawer';
 
 export default function IfcViewer({
   ifcUrls,
@@ -59,6 +60,10 @@ export default function IfcViewer({
   const [showSearch, setShowSearch] = useState(false)
   const [statusFilter, setStatusFilter] = useState(undefined)
   const [searchQuery, setSearchQuery] = useState("")
+
+  const [isPropertiesOpen, setIsPropertiesOpen] = useState(false);
+  const [propertiesData, setPropertiesData] = useState(null);
+  const [isLoadingProps, setIsLoadingProps] = useState(false);
 
   const EXPANDED_WIDTH = 370;
   const COLLAPSED_WIDTH = 250;
@@ -446,6 +451,33 @@ export default function IfcViewer({
       thumbnail
     };
   };
+
+  const handleShowProperties = async () => {
+    if (selectedItems.length === 0) {
+      setIsPropertiesOpen(false);
+      return;
+    }
+
+    setIsPropertiesOpen(true);
+    setIsLoadingProps(true);
+    setPropertiesData(null);
+
+    try {
+      const data = await loaderRef.current.getSelectionProperties(selectedItems);
+      setPropertiesData(data);
+    } catch (error) {
+      console.error("Error fetching properties:", error);
+    } finally {
+      setIsLoadingProps(false);
+    }
+  };
+
+  // Auto-update properties
+  useEffect(() => {
+    if (isPropertiesOpen) {
+      handleShowProperties();
+    }
+  }, [selectedItems]);
 
 
   const Loading = () => {
@@ -1003,9 +1035,9 @@ export default function IfcViewer({
                 className="hover:text-blue-400 transition"
                 title="View properties"
                 onClick={() => {
-                  // TODO: Show properties drawer
-                  // const item = selectedItems[0];
-                  // loaderRef.current.showProperties(item);
+                  // Toggle Drawer
+                  if (isPropertiesOpen) setIsPropertiesOpen(false);
+                  else handleShowProperties();
                 }}
               >
                 <Info />
@@ -1042,6 +1074,14 @@ export default function IfcViewer({
           )}
         </div>
       </div>
+
+      {/* RENDER PROPERTIES DRAWER */}
+      <PropertiesDrawer
+        open={isPropertiesOpen}
+        onOpenChange={setIsPropertiesOpen}
+        data={propertiesData}
+        loading={isLoadingProps}
+      />
     </div>
   );
 }
