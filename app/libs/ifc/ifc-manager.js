@@ -53,11 +53,9 @@ export class IfcManager {
   _disposeMaterial(material) {
     if (!material) return;
 
-    // Kiểm tra nếu là Mảng (Multi-material)
     if (Array.isArray(material)) {
       material.forEach(m => m && m.dispose && m.dispose());
     }
-    // Kiểm tra nếu là Single Object
     else if (material.dispose) {
       material.dispose();
     }
@@ -121,10 +119,8 @@ export class IfcManager {
       if (subset.geometry) subset.geometry.dispose();
       if (subset.material) {
         if (Array.isArray(subset.material)) {
-          // Nếu là mảng, duyệt qua từng cái để xóa
           subset.material.forEach(m => m && m.dispose && m.dispose());
         } else if (subset.material.dispose) {
-          // Nếu là object đơn, xóa trực tiếp
           subset.material.dispose();
         }
       }
@@ -391,26 +387,12 @@ export class IfcManager {
     }
   }
 
-  // removeHighlight() {
-  //   for (const mesh of this.highlightMeshes) {
-  //     this.scene.remove(mesh);
-  //     if (mesh.geometry) mesh.geometry.dispose();
-  //     if (mesh.material) {
-  //       if (Array.isArray(mesh.material)) mesh.material.forEach(m => m.dispose());
-  //       else mesh.material.dispose();
-  //     }
-  //   }
-  //   this.highlightMeshes = [];
-  // }
-
   removeHighlight() {
-    // Xóa highlight mesh
     for (const mesh of this.highlightMeshes) {
       this.scene.remove(mesh);
 
       if (mesh.geometry) mesh.geometry.dispose();
 
-      // Sửa đoạn này: Dùng hàm helper an toàn
       this._disposeMaterial(mesh.material);
     }
     this.highlightMeshes = [];
@@ -509,10 +491,8 @@ export class IfcManager {
     if (oldSubset) {
       this.scene.remove(oldSubset);
 
-      // Xóa Geometry (như cũ)
       if (oldSubset.geometry) oldSubset.geometry.dispose();
 
-      // THÊM: Xóa Material an toàn (Fix lỗi crash và leak mem)
       this._disposeMaterial(oldSubset.material);
 
       this.hiddenSubsets.delete(modelID);
@@ -676,24 +656,20 @@ export class IfcManager {
     modelsToReset.forEach(modelID => {
       const model = this.ifcModels.find(m => m.modelID === modelID);
       if (model) {
-        model.mesh.visible = true; // Hiện lại mesh gốc
-        this.rebuildSubset(modelID); // Xóa subset cũ nếu có
+        model.mesh.visible = true;
+        this.rebuildSubset(modelID);
       }
     });
 
     if (!savedState || !Array.isArray(savedState) || savedState.length === 0) return;
 
-    // 2. Apply trạng thái mới
     for (const item of savedState) {
-      // Ép kiểu quan trọng
       const modelID = parseInt(item.modelID);
       const ids = item.ids.map(id => parseInt(id));
 
       if (!isNaN(modelID) && ids.length > 0) {
-        // Lưu vào Map
         this.hiddenExpressIDs.set(modelID, new Set(ids));
 
-        // Rebuild lại model đó để áp dụng ẩn
         this.rebuildSubset(modelID);
       }
     }

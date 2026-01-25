@@ -255,170 +255,29 @@ export default function IfcViewer({
   };
 
   // === RESTORE STATE ===
-  // const restoreState = async (viewState, todoItems = []) => {
-  //   if (!viewState || !sceneRef.current || !loaderRef.current) return;
-
-  //   const oldIdToUrl = {};
-  //   if (todoItems && Array.isArray(todoItems)) {
-  //     todoItems.forEach(item => {
-  //       oldIdToUrl[String(item.modelId)] = item.fileUrl;
-  //     });
-  //   }
-
-  //   // Map: URL -> NewModelID
-  //   const urlToNewId = {};
-  //   Object.keys(modelUrlMap.current).forEach(id => {
-  //     const url = modelUrlMap.current[id];
-  //     urlToNewId[url] = parseInt(id);
-  //   });
-
-  //   if (viewState.selection && Array.isArray(viewState.selection)) {
-  //     viewState.selection.forEach(item => {
-  //       if (item.fileUrl) {
-  //         oldIdToUrl[String(item.modelID)] = item.fileUrl;
-  //       }
-  //     });
-  //   }
-
-  //   // --- RESTORE CAMERA ---
-  //   sceneRef.current.setCameraState(viewState.camera);
-
-  //   // --- RESTORE VISIBILITY ---
-  //   const mappedVisibility = [];
-  //   const modelsToReset = Array.from(loaderRef.current.hiddenExpressIDs.keys());
-  //   loaderRef.current.hiddenExpressIDs.clear();
-  //   modelsToReset.forEach(modelID => loaderRef.current.rebuildSubset(modelID));
-
-  //   const newHiddenItemsReactState = {};
-
-  //   if (viewState.visibility && Array.isArray(viewState.visibility)) {
-  //     for (const group of viewState.visibility) {
-  //       const oldID = String(group.modelID);
-  //       const url = oldIdToUrl[oldID];
-  //       const newID = urlToNewId[url];
-
-  //       if (newID !== undefined) {
-  //         // loaderRef.current.hiddenExpressIDs.set(newID, new Set(group.ids));
-  //         // loaderRef.current.rebuildSubset(newID);
-
-  //         // group.ids.forEach(id => {
-  //         //   newHiddenItemsReactState[`${newID}-${id}`] = true;
-  //         // });
-  //         const numericIds = group.ids.map(id => Number(id));
-
-  //         // Thêm vào danh sách lệnh ẩn
-  //         mappedVisibility.push({
-  //           modelID: newID,
-  //           ids: numericIds
-  //         });
-
-  //         // Cập nhật State React (để icon con mắt UI hiển thị đúng)
-  //         numericIds.forEach(id => {
-  //           newHiddenItemsReactState[`${newID}-${id}`] = true;
-  //         });
-  //       }
-  //     }
-  //   }
-  //   loaderRef.current.restoreVisibilityState(mappedVisibility);
-  //   setHiddenItems(newHiddenItemsReactState);
-
-  //   // --- RESTORE SELECTION  ---
-  //   loaderRef.current.removeHighlight();
-  //   let newSelectionState = [];
-  //   let itemsToHighlight = [];
-  //   if (todoItems && todoItems.length > 0) {
-  //     todoItems.forEach(group => {
-
-  //       const newID = urlToNewId[group.fileUrl];
-  //       if (newID !== undefined && group.expressId) {
-  //         group.expressId.forEach(id => {
-  //           itemsToHighlight.push({
-  //             modelID: newID,
-  //             expressID: Number(id),
-  //             fileUrl: group.fileUrl
-  //           });
-  //         });
-  //       }
-  //     });
-  //   } else if (viewState.selection && viewState.selection.length > 0) {
-  //     newSelectionState = viewState.selection.map(item => {
-  //       const url = item.fileUrl || oldIdToUrl[String(item.modelID)];
-  //       const newID = urlToNewId[url];
-
-  //       if (newID !== undefined) {
-  //         return {
-  //           ...item,
-  //           modelID: newID,
-  //           expressID: Number(item.expressID),
-  //           fileUrl: url
-  //         };
-  //       }
-  //       return null;
-  //     }).filter(item => item !== null);
-
-  //     // if (newSelectionState.length > 0) {
-  //     //   loaderRef.current.highlightItems(newSelectionState);
-  //     // }
-  //   }
-
-  //   // if (itemsToHighlight.length > 0) {
-
-  //   //   loaderRef.current.highlightItems(itemsToHighlight);
-
-  //   //   const uiSelectionState = itemsToHighlight.map(i => ({
-  //   //     modelID: i.modelID,
-  //   //     expressID: i.expressID,
-  //   //     fileUrl: modelUrlMap.current[i.modelID]
-  //   //   }));
-  //   //   setSelectedItems(uiSelectionState);
-  //   //   if (setSelectdItemsForNavbar) setSelectdItemsForNavbar(uiSelectionState);
-  //   // } else {
-  //   //   setSelectedItems([]);
-  //   //   if (setSelectdItemsForNavbar) setSelectdItemsForNavbar([]);
-  //   // }
-
-  //   if (itemsToHighlight.length > 0) {
-  //     // Gọi hàm batch highlight mới trong Manager
-  //     loaderRef.current.highlightItems(itemsToHighlight);
-
-  //     // Cập nhật UI Navbar
-  //     setSelectedItems(itemsToHighlight);
-  //     if (setSelectdItemsForNavbar) setSelectdItemsForNavbar(itemsToHighlight);
-  //   } else {
-  //     // Clear nếu không có gì
-  //     loaderRef.current.removeHighlight();
-  //     setSelectedItems([]);
-  //     if (setSelectdItemsForNavbar) setSelectdItemsForNavbar([]);
-  //   }
-
-  // };
-
   const restoreState = async (viewState, todoItems = []) => {
     if (!viewState || !sceneRef.current || !loaderRef.current) return;
 
     // ---------------------------------------------------------
-    // 1. CHUẨN BỊ MAPPING (URL <-> Model ID)
+    // 1. PREPARE MAPPING (URL <-> Model ID)
     // ---------------------------------------------------------
 
-    // Map hiện tại: URL -> ModelID (ID thực tế trong phiên làm việc này)
     const urlToNewId = {};
     Object.keys(modelUrlMap.current).forEach(id => {
       const url = modelUrlMap.current[id];
       urlToNewId[url] = parseInt(id);
     });
 
-    // Map quá khứ: ModelID (trong snapshot cũ) -> URL
-    // Dùng để hỗ trợ các View cũ chưa lưu fileUrl
     const oldIdToUrl = {};
 
-    // Nguồn 1: Từ Todo Items
+    // R1: Todo Items
     if (todoItems && Array.isArray(todoItems)) {
       todoItems.forEach(item => {
         if (item.fileUrl) oldIdToUrl[String(item.modelId)] = item.fileUrl;
       });
     }
 
-    // Nguồn 2: Từ Selection trong Snapshot
+    // R2: Selection in Snapshot
     if (viewState.selection && Array.isArray(viewState.selection)) {
       viewState.selection.forEach(item => {
         if (item.fileUrl) oldIdToUrl[String(item.modelID)] = item.fileUrl;
@@ -439,20 +298,18 @@ export default function IfcViewer({
 
     if (viewState.visibility && Array.isArray(viewState.visibility)) {
       viewState.visibility.forEach(group => {
-        let url = group.fileUrl; // Ưu tiên 1: Lấy URL trực tiếp (Schema mới)
+        let url = group.fileUrl;
 
-        // Ưu tiên 2: Nếu không có URL (View cũ), tra từ Map ID cũ
         if (!url) {
           const oldID = String(group.modelID);
           url = oldIdToUrl[oldID];
         }
 
-        // Fallback: Nếu vẫn chưa tìm ra URL và chỉ có 1 file đang mở, đoán luôn
+        // Fallback
         if (!url && ifcUrls.length === 1) {
           url = ifcUrls[0];
         }
 
-        // Tìm ID mới hiện tại tương ứng với URL
         const newID = urlToNewId[url];
 
         if (newID !== undefined && group.ids && group.ids.length > 0) {
@@ -463,7 +320,6 @@ export default function IfcViewer({
             ids: numericIds
           });
 
-          // Cập nhật State React (để icon con mắt UI hiển thị đúng)
           numericIds.forEach(id => {
             newHiddenItemsReactState[`${newID}-${id}`] = true;
           });
@@ -471,8 +327,6 @@ export default function IfcViewer({
       });
     }
 
-    // Gửi xuống Manager để xử lý ẩn/hiện
-    // Lưu ý: Manager.restoreVisibilityState sẽ tự động reset (hiện tất cả) trước khi ẩn cái mới
     loaderRef.current.restoreVisibilityState(mappedVisibility);
     setHiddenItems(newHiddenItemsReactState);
 
@@ -482,17 +336,14 @@ export default function IfcViewer({
     // ---------------------------------------------------------
     let itemsToHighlight = [];
 
-    // Nguồn dữ liệu để highlight: Ưu tiên todoItems (Linked Objects) -> sau đó đến Snapshot Selection
     const sourceItems = (todoItems && todoItems.length > 0) ? todoItems : viewState.selection;
 
     if (sourceItems && Array.isArray(sourceItems)) {
       sourceItems.forEach(item => {
-        // Lấy URL: Ưu tiên có sẵn -> Tra map cũ
         const url = item.fileUrl || oldIdToUrl[String(item.modelID)];
         const newID = urlToNewId[url];
 
         if (newID !== undefined) {
-          // Xử lý ID: Có thể là mảng (todo) hoặc đơn (selection cũ)
           const rawIds = item.expressId ? item.expressId : [item.expressID];
           const ids = Array.isArray(rawIds) ? rawIds : [rawIds];
 
@@ -510,14 +361,13 @@ export default function IfcViewer({
     }
 
     if (itemsToHighlight.length > 0) {
-      // Highlight hàng loạt
+      // Highlight items
       loaderRef.current.highlightItems(itemsToHighlight);
 
       // Update UI Navbar
       setSelectedItems(itemsToHighlight);
       if (setSelectdItemsForNavbar) setSelectdItemsForNavbar(itemsToHighlight);
     } else {
-      // Clear nếu không có gì
       loaderRef.current.removeHighlight();
       setSelectedItems([]);
       if (setSelectdItemsForNavbar) setSelectdItemsForNavbar([]);
@@ -534,14 +384,14 @@ export default function IfcViewer({
   }, [onRegisterCapture, selectedItems]);
 
 
-  // Hàm helper để lấy context hiện tại (URL + ModelID thực tế)
+  // Helper
   const getContext = () => {
     const context = [];
     if (modelUrlMap.current) {
       Object.keys(modelUrlMap.current).forEach(id => {
         context.push({
           fileUrl: modelUrlMap.current[id],
-          modelId: String(id), // Quan trọng: Trả về ID thực (VD: "0", "1")
+          modelId: String(id),
           expressId: []
         });
       });
@@ -555,50 +405,43 @@ export default function IfcViewer({
         // capture: () => loaderRef.current?.getSnapshot(),
         capture: getSnapshot,
         restore: restoreState,
-        // --- THÊM HÀM NÀY ---
         getContext: getContext
         // --------------------
       });
     }
-  }, []); // Dependencies
+  }, []);
 
-  // Hàm Capture trạng thái hiện tại
   const getSnapshot = () => {
     if (!loaderRef.current || !sceneRef.current) return null;
 
-    // 1. Lấy Camera
     const camera = sceneRef.current.getCameraState();
 
-    // 2. Lấy Visibility (Danh sách Hidden)
-    // Manager trả về: [{ modelID: 0, ids: [123] }]
     const rawVisibility = loaderRef.current.getVisibilityState();
 
-    // Map từ ModelID -> FileUrl để lưu xuống DB an toàn
+    // Map ModelID -> FileUrl
     const safeVisibility = rawVisibility.map(item => {
       const url = modelUrlMap.current[item.modelID];
       if (url) {
         return {
-          fileUrl: url, // Lưu URL
-          ids: item.ids // Danh sách bị ẩn
+          fileUrl: url,
+          ids: item.ids
         };
       }
       return null;
     }).filter(item => item !== null);
 
-    // 3. Lấy Selection (Cũng map sang URL)
     const rawSelection = selectedItems;
     const safeSelection = rawSelection.map(item => ({
       fileUrl: item.fileUrl || modelUrlMap.current[item.modelID],
       expressID: item.expressID,
-      modelID: "" // Xóa ID nội bộ đi cho gọn
+      modelID: ""
     }));
 
-    // 4. Chụp ảnh Thumbnail
     const thumbnail = sceneRef.current.getScreenshot();
 
     return {
       camera,
-      visibility: safeVisibility, // Chỉ chứa items bị ẩn
+      visibility: safeVisibility,
       selection: safeSelection,
       thumbnail
     };
@@ -1040,6 +883,11 @@ export default function IfcViewer({
               >
                 <ViewList
                   projectId={projectId}
+                  ifcUrls={ifcUrls}
+
+                  // OPTION EXTEND
+                  // currentUserId={currentUser?._id}
+                  // currentUserEmail={currentUser?.email}
                   onOpenDrawer={onOpenViewDrawer}
                   onRestoreView={onRestoreView}
                   onUpdateSnapshot={onUpdateSnapshot}

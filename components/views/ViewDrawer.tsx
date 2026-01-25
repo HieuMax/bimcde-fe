@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
-import { AxiosError } from "axios"
 
 import { Button } from "@/components/ui/button"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
@@ -17,12 +16,11 @@ import { IView } from "@/types/view"
 interface ViewDrawerProps {
     open: boolean
     onOpenChange: (open: boolean) => void
-    onRestoreView?: (viewState: any) => void // Hàm restore camera để xem trước
+    onRestoreView?: (viewState: any) => void
     projectId: string
     viewToEdit?: IView | null
     mode: "create" | "edit" | "view"
 
-    // Data dùng khi tạo mới (được capture từ ViewerClient)
     initialData?: {
         items?: any[];
         viewState?: any;
@@ -43,7 +41,7 @@ export function ViewDrawer({
     const defaultState = {
         title: "",
         description: "",
-        shareWith: "", // Nhập text ngăn cách dấu phẩy
+        shareWith: "",
         tags: "",
         viewState: null as any,
     }
@@ -122,7 +120,6 @@ export function ViewDrawer({
         if (viewToEdit) {
             updateMutation.mutate(payload)
         } else {
-            // Khi tạo mới thì gửi kèm item và viewState
             payload.items = initialData?.items || [];
             payload.viewState = initialData?.viewState;
             createMutation.mutate(payload)

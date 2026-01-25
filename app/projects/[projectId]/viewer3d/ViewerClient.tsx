@@ -49,7 +49,7 @@ export default function ViewerClient() {
   const [pendingTodo, setPendingTodo] = useState<{
     todo: any;
     mode: "view" | "edit" | "create";
-    type?: "todo" | "view"; // <--- THÊM THUỘC TÍNH NÀY
+    type?: "todo" | "view";
   } | null>(null);
 
   const queryClient = useQueryClient();
@@ -57,7 +57,7 @@ export default function ViewerClient() {
   const viewerActions = React.useRef<{
     capture: () => any;
     restore: (state: any, items: any[]) => void;
-    getContext: () => any[]; // <--- THÊM DÒNG NÀY VÀO
+    getContext: () => any[];
   } | null>(null);
 
   const [todoToEdit, setTodoToEdit] = useState<any>(null);
@@ -264,22 +264,16 @@ export default function ViewerClient() {
         }
 
         if (type === 'view') {
-          // ==> MỞ VIEW DRAWER
           setViewToEdit(todo);
-          setViewDrawerMode(mode); // mode thường là 'view'
+          setViewDrawerMode(mode);
           setIsViewDrawerOpen(true);
-          setIsDrawerOpen(false); // Đảm bảo đóng Todo Drawer
+          setIsDrawerOpen(false);
         } else {
-          // ==> MỞ TODO DRAWER (Mặc định)
           setTodoToEdit(todo);
           setDrawerMode(mode);
           setIsDrawerOpen(true);
           setIsViewDrawerOpen(false);
         }
-
-        // setTodoToEdit(todo);
-        // setDrawerMode(mode);
-        // setIsDrawerOpen(true);
 
         setPendingTodo(null);
       }, 500);
@@ -295,30 +289,20 @@ export default function ViewerClient() {
   }, [isDrawerOpen]);
 
 
-  // --- 1. HÀM MỞ DRAWER (Từ ViewList hoặc Create New) ---
+  // --- 1. OPEN DRAWER (ViewList or Create New) ---
   const handleOpenViewDrawer = (view: any, mode: "view" | "edit" | "create") => {
     if (mode === 'create') {
-      // Logic Capture tương tự Todo
       let viewState = null;
-      let contextItems = []; // Khai báo biến
+      let contextItems = [];
 
       if (viewerActions.current) {
         if (viewerActions.current.capture) {
           viewState = viewerActions.current.capture();
         }
-        // --- SỬA ĐOẠN NÀY ---
         if (viewerActions.current.getContext) {
           contextItems = viewerActions.current.getContext();
         }
-        // --------------------
       }
-
-      // // Lấy danh sách context item (URL của các model đang mở)
-      // const contextItems = ifcUrls.map((url: string) => ({
-      //   fileUrl: url,
-      //   modelId: "",
-      //   expressId: []
-      // }));
 
       if (contextItems.length === 0) {
         contextItems = ifcUrls.map(url => ({ fileUrl: url, modelId: "0", expressId: [] }));
@@ -340,33 +324,24 @@ export default function ViewerClient() {
     }
   };
 
-  // --- 2. HÀM UPDATE SNAPSHOT (Nút 3 chấm) ---
+  // --- 2. UPDATE SNAPSHOT (...) ---
   const handleUpdateSnapshot = async (view: any) => {
     if (!viewerActions.current?.capture) return;
 
     try {
-      // Chụp lại scene hiện tại
       const newViewState = viewerActions.current.capture();
 
-      // Lấy lại context URL hiện tại
       let currentContextItems = [];
       if (viewerActions.current?.getContext) {
         currentContextItems = viewerActions.current.getContext();
       } else {
-        // Fallback nếu chưa load xong (hiếm khi xảy ra)
         currentContextItems = ifcUrls.map((url: string) => ({
           fileUrl: url,
-          modelId: "0", // Fallback tạm
+          modelId: "0", // Fallback
           expressId: []
         }));
       }
-      // const currentContextItems = ifcUrls.map((url: string) => ({
-      //   fileUrl: url,
-      //   modelId: "",
-      //   expressId: []
-      // }));
 
-      // Gọi API update
       await viewService.updateSnapshot(view._id, {
         viewState: newViewState,
         items: currentContextItems
@@ -374,8 +349,6 @@ export default function ViewerClient() {
 
       toast.success("Snapshot updated to current view!");
 
-      // --- 3. QUAN TRỌNG: BẮT BUỘC RELOAD LẠI LIST VIEW ---
-      // Lệnh này sẽ khiến ViewList tự động fetch lại data mới nhất từ server
       queryClient.invalidateQueries({ queryKey: ["views", projectId] });
       // ----------------------------------------------------
 
@@ -385,33 +358,26 @@ export default function ViewerClient() {
     }
   };
 
-  // --- 3. HÀM RESTORE VIEW (Tương tự handleSelectTodo) ---
+  // --- 3. RESTORE VIEW (same as handleSelectTodo) ---
   const handleRestoreView = (view: any) => {
     if (!view.items || !view.viewState) return;
 
-    // A. Lấy unique URL
+    // Get unique URL
     const targetUrls = Array.from(new Set(view.items.map((i: any) => i.fileUrl) as string[]));
 
-    // B. So sánh Context
+    // Compare Context
     const isContextMatch = targetUrls.length === 0 || areArraysEqual(ifcUrls, targetUrls);
 
     if (isContextMatch) {
       console.log("Context match, restoring view...");
       if (viewerActions.current?.restore) {
-        viewerActions.current.restore(view.viewState, []); // View thường không có selected items cụ thể như Todo
+        viewerActions.current.restore(view.viewState, []);
       }
     } else {
       console.log("Context mismatch, switching models for view...");
 
-      // Tái sử dụng pendingTodo state nhưng gán mode đặc biệt hoặc tạo state mới pendingRestore
-      // Ở đây ta có thể "hack" nhẹ bằng cách dùng pendingTodo 
-      // nhưng lưu ý todo object của ta là view, và mode là 'view'
-      // Tuy nhiên pendingTodo logic hiện tại sẽ MỞ DRAWER khi load xong. 
-      // Nếu bạn muốn Restore mà KHÔNG mở Drawer (chỉ đổi góc nhìn), ta cần cẩn thận.
-
-      // GIẢI PHÁP ĐƠN GIẢN: Mở Drawer View Detail sau khi load xong (hợp lý)
       setIsViewDrawerOpen(false);
-      setPendingTodo({ todo: view, mode: "view", type: 'view' }); // Thêm type='view' để phân biệt nếu cần
+      setPendingTodo({ todo: view, mode: "view", type: 'view' });
 
       const newUrlsParams = JSON.stringify(targetUrls);
       router.push(`/projects/${projectId}/viewer3d?urls=${encodeURIComponent(newUrlsParams)}`);
@@ -462,7 +428,7 @@ export default function ViewerClient() {
           </div>
         </div>
 
-        {/* CONTAINER CHO VIEWER & DRAWER */}
+        {/* CONTAINER VIEWER & DRAWER */}
         <div className="flex-1 relative flex h-full">
 
           <div
@@ -507,14 +473,13 @@ export default function ViewerClient() {
         open={isViewDrawerOpen}
         onOpenChange={(v) => {
           setIsViewDrawerOpen(v);
-          if (v) setIsDrawerOpen(false); // Đóng todo drawer nếu mở view
+          if (v) setIsDrawerOpen(false);
         }}
         projectId={projectId as string}
         mode={viewDrawerMode}
         viewToEdit={viewToEdit}
         initialData={viewInitialData}
         onRestoreView={(viewState) => {
-          // Restore trực tiếp khi bấm ảnh trong drawer
           if (viewerActions.current?.restore) {
             viewerActions.current.restore(viewState, []);
           }
