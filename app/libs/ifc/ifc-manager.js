@@ -674,4 +674,361 @@ export class IfcManager {
       }
     }
   }
+
+
+
+  // --- PROPERTIES MANAGEMENT ---
+
+  async getSelectionProperties(items) {
+    if (!items || items.length === 0) return null;
+
+    if (items.length === 1) {
+      return await this.getSingleItemProperties(items[0]);
+    } else {
+      return await this.getSharedProperties(items);
+    }
+  }
+
+  async getSingleItemProperties(item) {
+    const { modelID, expressID, fileUrl } = item;
+    const modelIdInt = parseInt(modelID);
+    const expressIdInt = parseInt(expressID);
+
+    // 1. Get Base Properties
+    const props = await this.ifcLoader.ifcManager.getItemProperties(modelIdInt, expressIdInt);
+
+    // 2. Get Property Sets & Quantities
+    const psets = await this.ifcLoader.ifcManager.getPropertySets(modelIdInt, expressIdInt, true);
+
+    // 3. Get Type Properties
+    const typeProps = await this.ifcLoader.ifcManager.getTypeProperties(modelIdInt, expressIdInt, true);
+
+    // 4. Get Materials
+    const materials = await this.ifcLoader.ifcManager.getMaterialsProperties(modelIdInt, expressIdInt, true);
+
+    // 5. Calculate Geometry Data (Volume, Area, BBox...)
+    const geoData = await this._calculateGeometryData(modelIdInt, expressIdInt);
+
+    const formatted = {};
+
+    // --- GROUP: REFERENCE OBJECT ---
+    formatted["Reference Object"] = {
+      "GUID (MS)": props.GlobalId?.value || "N/A",
+      "GUID (IFC)": props.GlobalId?.value || props.GlobalId,
+      "File Format": "IFC",
+      "Common Type": this._decodeIfcString(props.ObjectType) || "Unknown",
+      "File Name": this._getFileName(fileUrl),
+      "Model ID": modelID,
+      "Express ID": expressID,
+    };
+
+    // --- GROUP: PRESENTATION LAYERS ---
+    // formatted["Presentation Layers"] = { "Layer": "N/A" }; 
+
+    // --- GROUP: PRODUCT ---
+    const productName = props.Name?.value || props.Name || "Unnamed";
+    const productType = typeProps && typeProps.length > 0 ? (typeProps[0].Name?.value || "N/A") : "N/A";
+
+    formatted["Product"] = {
+      "Product Name": productName,
+      "Product Description": this._decodeIfcString(props.Description) || "N/A",
+      "Product Object Type": productType,
+      "Owning User": "@Company XYZ",
+      "Creation Date": "Unknown",
+      "Last Modified Date": "Unknown",
+      "Change Action": "NoChange",
+      "State": "Undefined",
+      "Application": "Autodesk Revit 2013 (Revit v2013)"
+    };
+
+    // --- GROUP: CALCULATED GEOMETRY VALUES ---
+    formatted["Calculated Geometry Values"] = {
+      "Volume": geoData.volume ? `${geoData.volume} m³` : "N/A",
+      "Area": geoData.area ? `${geoData.area} m²` : "N/A",
+      "Center Of Gravity X": geoData.cog ? `${Math.round(geoData.cog.x)} mm` : "N/A",
+      "Center Of Gravity Y": geoData.cog ? `${Math.round(geoData.cog.y)} mm` : "N/A",
+      "Center Of Gravity Z": geoData.cog ? `${Math.round(geoData.cog.z)} mm` : "N/A",
+      "Is Solid": "True"
+    };
+
+    // --- GROUP: ORIENTED BOUNDING BOX ---
+    formatted["Oriented Bounding Box"] = {
+      "Name": productName,
+      "OX": geoData.bbox ? `${Math.round(geoData.bbox.min.x)} mm` : "N/A",
+      "OY": geoData.bbox ? `${Math.round(geoData.bbox.min.y)} mm` : "N/A",
+      "OZ": geoData.bbox ? `${Math.round(geoData.bbox.min.z)} mm` : "N/A",
+
+      "Size X": geoData.size ? `${(geoData.size.x * 1000).toFixed(3)}` : "N/A",
+      "Size Y": geoData.size ? `${(geoData.size.y * 1000).toFixed(3)}` : "N/A",
+      "Size Z": geoData.size ? `${(geoData.size.z * 1000).toFixed(3)}` : "N/A",
+    };
+
+    // --- GROUP: MATERIALS (Ifc Material Layer Set Usage) ---
+    if (materials && materials.length > 0) {
+      const matGroup = {};
+      materials.forEach((mat, index) => {
+        if (mat.MaterialLayers) {
+          mat.MaterialLayers.forEach((layer, idx) => {
+            const matName = this._decodeIfcString(layer.Material?.Name);
+            matGroup[`Layer ${idx + 1}.Material`] = matName;
+            matGroup[`Layer ${idx + 1}.Thickness`] = layer.LayerThickness?.value ? parseFloat(layer.LayerThickness.value.toFixed(2)) + " mm" : "N/A";
+          });
+        } else if (mat.Materials) {
+          mat.Materials.forEach((m, idx) => {
+            matGroup[`Material ${idx + 1}`] = this._decodeIfcString(m.Name);
+          });
+        } else if (mat.Name) {
+          matGroup[`Material`] = this._decodeIfcString(mat.Name);
+        }
+      });
+
+      if (Object.keys(matGroup).length > 0) {
+        formatted["Ifc Material Layer Set Usage"] = matGroup;
+      }
+    }
+
+    // --- PROCESS PSETS (Identity Data, Phasing, Other, Constraints...) ---
+    for (const pset of psets) {
+      const rawPsetName = this._decodeIfcString(pset.Name);
+      if (!rawPsetName) continue;
+
+      let displayGroupName = rawPsetName;
+      if (rawPsetName === "Pset_ElectricalDeviceCommon") displayGroupName = "Other";
+      if (rawPsetName === "Pset_DistributionPortTypeCable") displayGroupName = "Other";
+      // ... custom mappings
+
+      const groupData = {};
+
+      const propsToIterate = pset.HasProperties || pset.Quantities || [];
+
+      for (const prop of propsToIterate) {
+        const rawKey = this._decodeIfcString(prop.Name);
+        if (!rawKey) continue;
+
+        // FORMAT KEY: "RatedVoltage" -> "Rated Voltage"
+        const formattedKey = this._formatPropName(rawKey);
+
+        const val = this._extractPropValue(prop, rawKey);
+
+        if (val !== null && val !== undefined) {
+          groupData[formattedKey] = val;
+        }
+      }
+
+      if (Object.keys(groupData).length > 0) {
+        if (formatted[displayGroupName]) {
+          formatted[displayGroupName] = { ...formatted[displayGroupName], ...groupData };
+        } else {
+          formatted[displayGroupName] = groupData;
+        }
+      }
+    }
+
+    return {
+      title: productName,
+      groups: formatted
+    };
+  }
+
+  // --- (GEOMETRY) ---
+  async _calculateGeometryData(modelID, expressID) {
+    try {
+      const model = this.ifcModels.find(m => m.modelID === modelID);
+      if (!model) return {};
+
+      const subset = this.ifcLoader.ifcManager.createSubset({
+        modelID,
+        ids: [expressID],
+        removePrevious: true,
+        customID: "temp-calc-subset",
+        applyBVH: false
+      });
+
+      if (!subset || !subset.geometry) return {};
+
+      // 1. Calculate Bounding Box
+      subset.geometry.computeBoundingBox();
+      const bbox = subset.geometry.boundingBox;
+      const size = new THREE.Vector3();
+      bbox.getSize(size);
+
+      // 2. Calculate Center of Gravity (Centroid of BBox approximation)
+      const center = new THREE.Vector3();
+      bbox.getCenter(center);
+
+      const matrixWorld = model.mesh.matrixWorld;
+
+      // Apply matrix
+      center.applyMatrix4(matrixWorld);
+
+      const minWorld = bbox.min.clone().applyMatrix4(matrixWorld);
+      const maxWorld = bbox.max.clone().applyMatrix4(matrixWorld);
+
+      let volume = 0;
+      let area = 0;
+
+      const pos = subset.geometry.attributes.position;
+      const index = subset.geometry.index;
+
+      if (pos && index) {
+        const p1 = new THREE.Vector3();
+        const p2 = new THREE.Vector3();
+        const p3 = new THREE.Vector3();
+
+        for (let i = 0; i < index.count; i += 3) {
+          const a = index.getX(i);
+          const b = index.getX(i + 1);
+          const c = index.getX(i + 2);
+
+          p1.fromBufferAttribute(pos, a);
+          p2.fromBufferAttribute(pos, b);
+          p3.fromBufferAttribute(pos, c);
+
+          // Area: 0.5 * |(p2-p1) x (p3-p1)|
+          const edge1 = new THREE.Vector3().subVectors(p2, p1);
+          const edge2 = new THREE.Vector3().subVectors(p3, p1);
+          const cross = new THREE.Vector3().crossVectors(edge1, edge2);
+          area += 0.5 * cross.length();
+
+          // Signed Volume of tetrahedron with origin
+          volume += p1.dot(cross) / 6.0;
+        }
+      }
+
+      this.ifcLoader.ifcManager.removeSubset(modelID, undefined, "temp-calc-subset");
+
+      return {
+        volume: Math.abs(volume).toFixed(3),
+        area: area.toFixed(3),
+        cog: {
+          x: (center.x * 1000), // Convert m to mm
+          y: (center.y * 1000),
+          z: (center.z * 1000)
+        },
+        bbox: {
+          min: { x: minWorld.x * 1000, y: minWorld.y * 1000, z: minWorld.z * 1000 },
+          max: { x: maxWorld.x * 1000, y: maxWorld.y * 1000, z: maxWorld.z * 1000 }
+        },
+        size: size
+      };
+    } catch (e) {
+      console.warn("Error calculating geometry:", e);
+      return {};
+    }
+  }
+
+
+  async getSharedProperties(items) {
+    // 1. Lấy props của tất cả items
+    const allProps = await Promise.all(items.map(i => this.getSingleItemProperties(i)));
+
+    if (allProps.length === 0) return null;
+
+    // 2. Lấy item đầu tiên làm chuẩn
+    let sharedGroups = { ...allProps[0].groups };
+
+    // 3. So sánh với các item còn lại
+    for (let i = 1; i < allProps.length; i++) {
+      const currentItemGroups = allProps[i].groups;
+
+      // Duyệt qua các Group đang có trong Shared
+      for (const groupName in sharedGroups) {
+
+        // Nếu item hiện tại KHÔNG có group này -> Xóa khỏi Shared (Intersection)
+        if (!currentItemGroups[groupName]) {
+          delete sharedGroups[groupName];
+          continue;
+        }
+
+        // Nếu có group, duyệt qua các Key
+        const groupProps = sharedGroups[groupName];
+        const currentProps = currentItemGroups[groupName];
+
+        for (const key in groupProps) {
+          // Nếu item hiện tại KHÔNG có key này -> Xóa key
+          if (currentProps[key] === undefined) {
+            delete groupProps[key];
+            continue;
+          }
+
+          // Nếu có key, so sánh value
+          const val1 = groupProps[key];
+          const val2 = currentProps[key];
+
+          // Nếu khác nhau -> Đánh dấu là Varies
+          if (val1 !== val2) {
+            groupProps[key] = "Varies";
+          }
+        }
+
+        // Nếu sau khi lọc mà group rỗng -> Xóa group
+        if (Object.keys(groupProps).length === 0) {
+          delete sharedGroups[groupName];
+        }
+      }
+    }
+
+    return {
+      title: "Shared Properties",
+      count: items.length,
+      groups: sharedGroups
+    };
+  }
+
+  // --- HELPERS ---
+  _formatPropName(name) {
+    if (!name) return "Unknown";
+    const result = name.replace(/([A-Z])/g, ' $1');
+    return result.trim();
+  }
+
+  _getFileName(url) {
+    if (!url) return "Unknown";
+    try {
+      const parts = url.split('/');
+      return parts[parts.length - 1];
+    } catch (e) { return url; }
+  }
+
+  _decodeIfcString(ifcString) {
+    if (!ifcString) return null;
+    const raw = ifcString.value || ifcString;
+    return raw;
+  }
+
+  _extractPropValue(prop, keyName) {
+    if (!prop) return "N/A";
+
+    if (prop.NominalValue) {
+      const val = prop.NominalValue.value;
+      if (typeof val === 'number' && !Number.isInteger(val)) {
+
+        const lowerKey = keyName.toLowerCase();
+        const isLengthProp =
+          lowerKey.includes('height') ||
+          lowerKey.includes('width') ||
+          lowerKey.includes('depth') ||
+          lowerKey.includes('length') ||
+          lowerKey.includes('offset') ||
+          lowerKey.includes('elevation') ||
+          lowerKey.includes('radius') ||
+          lowerKey.includes('diameter');
+
+        if (isLengthProp && Math.abs(val) < 100) {
+          return (val * 304.8).toFixed(0) + " mm";
+        }
+
+        return Number.isInteger(val) ? val : parseFloat(val.toFixed(3));
+      }
+      return val === "T" ? "True" : val === "F" ? "False" : val;
+    }
+
+    // Quantity Value
+    if (prop.LengthValue !== undefined) return (prop.LengthValue.value * 1000).toFixed(0) + " mm";
+    if (prop.AreaValue !== undefined) return parseFloat(prop.AreaValue.value.toFixed(3)) + " m²";
+    if (prop.VolumeValue !== undefined) return parseFloat(prop.VolumeValue.value.toFixed(3)) + " m³";
+    if (prop.CountValue !== undefined) return prop.CountValue.value;
+
+    return "N/A";
+  }
 }
