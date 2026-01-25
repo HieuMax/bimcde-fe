@@ -35,7 +35,10 @@ export default function IfcViewer({
   onRegisterCapture,
   onLoaded,
   onSelectTodo,
-  onOpenTodoDrawer
+  onOpenTodoDrawer,
+  onOpenViewDrawer,
+  onRestoreView,
+  onUpdateSnapshot,
 }) {
   const canvasRef = useRef(null);
   const loaderRef = useRef(null);
@@ -255,101 +258,120 @@ export default function IfcViewer({
   const restoreState = async (viewState, todoItems = []) => {
     if (!viewState || !sceneRef.current || !loaderRef.current) return;
 
-    const oldIdToUrl = {};
-    if (todoItems && Array.isArray(todoItems)) {
-      todoItems.forEach(item => {
-        oldIdToUrl[String(item.modelId)] = item.fileUrl;
-      });
-    }
+    // ---------------------------------------------------------
+    // 1. PREPARE MAPPING (URL <-> Model ID)
+    // ---------------------------------------------------------
 
-    // Map: URL -> NewModelID
     const urlToNewId = {};
     Object.keys(modelUrlMap.current).forEach(id => {
       const url = modelUrlMap.current[id];
       urlToNewId[url] = parseInt(id);
     });
 
-    // --- RESTORE CAMERA ---
+    const oldIdToUrl = {};
+
+    // R1: Todo Items
+    if (todoItems && Array.isArray(todoItems)) {
+      todoItems.forEach(item => {
+        if (item.fileUrl) oldIdToUrl[String(item.modelId)] = item.fileUrl;
+      });
+    }
+
+    // R2: Selection in Snapshot
+    if (viewState.selection && Array.isArray(viewState.selection)) {
+      viewState.selection.forEach(item => {
+        if (item.fileUrl) oldIdToUrl[String(item.modelID)] = item.fileUrl;
+      });
+    }
+
+    // ---------------------------------------------------------
+    // 2. RESTORE CAMERA
+    // ---------------------------------------------------------
     sceneRef.current.setCameraState(viewState.camera);
 
-    // --- RESTORE VISIBILITY ---
-    const modelsToReset = Array.from(loaderRef.current.hiddenExpressIDs.keys());
-    loaderRef.current.hiddenExpressIDs.clear();
-    modelsToReset.forEach(modelID => loaderRef.current.rebuildSubset(modelID));
 
+    // ---------------------------------------------------------
+    // 3. RESTORE VISIBILITY (Logic mới: Ưu tiên FileURL)
+    // ---------------------------------------------------------
+    const mappedVisibility = [];
     const newHiddenItemsReactState = {};
 
     if (viewState.visibility && Array.isArray(viewState.visibility)) {
-      for (const group of viewState.visibility) {
-        const oldID = String(group.modelID);
-        const url = oldIdToUrl[oldID];
+      viewState.visibility.forEach(group => {
+        let url = group.fileUrl;
+
+        if (!url) {
+          const oldID = String(group.modelID);
+          url = oldIdToUrl[oldID];
+        }
+
+        // Fallback
+        if (!url && ifcUrls.length === 1) {
+          url = ifcUrls[0];
+        }
+
         const newID = urlToNewId[url];
 
-        if (newID !== undefined) {
-          loaderRef.current.hiddenExpressIDs.set(newID, new Set(group.ids));
-          loaderRef.current.rebuildSubset(newID);
+        if (newID !== undefined && group.ids && group.ids.length > 0) {
+          const numericIds = group.ids.map(id => Number(id));
 
-          group.ids.forEach(id => {
+          mappedVisibility.push({
+            modelID: newID,
+            ids: numericIds
+          });
+
+          numericIds.forEach(id => {
             newHiddenItemsReactState[`${newID}-${id}`] = true;
           });
         }
-      }
+      });
     }
+
+    loaderRef.current.restoreVisibilityState(mappedVisibility);
     setHiddenItems(newHiddenItemsReactState);
 
-    // --- RESTORE SELECTION  ---
-    loaderRef.current.removeHighlight();
-    let newSelectionState = [];
-    let itemsToHighlight = [];
-    if (todoItems && todoItems.length > 0) {
-      todoItems.forEach(group => {
 
-        const newID = urlToNewId[group.fileUrl];
-        if (newID !== undefined && group.expressId) {
-          group.expressId.forEach(id => {
-            itemsToHighlight.push({
-              modelID: newID,
-              expressID: Number(id)
-            });
-          });
-        }
-      });
-    } else if (viewState.selection && viewState.selection.length > 0) {
-      newSelectionState = viewState.selection.map(item => {
+    // ---------------------------------------------------------
+    // 4. RESTORE SELECTION & HIGHLIGHT
+    // ---------------------------------------------------------
+    let itemsToHighlight = [];
+
+    const sourceItems = (todoItems && todoItems.length > 0) ? todoItems : viewState.selection;
+
+    if (sourceItems && Array.isArray(sourceItems)) {
+      sourceItems.forEach(item => {
         const url = item.fileUrl || oldIdToUrl[String(item.modelID)];
         const newID = urlToNewId[url];
 
         if (newID !== undefined) {
-          return {
-            ...item,
-            modelID: newID,
-            expressID: Number(item.expressID)
-          };
-        }
-        return null;
-      }).filter(item => item !== null);
+          const rawIds = item.expressId ? item.expressId : [item.expressID];
+          const ids = Array.isArray(rawIds) ? rawIds : [rawIds];
 
-      if (newSelectionState.length > 0) {
-        loaderRef.current.highlightItems(newSelectionState);
-      }
+          ids.forEach(id => {
+            if (id) {
+              itemsToHighlight.push({
+                modelID: newID,
+                expressID: Number(id),
+                fileUrl: url
+              });
+            }
+          });
+        }
+      });
     }
 
     if (itemsToHighlight.length > 0) {
-
+      // Highlight items
       loaderRef.current.highlightItems(itemsToHighlight);
 
-      const uiSelectionState = itemsToHighlight.map(i => ({
-        modelID: i.modelID,
-        expressID: i.expressID,
-        fileUrl: modelUrlMap.current[i.modelID]
-      }));
-      setSelectedItems(uiSelectionState);
-      if (setSelectdItemsForNavbar) setSelectdItemsForNavbar(uiSelectionState);
+      // Update UI Navbar
+      setSelectedItems(itemsToHighlight);
+      if (setSelectdItemsForNavbar) setSelectdItemsForNavbar(itemsToHighlight);
     } else {
+      loaderRef.current.removeHighlight();
       setSelectedItems([]);
       if (setSelectdItemsForNavbar) setSelectdItemsForNavbar([]);
     }
-
   };
 
   useEffect(() => {
@@ -360,6 +382,71 @@ export default function IfcViewer({
       });
     }
   }, [onRegisterCapture, selectedItems]);
+
+
+  // Helper
+  const getContext = () => {
+    const context = [];
+    if (modelUrlMap.current) {
+      Object.keys(modelUrlMap.current).forEach(id => {
+        context.push({
+          fileUrl: modelUrlMap.current[id],
+          modelId: String(id),
+          expressId: []
+        });
+      });
+    }
+    return context;
+  };
+
+  useEffect(() => {
+    if (onRegisterCapture) {
+      onRegisterCapture({
+        // capture: () => loaderRef.current?.getSnapshot(),
+        capture: getSnapshot,
+        restore: restoreState,
+        getContext: getContext
+        // --------------------
+      });
+    }
+  }, []);
+
+  const getSnapshot = () => {
+    if (!loaderRef.current || !sceneRef.current) return null;
+
+    const camera = sceneRef.current.getCameraState();
+
+    const rawVisibility = loaderRef.current.getVisibilityState();
+
+    // Map ModelID -> FileUrl
+    const safeVisibility = rawVisibility.map(item => {
+      const url = modelUrlMap.current[item.modelID];
+      if (url) {
+        return {
+          fileUrl: url,
+          ids: item.ids
+        };
+      }
+      return null;
+    }).filter(item => item !== null);
+
+    const rawSelection = selectedItems;
+    const safeSelection = rawSelection.map(item => ({
+      fileUrl: item.fileUrl || modelUrlMap.current[item.modelID],
+      expressID: item.expressID,
+      modelID: ""
+    }));
+
+    const thumbnail = sceneRef.current.getScreenshot();
+
+    return {
+      camera,
+      visibility: safeVisibility,
+      selection: safeSelection,
+      thumbnail
+    };
+  };
+
 
   const Loading = () => {
     if (isLoading) {
@@ -794,7 +881,17 @@ export default function IfcViewer({
                   width: '100%',
                 }}
               >
-                <ViewList />
+                <ViewList
+                  projectId={projectId}
+                  ifcUrls={ifcUrls}
+
+                  // OPTION EXTEND
+                  // currentUserId={currentUser?._id}
+                  // currentUserEmail={currentUser?.email}
+                  onOpenDrawer={onOpenViewDrawer}
+                  onRestoreView={onRestoreView}
+                  onUpdateSnapshot={onUpdateSnapshot}
+                />
               </div>
             )}
 

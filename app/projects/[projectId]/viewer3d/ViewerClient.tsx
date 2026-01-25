@@ -6,6 +6,10 @@ import IfcViewer from '@/app/components/ifcs/IfcViewer';
 import { Box, Layers, ClipboardCheck, ChevronRight, ChevronLeft, Camera, FolderTree, Sheet, BadgeInfo, BookText } from 'lucide-react';
 import { Navbar } from '@/components/layout/navbar/Navbar';
 import { NewTodoDrawer } from '@/components/todos/NewTodoDrawer';
+import { viewService3D as viewService } from '@/services/view3d.service';
+import { toast } from 'sonner';
+import { ViewDrawer } from '@/components/views/ViewDrawer';
+import { useQueryClient } from "@tanstack/react-query";
 
 interface SelectedItem {
   modelID?: string;
@@ -42,11 +46,28 @@ export default function ViewerClient() {
   const [drawerInitialData, setDrawerInitialData] = useState<NewTodoInitialData | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  const [pendingTodo, setPendingTodo] = useState<{ todo: any, mode: "view" | "edit" } | null>(null);  // const viewerActions = React.useRef<any>(null);
-  const viewerActions = React.useRef<{ capture: () => any; restore: (state: any, items: any[]) => void } | null>(null);
+  const [pendingTodo, setPendingTodo] = useState<{
+    todo: any;
+    mode: "view" | "edit" | "create";
+    type?: "todo" | "view";
+  } | null>(null);
+
+  const queryClient = useQueryClient();
+
+  const viewerActions = React.useRef<{
+    capture: () => any;
+    restore: (state: any, items: any[]) => void;
+    getContext: () => any[];
+  } | null>(null);
 
   const [todoToEdit, setTodoToEdit] = useState<any>(null);
   const [drawerMode, setDrawerMode] = useState<"create" | "view" | "edit">("create");
+
+  // --- STATES VIEW ---
+  const [isViewDrawerOpen, setIsViewDrawerOpen] = useState(false);
+  const [viewToEdit, setViewToEdit] = useState<any>(null);
+  const [viewDrawerMode, setViewDrawerMode] = useState<"create" | "view" | "edit">("create");
+  const [viewInitialData, setViewInitialData] = useState<any>(null);
 
   const handleOpenTodoDrawer = (todo: any, mode: "view" | "edit" | "create") => {
     if (mode === 'create') {
@@ -167,8 +188,11 @@ export default function ViewerClient() {
       items = Array.from(grouped.values());
       title = `Issue on ${selectedItems.length > 1 ? `${selectedItems.length} items` : `#${items[0]?.expressId[0] || ''}`}`;
     } else {
-
-      console.log("ifcUrls: ", ifcUrls);
+      if (viewerActions.current?.getContext) {
+        items = viewerActions.current.getContext();
+        title = "View Snapshot";
+      } else
+        console.log("ifcUrls: ", ifcUrls);
       if (ifcUrls.length > 0) {
         items = ifcUrls.map((url: any) => ({
           fileUrl: url,
@@ -233,15 +257,23 @@ export default function ViewerClient() {
       console.log("New model loaded, processing pending todo...");
 
       setTimeout(() => {
-        const { todo, mode } = pendingTodo;
+        const { todo, mode, type } = pendingTodo;
 
         if (viewerActions.current?.restore && todo.viewState) {
-          viewerActions.current.restore(todo.viewState, todo.items);
+          viewerActions.current.restore(todo.viewState, todo.items || []);
         }
 
-        setTodoToEdit(todo);
-        setDrawerMode(mode);
-        setIsDrawerOpen(true);
+        if (type === 'view') {
+          setViewToEdit(todo);
+          setViewDrawerMode(mode);
+          setIsViewDrawerOpen(true);
+          setIsDrawerOpen(false);
+        } else {
+          setTodoToEdit(todo);
+          setDrawerMode(mode);
+          setIsDrawerOpen(true);
+          setIsViewDrawerOpen(false);
+        }
 
         setPendingTodo(null);
       }, 500);
@@ -255,6 +287,102 @@ export default function ViewerClient() {
     }, 350);
     return () => clearTimeout(timer);
   }, [isDrawerOpen]);
+
+
+  // --- 1. OPEN DRAWER (ViewList or Create New) ---
+  const handleOpenViewDrawer = (view: any, mode: "view" | "edit" | "create") => {
+    if (mode === 'create') {
+      let viewState = null;
+      let contextItems = [];
+
+      if (viewerActions.current) {
+        if (viewerActions.current.capture) {
+          viewState = viewerActions.current.capture();
+        }
+        if (viewerActions.current.getContext) {
+          contextItems = viewerActions.current.getContext();
+        }
+      }
+
+      if (contextItems.length === 0) {
+        contextItems = ifcUrls.map(url => ({ fileUrl: url, modelId: "0", expressId: [] }));
+      }
+
+      setViewInitialData({
+        viewState,
+        items: contextItems
+      });
+      setViewToEdit(null);
+      setViewDrawerMode("create");
+      setIsViewDrawerOpen(true);
+    } else {
+      // View/Edit mode
+      setViewToEdit(view);
+      setViewDrawerMode(mode);
+      setViewInitialData(null);
+      setIsViewDrawerOpen(true);
+    }
+  };
+
+  // --- 2. UPDATE SNAPSHOT (...) ---
+  const handleUpdateSnapshot = async (view: any) => {
+    if (!viewerActions.current?.capture) return;
+
+    try {
+      const newViewState = viewerActions.current.capture();
+
+      let currentContextItems = [];
+      if (viewerActions.current?.getContext) {
+        currentContextItems = viewerActions.current.getContext();
+      } else {
+        currentContextItems = ifcUrls.map((url: string) => ({
+          fileUrl: url,
+          modelId: "0", // Fallback
+          expressId: []
+        }));
+      }
+
+      await viewService.updateSnapshot(view._id, {
+        viewState: newViewState,
+        items: currentContextItems
+      });
+
+      toast.success("Snapshot updated to current view!");
+
+      queryClient.invalidateQueries({ queryKey: ["views", projectId] });
+      // ----------------------------------------------------
+
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to update snapshot");
+    }
+  };
+
+  // --- 3. RESTORE VIEW (same as handleSelectTodo) ---
+  const handleRestoreView = (view: any) => {
+    if (!view.items || !view.viewState) return;
+
+    // Get unique URL
+    const targetUrls = Array.from(new Set(view.items.map((i: any) => i.fileUrl) as string[]));
+
+    // Compare Context
+    const isContextMatch = targetUrls.length === 0 || areArraysEqual(ifcUrls, targetUrls);
+
+    if (isContextMatch) {
+      console.log("Context match, restoring view...");
+      if (viewerActions.current?.restore) {
+        viewerActions.current.restore(view.viewState, []);
+      }
+    } else {
+      console.log("Context mismatch, switching models for view...");
+
+      setIsViewDrawerOpen(false);
+      setPendingTodo({ todo: view, mode: "view", type: 'view' });
+
+      const newUrlsParams = JSON.stringify(targetUrls);
+      router.push(`/projects/${projectId}/viewer3d?urls=${encodeURIComponent(newUrlsParams)}`);
+    }
+  };
 
   return (
     <div className="flex flex-col h-screen w-full overflow-hidden">
@@ -300,7 +428,7 @@ export default function ViewerClient() {
           </div>
         </div>
 
-        {/* CONTAINER CHO VIEWER & DRAWER */}
+        {/* CONTAINER VIEWER & DRAWER */}
         <div className="flex-1 relative flex h-full">
 
           <div
@@ -320,6 +448,11 @@ export default function ViewerClient() {
               onLoaded={handleViewerLoaded}
               onSelectTodo={handleSelectTodo}
               onOpenTodoDrawer={handleOpenTodoDrawer}
+
+              //
+              onOpenViewDrawer={handleOpenViewDrawer}
+              onRestoreView={handleRestoreView}
+              onUpdateSnapshot={handleUpdateSnapshot}
             />
           </div>
         </div>
@@ -333,6 +466,24 @@ export default function ViewerClient() {
         todoToEdit={todoToEdit}
         initialData={drawerInitialData}
         currentSelection={selectedItems}
+      />
+
+      {/* RENDER VIEW DRAWER */}
+      <ViewDrawer
+        open={isViewDrawerOpen}
+        onOpenChange={(v) => {
+          setIsViewDrawerOpen(v);
+          if (v) setIsDrawerOpen(false);
+        }}
+        projectId={projectId as string}
+        mode={viewDrawerMode}
+        viewToEdit={viewToEdit}
+        initialData={viewInitialData}
+        onRestoreView={(viewState) => {
+          if (viewerActions.current?.restore) {
+            viewerActions.current.restore(viewState, []);
+          }
+        }}
       />
     </div>
   );
