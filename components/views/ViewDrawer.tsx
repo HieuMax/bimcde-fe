@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Eye, MoveLeft } from "lucide-react"
-import { viewService } from "@/services/view.service"
+import { viewService3D as viewService } from "@/services/view3d.service"
 import { IView } from "@/types/view"
 
 interface ViewDrawerProps {

@@ -2,9 +2,9 @@ import { IView, CreateViewDto, UpdateViewInfoDto } from "@/types/view";
 import { useApi as apiClient } from "@/app/hooks/useApi";
 
 const api = apiClient();
-const BASE_URL = "/views";
+const BASE_URL = "/views3d";
 
-export const viewService = {
+export const viewService3D = {
     getAll: async (projectId: string) => {
         const params = { projectId };
         const data = await api.get(BASE_URL, { params });

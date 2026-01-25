@@ -6,7 +6,7 @@ import IfcViewer from '@/app/components/ifcs/IfcViewer';
 import { Box, Layers, ClipboardCheck, ChevronRight, ChevronLeft, Camera, FolderTree, Sheet, BadgeInfo, BookText } from 'lucide-react';
 import { Navbar } from '@/components/layout/navbar/Navbar';
 import { NewTodoDrawer } from '@/components/todos/NewTodoDrawer';
-import { viewService } from '@/services/view.service';
+import { viewService3D as viewService } from '@/services/view3d.service';
 import { toast } from 'sonner';
 import { ViewDrawer } from '@/components/views/ViewDrawer';
 import { useQueryClient } from "@tanstack/react-query";
