@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { AxiosError } from "axios"
@@ -12,11 +12,17 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Calendar, Eye, LinkIcon, MoveLeft, Plus, Trash2 } from "lucide-react"
+import {
+  Calendar, Eye, LinkIcon, MoveLeft, Plus, Trash2,
+  Paperclip, Download, X, File as FileIcon,
+  Pencil
+} from "lucide-react"
 import { todoService } from "@/services/todo.service"
 import { ITodo } from "@/types/todo"
-import { useRef } from "react";
-import { Pencil } from "lucide-react"
+
+import { AttachFileDialog } from "./AttachFileDialog";
+import { useAuth } from "@/app/context/authContext";
+
 interface NewTodoDrawerProps {
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -36,11 +42,24 @@ interface NewTodoDrawerProps {
   currentSelection?: any[]
 }
 
+// Helper format size
+const formatFileSize = (bytes: number) => {
+  if (!bytes) return "0 B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+};
 
 export function NewTodoDrawer({ open, onOpenChange, onRestoreView, projectId, todoToEdit, mode, initialData,
   currentSelection = [],
 }: NewTodoDrawerProps) {
   const queryClient = useQueryClient()
+  const { user } = useAuth();
+
+  // State Attachments
+  const [attachments, setAttachments] = useState<any[]>([]);
+  const [isAttachDialogOpen, setIsAttachDialogOpen] = useState(false);
 
   // Initial state helper
   const defaultState = {
@@ -104,15 +123,18 @@ export function NewTodoDrawer({ open, onOpenChange, onRestoreView, projectId, to
           items: todoToEdit?.items || [],
           viewState: todoToEdit?.viewState || null,
         })
+        setAttachments(todoToEdit.attachments || []);
       } else if (initialData && mode === 'create') {
         setFormData({
           ...defaultState,
           items: initialData?.items || [],
           viewState: initialData?.viewState || null,
         })
+        setAttachments([]);
       } else {
         // Reset to default if creating new
         setFormData(defaultState)
+        setAttachments([]);
       }
     }
   }, [open, todoToEdit])
@@ -173,7 +195,8 @@ export function NewTodoDrawer({ open, onOpenChange, onRestoreView, projectId, to
       tags: tagsArray.length > 0 ? tagsArray : undefined,
       projectId,
       viewState: formData.viewState || undefined,
-      items: formData.items || []
+      items: formData.items || [],
+      attachments: attachments,
     }
 
     console.log(payload)
@@ -192,6 +215,14 @@ export function NewTodoDrawer({ open, onOpenChange, onRestoreView, projectId, to
       setCurrentMode("view")
     }, 100)
   }
+
+  const handleAddAttachments = (newFiles: any[]) => {
+    setAttachments(prev => [...prev, ...newFiles]);
+  };
+
+  const handleRemoveAttachment = (indexToRemove: number) => {
+    setAttachments(prev => prev.filter((_, idx) => idx !== indexToRemove));
+  };
 
   // --- LOGIC CONTROL LINKED ITEMS ---
 
@@ -626,6 +657,84 @@ export function NewTodoDrawer({ open, onOpenChange, onRestoreView, projectId, to
             </div>
             {/* ---------------------------------------------------------------------- */}
 
+            {/* --- NEW SECTION: ATTACHMENTS --- */}
+            <div className="pt-4 border-t">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-medium flex items-center gap-2">
+                  <Paperclip className="w-4 h-4" />
+                  Attachments
+                  <span className="bg-slate-100 text-xs px-2 py-0.5 rounded-full">
+                    {attachments.length}
+                  </span>
+                </h3>
+
+                {currentMode !== "view" && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="h-7 text-xs px-2 gap-1"
+                    onClick={() => setIsAttachDialogOpen(true)}
+                  >
+                    <Plus className="w-3 h-3" /> Add Files
+                  </Button>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                {attachments.length === 0 && (
+                  <div className="text-sm text-muted-foreground italic px-2">
+                    No files attached.
+                  </div>
+                )}
+
+                {attachments.map((file, idx) => (
+                  <div key={idx} className="flex items-center justify-between p-2 rounded-md border bg-slate-50 hover:bg-slate-100 transition-colors group">
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      <div className="w-8 h-8 rounded bg-white border flex items-center justify-center shrink-0">
+                        <FileIcon className="w-4 h-4 text-blue-500" />
+                      </div>
+                      <div className="flex flex-col min-w-0">
+                        <a
+                          href={file.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm font-medium text-slate-700 truncate hover:underline"
+                        >
+                          {file.name}
+                        </a>
+                        <span className="text-xs text-slate-400">
+                          {formatFileSize(file.size)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1">
+                      {/* Download Button */}
+                      <a
+                        href={file.url}
+                        download={file.name}
+                        className="p-1.5 text-slate-400 hover:text-slate-700 rounded-md hover:bg-slate-200"
+                        target="_blank"
+                      >
+                        <Download className="w-4 h-4" />
+                      </a>
+
+                      {/* Remove Button (Only in edit/create mode) */}
+                      {currentMode !== "view" && (
+                        <button
+                          onClick={() => handleRemoveAttachment(idx)}
+                          className="p-1.5 text-slate-400 hover:text-red-600 rounded-md hover:bg-red-50"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {/* -------------------------------- */}
+
           </div>
         </div>
 
@@ -643,6 +752,17 @@ export function NewTodoDrawer({ open, onOpenChange, onRestoreView, projectId, to
           </div>
         </div>
       </SheetContent>
+
+      {/* Render Dialog */}
+      {isAttachDialogOpen && (
+        <AttachFileDialog
+          open={isAttachDialogOpen}
+          onOpenChange={setIsAttachDialogOpen}
+          projectId={projectId}
+          userId={user?._id || ""}
+          onAttach={handleAddAttachments}
+        />
+      )}
     </Sheet>
   )
 }

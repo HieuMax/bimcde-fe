@@ -1,3 +1,11 @@
+export interface IAttachment {
+  _id?: string;
+  name: string;
+  url: string;
+  mimeType: string;
+  size: number;
+}
+
 export interface ITodo {
   _id: string;
   title: string;
@@ -30,6 +38,7 @@ export interface ITodo {
     expressId: string[];
   }[];
   viewState?: any;
+  attachments?: IAttachment[];
   createdAt: string;
   updatedAt: string;
 }
