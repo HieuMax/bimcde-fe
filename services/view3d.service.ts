@@ -1,4 +1,4 @@
-import { IView, CreateViewDto, UpdateViewInfoDto } from "@/types/view";
+import { IView, CreateViewDto, UpdateViewInfoDto } from "@/types/view3d";
 import { useApi as apiClient } from "@/app/hooks/useApi";
 
 const api = apiClient();

@@ -8,7 +8,7 @@ import { MoreVertical, Trash2, Camera, Pencil, Eye, Plus, RefreshCw, Search, Men
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { viewService3D as viewService } from "@/services/view3d.service"
-import { IView } from "@/types/view"
+import { IView } from "@/types/view3d"
 import { Input } from "@/components/ui/input"
 
 interface ViewListProps {
