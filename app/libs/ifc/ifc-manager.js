@@ -49,6 +49,20 @@ export class IfcManager {
     await this.setupLoader();
   }
 
+  // HELPER
+  _disposeMaterial(material) {
+    if (!material) return;
+
+    // Kiểm tra nếu là Mảng (Multi-material)
+    if (Array.isArray(material)) {
+      material.forEach(m => m && m.dispose && m.dispose());
+    }
+    // Kiểm tra nếu là Single Object
+    else if (material.dispose) {
+      material.dispose();
+    }
+  }
+
   async loadIfcUrl(ifcURL) {
     const start = window.performance.now();
 
@@ -93,6 +107,7 @@ export class IfcManager {
       if (m.mesh) {
         this.scene.remove(m.mesh);
         if (m.mesh.geometry) m.mesh.geometry.dispose();
+
         if (m.mesh.material) {
           if (Array.isArray(m.mesh.material)) m.mesh.material.forEach(mat => mat.dispose());
           else m.mesh.material.dispose();
@@ -102,14 +117,26 @@ export class IfcManager {
 
     this.hiddenSubsets.forEach((subset) => {
       this.scene.remove(subset);
-      subset.geometry.dispose();
-      if (subset.material) subset.material.dispose();
+
+      if (subset.geometry) subset.geometry.dispose();
+      if (subset.material) {
+        if (Array.isArray(subset.material)) {
+          // Nếu là mảng, duyệt qua từng cái để xóa
+          subset.material.forEach(m => m && m.dispose && m.dispose());
+        } else if (subset.material.dispose) {
+          // Nếu là object đơn, xóa trực tiếp
+          subset.material.dispose();
+        }
+      }
+      // subset.geometry.dispose();
+      // if (subset.material) subset.material.dispose();
     });
     this.hiddenSubsets.clear();
 
     this.ifcModels.length = 0;
     this.hiddenExpressIDs.clear();
     this.modelHidden.clear();
+    this.removeHighlight();
   }
 
   raycaster = new Raycaster();
@@ -364,14 +391,27 @@ export class IfcManager {
     }
   }
 
+  // removeHighlight() {
+  //   for (const mesh of this.highlightMeshes) {
+  //     this.scene.remove(mesh);
+  //     if (mesh.geometry) mesh.geometry.dispose();
+  //     if (mesh.material) {
+  //       if (Array.isArray(mesh.material)) mesh.material.forEach(m => m.dispose());
+  //       else mesh.material.dispose();
+  //     }
+  //   }
+  //   this.highlightMeshes = [];
+  // }
+
   removeHighlight() {
+    // Xóa highlight mesh
     for (const mesh of this.highlightMeshes) {
       this.scene.remove(mesh);
+
       if (mesh.geometry) mesh.geometry.dispose();
-      if (mesh.material) {
-        if (Array.isArray(mesh.material)) mesh.material.forEach(m => m.dispose());
-        else mesh.material.dispose();
-      }
+
+      // Sửa đoạn này: Dùng hàm helper an toàn
+      this._disposeMaterial(mesh.material);
     }
     this.highlightMeshes = [];
   }
@@ -452,17 +492,29 @@ export class IfcManager {
     this.rebuildSubset(modelID);
   }
 
-  rebuildSubset(modelID) {
+  async rebuildSubset(modelID) {
     const model = this.ifcModels.find((m) => m.modelID === modelID);
     if (!model) return;
 
     const hiddenSet = this.hiddenExpressIDs.get(modelID);
     const isModelHidden = this.modelHidden.get(modelID) === true;
 
+    // const oldSubset = this.hiddenSubsets.get(modelID);
+    // if (oldSubset) {
+    //   this.scene.remove(oldSubset);
+    //   oldSubset.geometry.dispose();
+    //   this.hiddenSubsets.delete(modelID);
+    // }
     const oldSubset = this.hiddenSubsets.get(modelID);
     if (oldSubset) {
       this.scene.remove(oldSubset);
-      oldSubset.geometry.dispose();
+
+      // Xóa Geometry (như cũ)
+      if (oldSubset.geometry) oldSubset.geometry.dispose();
+
+      // THÊM: Xóa Material an toàn (Fix lỗi crash và leak mem)
+      this._disposeMaterial(oldSubset.material);
+
       this.hiddenSubsets.delete(modelID);
     }
 
@@ -609,15 +661,41 @@ export class IfcManager {
   async restoreVisibilityState(savedState) {
     const modelsToReset = Array.from(this.hiddenExpressIDs.keys());
     this.hiddenExpressIDs.clear();
+    this.modelHidden.clear()
 
     modelsToReset.forEach(modelID => this.rebuildSubset(modelID));
 
-    if (!savedState || !Array.isArray(savedState)) return;
+    // if (!savedState || !Array.isArray(savedState)) return;
 
+    // for (const item of savedState) {
+    //   const { modelID, ids } = item;
+    //   this.hiddenExpressIDs.set(modelID, new Set(ids));
+    //   this.rebuildSubset(modelID);
+    // }
+
+    modelsToReset.forEach(modelID => {
+      const model = this.ifcModels.find(m => m.modelID === modelID);
+      if (model) {
+        model.mesh.visible = true; // Hiện lại mesh gốc
+        this.rebuildSubset(modelID); // Xóa subset cũ nếu có
+      }
+    });
+
+    if (!savedState || !Array.isArray(savedState) || savedState.length === 0) return;
+
+    // 2. Apply trạng thái mới
     for (const item of savedState) {
-      const { modelID, ids } = item;
-      this.hiddenExpressIDs.set(modelID, new Set(ids));
-      this.rebuildSubset(modelID);
+      // Ép kiểu quan trọng
+      const modelID = parseInt(item.modelID);
+      const ids = item.ids.map(id => parseInt(id));
+
+      if (!isNaN(modelID) && ids.length > 0) {
+        // Lưu vào Map
+        this.hiddenExpressIDs.set(modelID, new Set(ids));
+
+        // Rebuild lại model đó để áp dụng ẩn
+        this.rebuildSubset(modelID);
+      }
     }
   }
 }

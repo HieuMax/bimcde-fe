@@ -6,6 +6,10 @@ import IfcViewer from '@/app/components/ifcs/IfcViewer';
 import { Box, Layers, ClipboardCheck, ChevronRight, ChevronLeft, Camera, FolderTree, Sheet, BadgeInfo, BookText } from 'lucide-react';
 import { Navbar } from '@/components/layout/navbar/Navbar';
 import { NewTodoDrawer } from '@/components/todos/NewTodoDrawer';
+import { viewService } from '@/services/view.service';
+import { toast } from 'sonner';
+import { ViewDrawer } from '@/components/views/ViewDrawer';
+import { useQueryClient } from "@tanstack/react-query";
 
 interface SelectedItem {
   modelID?: string;
@@ -42,11 +46,28 @@ export default function ViewerClient() {
   const [drawerInitialData, setDrawerInitialData] = useState<NewTodoInitialData | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  const [pendingTodo, setPendingTodo] = useState<{ todo: any, mode: "view" | "edit" } | null>(null);  // const viewerActions = React.useRef<any>(null);
-  const viewerActions = React.useRef<{ capture: () => any; restore: (state: any, items: any[]) => void } | null>(null);
+  const [pendingTodo, setPendingTodo] = useState<{
+    todo: any;
+    mode: "view" | "edit" | "create";
+    type?: "todo" | "view"; // <--- THÊM THUỘC TÍNH NÀY
+  } | null>(null);
+
+  const queryClient = useQueryClient();
+
+  const viewerActions = React.useRef<{
+    capture: () => any;
+    restore: (state: any, items: any[]) => void;
+    getContext: () => any[]; // <--- THÊM DÒNG NÀY VÀO
+  } | null>(null);
 
   const [todoToEdit, setTodoToEdit] = useState<any>(null);
   const [drawerMode, setDrawerMode] = useState<"create" | "view" | "edit">("create");
+
+  // --- STATES VIEW ---
+  const [isViewDrawerOpen, setIsViewDrawerOpen] = useState(false);
+  const [viewToEdit, setViewToEdit] = useState<any>(null);
+  const [viewDrawerMode, setViewDrawerMode] = useState<"create" | "view" | "edit">("create");
+  const [viewInitialData, setViewInitialData] = useState<any>(null);
 
   const handleOpenTodoDrawer = (todo: any, mode: "view" | "edit" | "create") => {
     if (mode === 'create') {
@@ -167,8 +188,11 @@ export default function ViewerClient() {
       items = Array.from(grouped.values());
       title = `Issue on ${selectedItems.length > 1 ? `${selectedItems.length} items` : `#${items[0]?.expressId[0] || ''}`}`;
     } else {
-
-      console.log("ifcUrls: ", ifcUrls);
+      if (viewerActions.current?.getContext) {
+        items = viewerActions.current.getContext();
+        title = "View Snapshot";
+      } else
+        console.log("ifcUrls: ", ifcUrls);
       if (ifcUrls.length > 0) {
         items = ifcUrls.map((url: any) => ({
           fileUrl: url,
@@ -233,15 +257,29 @@ export default function ViewerClient() {
       console.log("New model loaded, processing pending todo...");
 
       setTimeout(() => {
-        const { todo, mode } = pendingTodo;
+        const { todo, mode, type } = pendingTodo;
 
         if (viewerActions.current?.restore && todo.viewState) {
-          viewerActions.current.restore(todo.viewState, todo.items);
+          viewerActions.current.restore(todo.viewState, todo.items || []);
         }
 
-        setTodoToEdit(todo);
-        setDrawerMode(mode);
-        setIsDrawerOpen(true);
+        if (type === 'view') {
+          // ==> MỞ VIEW DRAWER
+          setViewToEdit(todo);
+          setViewDrawerMode(mode); // mode thường là 'view'
+          setIsViewDrawerOpen(true);
+          setIsDrawerOpen(false); // Đảm bảo đóng Todo Drawer
+        } else {
+          // ==> MỞ TODO DRAWER (Mặc định)
+          setTodoToEdit(todo);
+          setDrawerMode(mode);
+          setIsDrawerOpen(true);
+          setIsViewDrawerOpen(false);
+        }
+
+        // setTodoToEdit(todo);
+        // setDrawerMode(mode);
+        // setIsDrawerOpen(true);
 
         setPendingTodo(null);
       }, 500);
@@ -255,6 +293,130 @@ export default function ViewerClient() {
     }, 350);
     return () => clearTimeout(timer);
   }, [isDrawerOpen]);
+
+
+  // --- 1. HÀM MỞ DRAWER (Từ ViewList hoặc Create New) ---
+  const handleOpenViewDrawer = (view: any, mode: "view" | "edit" | "create") => {
+    if (mode === 'create') {
+      // Logic Capture tương tự Todo
+      let viewState = null;
+      let contextItems = []; // Khai báo biến
+
+      if (viewerActions.current) {
+        if (viewerActions.current.capture) {
+          viewState = viewerActions.current.capture();
+        }
+        // --- SỬA ĐOẠN NÀY ---
+        if (viewerActions.current.getContext) {
+          contextItems = viewerActions.current.getContext();
+        }
+        // --------------------
+      }
+
+      // // Lấy danh sách context item (URL của các model đang mở)
+      // const contextItems = ifcUrls.map((url: string) => ({
+      //   fileUrl: url,
+      //   modelId: "",
+      //   expressId: []
+      // }));
+
+      if (contextItems.length === 0) {
+        contextItems = ifcUrls.map(url => ({ fileUrl: url, modelId: "0", expressId: [] }));
+      }
+
+      setViewInitialData({
+        viewState,
+        items: contextItems
+      });
+      setViewToEdit(null);
+      setViewDrawerMode("create");
+      setIsViewDrawerOpen(true);
+    } else {
+      // View/Edit mode
+      setViewToEdit(view);
+      setViewDrawerMode(mode);
+      setViewInitialData(null);
+      setIsViewDrawerOpen(true);
+    }
+  };
+
+  // --- 2. HÀM UPDATE SNAPSHOT (Nút 3 chấm) ---
+  const handleUpdateSnapshot = async (view: any) => {
+    if (!viewerActions.current?.capture) return;
+
+    try {
+      // Chụp lại scene hiện tại
+      const newViewState = viewerActions.current.capture();
+
+      // Lấy lại context URL hiện tại
+      let currentContextItems = [];
+      if (viewerActions.current?.getContext) {
+        currentContextItems = viewerActions.current.getContext();
+      } else {
+        // Fallback nếu chưa load xong (hiếm khi xảy ra)
+        currentContextItems = ifcUrls.map((url: string) => ({
+          fileUrl: url,
+          modelId: "0", // Fallback tạm
+          expressId: []
+        }));
+      }
+      // const currentContextItems = ifcUrls.map((url: string) => ({
+      //   fileUrl: url,
+      //   modelId: "",
+      //   expressId: []
+      // }));
+
+      // Gọi API update
+      await viewService.updateSnapshot(view._id, {
+        viewState: newViewState,
+        items: currentContextItems
+      });
+
+      toast.success("Snapshot updated to current view!");
+
+      // --- 3. QUAN TRỌNG: BẮT BUỘC RELOAD LẠI LIST VIEW ---
+      // Lệnh này sẽ khiến ViewList tự động fetch lại data mới nhất từ server
+      queryClient.invalidateQueries({ queryKey: ["views", projectId] });
+      // ----------------------------------------------------
+
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to update snapshot");
+    }
+  };
+
+  // --- 3. HÀM RESTORE VIEW (Tương tự handleSelectTodo) ---
+  const handleRestoreView = (view: any) => {
+    if (!view.items || !view.viewState) return;
+
+    // A. Lấy unique URL
+    const targetUrls = Array.from(new Set(view.items.map((i: any) => i.fileUrl) as string[]));
+
+    // B. So sánh Context
+    const isContextMatch = targetUrls.length === 0 || areArraysEqual(ifcUrls, targetUrls);
+
+    if (isContextMatch) {
+      console.log("Context match, restoring view...");
+      if (viewerActions.current?.restore) {
+        viewerActions.current.restore(view.viewState, []); // View thường không có selected items cụ thể như Todo
+      }
+    } else {
+      console.log("Context mismatch, switching models for view...");
+
+      // Tái sử dụng pendingTodo state nhưng gán mode đặc biệt hoặc tạo state mới pendingRestore
+      // Ở đây ta có thể "hack" nhẹ bằng cách dùng pendingTodo 
+      // nhưng lưu ý todo object của ta là view, và mode là 'view'
+      // Tuy nhiên pendingTodo logic hiện tại sẽ MỞ DRAWER khi load xong. 
+      // Nếu bạn muốn Restore mà KHÔNG mở Drawer (chỉ đổi góc nhìn), ta cần cẩn thận.
+
+      // GIẢI PHÁP ĐƠN GIẢN: Mở Drawer View Detail sau khi load xong (hợp lý)
+      setIsViewDrawerOpen(false);
+      setPendingTodo({ todo: view, mode: "view", type: 'view' }); // Thêm type='view' để phân biệt nếu cần
+
+      const newUrlsParams = JSON.stringify(targetUrls);
+      router.push(`/projects/${projectId}/viewer3d?urls=${encodeURIComponent(newUrlsParams)}`);
+    }
+  };
 
   return (
     <div className="flex flex-col h-screen w-full overflow-hidden">
@@ -320,6 +482,11 @@ export default function ViewerClient() {
               onLoaded={handleViewerLoaded}
               onSelectTodo={handleSelectTodo}
               onOpenTodoDrawer={handleOpenTodoDrawer}
+
+              //
+              onOpenViewDrawer={handleOpenViewDrawer}
+              onRestoreView={handleRestoreView}
+              onUpdateSnapshot={handleUpdateSnapshot}
             />
           </div>
         </div>
@@ -333,6 +500,25 @@ export default function ViewerClient() {
         todoToEdit={todoToEdit}
         initialData={drawerInitialData}
         currentSelection={selectedItems}
+      />
+
+      {/* RENDER VIEW DRAWER */}
+      <ViewDrawer
+        open={isViewDrawerOpen}
+        onOpenChange={(v) => {
+          setIsViewDrawerOpen(v);
+          if (v) setIsDrawerOpen(false); // Đóng todo drawer nếu mở view
+        }}
+        projectId={projectId as string}
+        mode={viewDrawerMode}
+        viewToEdit={viewToEdit}
+        initialData={viewInitialData}
+        onRestoreView={(viewState) => {
+          // Restore trực tiếp khi bấm ảnh trong drawer
+          if (viewerActions.current?.restore) {
+            viewerActions.current.restore(viewState, []);
+          }
+        }}
       />
     </div>
   );
