@@ -1,8 +1,8 @@
-import { ITodo, CreateTodoDto, UpdateTodoDto } from "@/types/todo";
+import { ITodo, CreateTodoDto, UpdateTodoDto } from "@/types/todo3d";
 import { useApi as apiClient } from "@/app/hooks/useApi";
 
 const api = apiClient();
-const BASE_URL = "/todos";
+const BASE_URL = "/todos3d";
 
 export const todoService = {
   getAll: async (projectId: string, filters?: {

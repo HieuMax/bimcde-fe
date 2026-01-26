@@ -17,8 +17,8 @@ import {
   Paperclip, Download, X, File as FileIcon,
   Pencil
 } from "lucide-react"
-import { todoService } from "@/services/todo.service"
-import { ITodo } from "@/types/todo"
+import { todoService } from "@/services/todo3d.service"
+import { ITodo } from "@/types/todo3d"
 
 import { AttachFileDialog } from "./AttachFileDialog";
 import { useAuth } from "@/app/context/authContext";
