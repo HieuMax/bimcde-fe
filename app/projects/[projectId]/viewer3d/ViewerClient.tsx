@@ -69,6 +69,10 @@ export default function ViewerClient() {
   const [viewDrawerMode, setViewDrawerMode] = useState<"create" | "view" | "edit">("create");
   const [viewInitialData, setViewInitialData] = useState<any>(null);
 
+  // --- DATA TABLE ---
+  const isDataTableMode = state === 'data-table';
+  const currentSidebarWidth = isDataTableMode ? 0 : (isCollapsed ? 250 : 370);
+
   const handleOpenTodoDrawer = (todo: any, mode: "view" | "edit" | "create") => {
     if (mode === 'create') {
       onAddTodo();
@@ -432,9 +436,11 @@ export default function ViewerClient() {
         <div className="flex-1 relative flex h-full">
 
           <div
-            className="h-full transition-all duration-300 ease-in-out"
+            className="h-full transition-all duration-300 ease-in-out relative flex flex-col"
             style={{
-              width: isDrawerOpen ? 'calc(100% - 400px)' : '100%',
+              width: isDrawerOpen || isViewDrawerOpen
+                ? 'calc(100% - 400px)'
+                : '100%',
               flexShrink: 0
             }}
           >
@@ -453,7 +459,17 @@ export default function ViewerClient() {
               onOpenViewDrawer={handleOpenViewDrawer}
               onRestoreView={handleRestoreView}
               onUpdateSnapshot={handleUpdateSnapshot}
+            // sidebarWidth={currentSidebarWidth}
             />
+
+
+            {/* --- DATA TABLE DRAWER (BOTTOM) --- */}
+            {isDataTableMode && (
+              <div
+                className="absolute bottom-0 left-0 right-0 h-[400px] bg-white border-t shadow-[0_-4px_10px_rgba(0,0,0,0.1)] z-30 animate-in slide-in-from-bottom-10 duration-300"
+              >
+              </div>
+            )}
           </div>
         </div>
       </div>
