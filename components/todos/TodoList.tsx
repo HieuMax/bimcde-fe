@@ -8,8 +8,8 @@ import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Menu, Search, MoreVertical, ChevronDown, Check, Plus, ChevronRight } from "lucide-react"
 import { Input } from "@/components/ui/input"
-import { todoService } from "@/services/todo.service"
-import { ITodo } from "@/types/todo"
+import { todoService } from "@/services/todo3d.service"
+import { ITodo } from "@/types/todo3d"
 
 interface TodoListProps {
   projectId: string
