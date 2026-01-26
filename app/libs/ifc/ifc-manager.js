@@ -5,6 +5,8 @@ import { IFCSPACE, IFCOPENINGELEMENT } from 'web-ifc';
 
 import * as THREE from 'three';
 
+const yieldToMain = () => new Promise(resolve => setTimeout(resolve, 0));
+
 export class IfcManager {
   constructor(scene, ifcModels) {
     this.scene = scene;
@@ -41,6 +43,7 @@ export class IfcManager {
   }
 
   async dispose() {
+    await this.clearModels()
     this.ifcModels.length = 0;
     await this.ifcLoader.ifcManager.dispose();
     this.ifcLoader = null;
@@ -74,7 +77,7 @@ export class IfcManager {
     });
     console.log("Loading IFC model from URL:", ifcURL);
     const ifcModel = await this.ifcLoader.loadAsync(ifcURL);
-
+    ifcModel.url = ifcURL;
     if (firstModel) {
       const matrixArr = await this.ifcLoader.ifcManager.ifcAPI.GetCoordinationMatrix(
         ifcModel.modelID,
@@ -98,10 +101,10 @@ export class IfcManager {
   /**
    * Here we support import 1 model at a time -> maybe extend later
    */
-  clearModels() {
+  async clearModels() {
     console.log("Clearing IFC models...");
-
-    this.ifcModels.forEach((m) => {
+    if (this.layerMap) this.layerMap.clear();
+    this.ifcModels.forEach(async (m) => {
       if (m.mesh) {
         this.scene.remove(m.mesh);
         if (m.mesh.geometry) m.mesh.geometry.dispose();
@@ -109,6 +112,14 @@ export class IfcManager {
         if (m.mesh.material) {
           if (Array.isArray(m.mesh.material)) m.mesh.material.forEach(mat => mat.dispose());
           else m.mesh.material.dispose();
+        }
+      }
+
+      if (this.ifcLoader && this.ifcLoader.ifcManager) {
+        try {
+          await this.ifcLoader.ifcManager.closeModel(m.modelID);
+        } catch (e) {
+          console.warn("Failed to close model:", e);
         }
       }
     });
@@ -689,145 +700,154 @@ export class IfcManager {
     }
   }
 
-  async getSingleItemProperties(item) {
+  async getSingleItemProperties(item, computeGeometry = true) {
     const { modelID, expressID, fileUrl } = item;
     const modelIdInt = parseInt(modelID);
     const expressIdInt = parseInt(expressID);
 
-    // 1. Get Base Properties
-    const props = await this.ifcLoader.ifcManager.getItemProperties(modelIdInt, expressIdInt);
+    try {
+      const props = await this.ifcLoader.ifcManager.getItemProperties(modelIdInt, expressIdInt);
 
-    // 2. Get Property Sets & Quantities
-    const psets = await this.ifcLoader.ifcManager.getPropertySets(modelIdInt, expressIdInt, true);
-
-    // 3. Get Type Properties
-    const typeProps = await this.ifcLoader.ifcManager.getTypeProperties(modelIdInt, expressIdInt, true);
-
-    // 4. Get Materials
-    const materials = await this.ifcLoader.ifcManager.getMaterialsProperties(modelIdInt, expressIdInt, true);
-
-    // 5. Calculate Geometry Data (Volume, Area, BBox...)
-    const geoData = await this._calculateGeometryData(modelIdInt, expressIdInt);
-
-    const formatted = {};
-
-    // --- GROUP: REFERENCE OBJECT ---
-    formatted["Reference Object"] = {
-      "GUID (MS)": props.GlobalId?.value || "N/A",
-      "GUID (IFC)": props.GlobalId?.value || props.GlobalId,
-      "File Format": "IFC",
-      "Common Type": this._decodeIfcString(props.ObjectType) || "Unknown",
-      "File Name": this._getFileName(fileUrl),
-      "Model ID": modelID,
-      "Express ID": expressID,
-    };
-
-    // --- GROUP: PRESENTATION LAYERS ---
-    // formatted["Presentation Layers"] = { "Layer": "N/A" }; 
-
-    // --- GROUP: PRODUCT ---
-    const productName = props.Name?.value || props.Name || "Unnamed";
-    const productType = typeProps && typeProps.length > 0 ? (typeProps[0].Name?.value || "N/A") : "N/A";
-
-    formatted["Product"] = {
-      "Product Name": productName,
-      "Product Description": this._decodeIfcString(props.Description) || "N/A",
-      "Product Object Type": productType,
-      "Owning User": "@Company XYZ",
-      "Creation Date": "Unknown",
-      "Last Modified Date": "Unknown",
-      "Change Action": "NoChange",
-      "State": "Undefined",
-      "Application": "Autodesk Revit 2013 (Revit v2013)"
-    };
-
-    // --- GROUP: CALCULATED GEOMETRY VALUES ---
-    formatted["Calculated Geometry Values"] = {
-      "Volume": geoData.volume ? `${geoData.volume} m³` : "N/A",
-      "Area": geoData.area ? `${geoData.area} m²` : "N/A",
-      "Center Of Gravity X": geoData.cog ? `${Math.round(geoData.cog.x)} mm` : "N/A",
-      "Center Of Gravity Y": geoData.cog ? `${Math.round(geoData.cog.y)} mm` : "N/A",
-      "Center Of Gravity Z": geoData.cog ? `${Math.round(geoData.cog.z)} mm` : "N/A",
-      "Is Solid": "True"
-    };
-
-    // --- GROUP: ORIENTED BOUNDING BOX ---
-    formatted["Oriented Bounding Box"] = {
-      "Name": productName,
-      "OX": geoData.bbox ? `${Math.round(geoData.bbox.min.x)} mm` : "N/A",
-      "OY": geoData.bbox ? `${Math.round(geoData.bbox.min.y)} mm` : "N/A",
-      "OZ": geoData.bbox ? `${Math.round(geoData.bbox.min.z)} mm` : "N/A",
-
-      "Size X": geoData.size ? `${(geoData.size.x * 1000).toFixed(3)}` : "N/A",
-      "Size Y": geoData.size ? `${(geoData.size.y * 1000).toFixed(3)}` : "N/A",
-      "Size Z": geoData.size ? `${(geoData.size.z * 1000).toFixed(3)}` : "N/A",
-    };
-
-    // --- GROUP: MATERIALS (Ifc Material Layer Set Usage) ---
-    if (materials && materials.length > 0) {
-      const matGroup = {};
-      materials.forEach((mat, index) => {
-        if (mat.MaterialLayers) {
-          mat.MaterialLayers.forEach((layer, idx) => {
-            const matName = this._decodeIfcString(layer.Material?.Name);
-            matGroup[`Layer ${idx + 1}.Material`] = matName;
-            matGroup[`Layer ${idx + 1}.Thickness`] = layer.LayerThickness?.value ? parseFloat(layer.LayerThickness.value.toFixed(2)) + " mm" : "N/A";
-          });
-        } else if (mat.Materials) {
-          mat.Materials.forEach((m, idx) => {
-            matGroup[`Material ${idx + 1}`] = this._decodeIfcString(m.Name);
-          });
-        } else if (mat.Name) {
-          matGroup[`Material`] = this._decodeIfcString(mat.Name);
-        }
-      });
-
-      if (Object.keys(matGroup).length > 0) {
-        formatted["Ifc Material Layer Set Usage"] = matGroup;
+      if (!props) {
+        console.warn(`Warning: Could not fetch properties for Item ${expressID} in Model ${modelID}`);
+        return null;
       }
+      const psets = await this.ifcLoader.ifcManager.getPropertySets(modelIdInt, expressIdInt, true);
+      const typeProps = await this.ifcLoader.ifcManager.getTypeProperties(modelIdInt, expressIdInt, true);
+      const materials = await this.ifcLoader.ifcManager.getMaterialsProperties(modelIdInt, expressIdInt, true);
+      let geoData = {};
+      if (computeGeometry) {
+        geoData = await this._calculateGeometryData(modelIdInt, expressIdInt);
+      }
+      let className = "Unknown";
+      if (props && props.type) {
+        className = this.ifcLoader.ifcManager.ifcAPI.GetNameFromTypeCode(props.type);
+      }
+      const formatted = {};
+
+      formatted["Reference Object"] = {
+        "Name": props?.Name?.value || props?.Name || "Unnamed",
+        "GUID (MS)": props?.GlobalId?.value || "N/A",
+        "GUID (IFC)": props?.GlobalId?.value || props?.GlobalId,
+        "File Format": "IFC",
+        "Common Type": this._decodeIfcString(props?.ObjectType) || "Unknown",
+        "File Name": this._getFileName(fileUrl),
+        "Model ID": modelID,
+        "Express ID": expressID,
+      };
+
+      // --- GROUP: PRESENTATION LAYERS ---
+      formatted["Presentation Layers"] = {
+        "Layer": className
+      };
+
+      // --- GROUP: PRODUCT ---
+      const productName = props?.Name?.value || props?.Name || "Unnamed";
+      const productType = typeProps && typeProps.length > 0 ? (typeProps[0].Name?.value || "N/A") : "N/A";
+
+      formatted["Product"] = {
+        "Product Name": productName,
+        "Product Description": this._decodeIfcString(props?.Description) || "N/A",
+        "Product Object Type": productType,
+        "Owning User": "@Company XYZ",
+        "Creation Date": "Unknown",
+        "Last Modified Date": "Unknown",
+        "Change Action": "NoChange",
+        "State": "Undefined",
+        "Application": "Autodesk Revit 2013 (Revit v2013)"
+      };
+
+      // --- GROUP: CALCULATED GEOMETRY VALUES ---
+      formatted["Calculated Geometry Values"] = {
+        "Volume": geoData.volume ? `${geoData.volume} m³` : "N/A",
+        "Area": geoData.area ? `${geoData.area} m²` : "N/A",
+        "Center Of Gravity X": geoData.cog ? `${Math.round(geoData.cog.x)} mm` : "N/A",
+        "Center Of Gravity Y": geoData.cog ? `${Math.round(geoData.cog.y)} mm` : "N/A",
+        "Center Of Gravity Z": geoData.cog ? `${Math.round(geoData.cog.z)} mm` : "N/A",
+        "Is Solid": "True"
+      };
+
+      // --- GROUP: ORIENTED BOUNDING BOX ---
+      formatted["Oriented Bounding Box"] = {
+        "Name": productName,
+        "OX": geoData.bbox ? `${Math.round(geoData.bbox.min.x)} mm` : "N/A",
+        "OY": geoData.bbox ? `${Math.round(geoData.bbox.min.y)} mm` : "N/A",
+        "OZ": geoData.bbox ? `${Math.round(geoData.bbox.min.z)} mm` : "N/A",
+
+        "Size X": geoData.size ? `${(geoData.size.x * 1000).toFixed(3)}` : "N/A",
+        "Size Y": geoData.size ? `${(geoData.size.y * 1000).toFixed(3)}` : "N/A",
+        "Size Z": geoData.size ? `${(geoData.size.z * 1000).toFixed(3)}` : "N/A",
+      };
+
+      // --- GROUP: MATERIALS (Ifc Material Layer Set Usage) ---
+      if (materials && materials.length > 0) {
+        const matGroup = {};
+        materials.forEach((mat, index) => {
+          if (mat.MaterialLayers) {
+            mat.MaterialLayers.forEach((layer, idx) => {
+              const matName = this._decodeIfcString(layer.Material?.Name);
+              matGroup[`Layer ${idx + 1}.Material`] = matName;
+              matGroup[`Layer ${idx + 1}.Thickness`] = layer.LayerThickness?.value ? parseFloat(layer.LayerThickness.value.toFixed(2)) + " mm" : "N/A";
+            });
+          } else if (mat.Materials) {
+            mat.Materials.forEach((m, idx) => {
+              matGroup[`Material ${idx + 1}`] = this._decodeIfcString(m.Name);
+            });
+          } else if (mat.Name) {
+            matGroup[`Material`] = this._decodeIfcString(mat.Name);
+          }
+        });
+
+        if (Object.keys(matGroup).length > 0) {
+          formatted["Ifc Material Layer Set Usage"] = matGroup;
+        }
+      }
+
+      // --- PROCESS PSETS (Identity Data, Phasing, Other, Constraints...) ---
+      for (const pset of psets) {
+        const rawPsetName = this._decodeIfcString(pset.Name);
+        if (!rawPsetName) continue;
+
+        let displayGroupName = rawPsetName;
+        if (rawPsetName === "Pset_ElectricalDeviceCommon") displayGroupName = "Other";
+        if (rawPsetName === "Pset_DistributionPortTypeCable") displayGroupName = "Other";
+        // ... custom mappings
+
+        const groupData = {};
+
+        const propsToIterate = pset.HasProperties || pset.Quantities || [];
+
+        for (const prop of propsToIterate) {
+          const rawKey = this._decodeIfcString(prop.Name);
+          if (!rawKey) continue;
+
+          // FORMAT KEY: "RatedVoltage" -> "Rated Voltage"
+          const formattedKey = this._formatPropName(rawKey);
+
+          const val = this._extractPropValue(prop, rawKey);
+
+          if (val !== null && val !== undefined) {
+            groupData[formattedKey] = val;
+          }
+        }
+
+        if (Object.keys(groupData).length > 0) {
+          if (formatted[displayGroupName]) {
+            formatted[displayGroupName] = { ...formatted[displayGroupName], ...groupData };
+          } else {
+            formatted[displayGroupName] = groupData;
+          }
+        }
+      }
+
+      return {
+        title: productName,
+        groups: formatted
+      };
+    } catch (error) {
+      console.error("Error getting item properties:", error);
+      return null;
     }
-
-    // --- PROCESS PSETS (Identity Data, Phasing, Other, Constraints...) ---
-    for (const pset of psets) {
-      const rawPsetName = this._decodeIfcString(pset.Name);
-      if (!rawPsetName) continue;
-
-      let displayGroupName = rawPsetName;
-      if (rawPsetName === "Pset_ElectricalDeviceCommon") displayGroupName = "Other";
-      if (rawPsetName === "Pset_DistributionPortTypeCable") displayGroupName = "Other";
-      // ... custom mappings
-
-      const groupData = {};
-
-      const propsToIterate = pset.HasProperties || pset.Quantities || [];
-
-      for (const prop of propsToIterate) {
-        const rawKey = this._decodeIfcString(prop.Name);
-        if (!rawKey) continue;
-
-        // FORMAT KEY: "RatedVoltage" -> "Rated Voltage"
-        const formattedKey = this._formatPropName(rawKey);
-
-        const val = this._extractPropValue(prop, rawKey);
-
-        if (val !== null && val !== undefined) {
-          groupData[formattedKey] = val;
-        }
-      }
-
-      if (Object.keys(groupData).length > 0) {
-        if (formatted[displayGroupName]) {
-          formatted[displayGroupName] = { ...formatted[displayGroupName], ...groupData };
-        } else {
-          formatted[displayGroupName] = groupData;
-        }
-      }
-    }
-
-    return {
-      title: productName,
-      groups: formatted
-    };
   }
 
   // --- (GEOMETRY) ---
@@ -919,49 +939,39 @@ export class IfcManager {
 
 
   async getSharedProperties(items) {
-    // 1. Lấy props của tất cả items
     const allProps = await Promise.all(items.map(i => this.getSingleItemProperties(i)));
 
     if (allProps.length === 0) return null;
 
-    // 2. Lấy item đầu tiên làm chuẩn
     let sharedGroups = { ...allProps[0].groups };
 
-    // 3. So sánh với các item còn lại
     for (let i = 1; i < allProps.length; i++) {
       const currentItemGroups = allProps[i].groups;
 
-      // Duyệt qua các Group đang có trong Shared
       for (const groupName in sharedGroups) {
 
-        // Nếu item hiện tại KHÔNG có group này -> Xóa khỏi Shared (Intersection)
         if (!currentItemGroups[groupName]) {
           delete sharedGroups[groupName];
           continue;
         }
 
-        // Nếu có group, duyệt qua các Key
         const groupProps = sharedGroups[groupName];
         const currentProps = currentItemGroups[groupName];
 
         for (const key in groupProps) {
-          // Nếu item hiện tại KHÔNG có key này -> Xóa key
           if (currentProps[key] === undefined) {
             delete groupProps[key];
             continue;
           }
 
-          // Nếu có key, so sánh value
           const val1 = groupProps[key];
           const val2 = currentProps[key];
 
-          // Nếu khác nhau -> Đánh dấu là Varies
           if (val1 !== val2) {
             groupProps[key] = "Varies";
           }
         }
 
-        // Nếu sau khi lọc mà group rỗng -> Xóa group
         if (Object.keys(groupProps).length === 0) {
           delete sharedGroups[groupName];
         }
@@ -1030,5 +1040,116 @@ export class IfcManager {
     if (prop.CountValue !== undefined) return prop.CountValue.value;
 
     return "N/A";
+  }
+
+
+
+
+
+
+
+
+
+
+
+  // --------------------------------
+  // DATA TABLE
+  // --------------------------------
+  async getAllVisibleItems() {
+    const visibleItems = [];
+    const YIELD_THRESHOLD = 2000;
+    for (const model of this.ifcModels) {
+      if (model.mesh.visible === false) continue;
+
+      const modelID = model.modelID;
+      const fileUrl = model.url || "";
+
+      await this.initializeAllExpressIDs(modelID);
+      const hiddenSet = this.hiddenExpressIDs.get(modelID); // Set<ExpressID>
+      const allIDs = model._allExpressIDs || [];
+
+      if (!allIDs) continue;
+
+      // Yield aggressively to unblock main thread
+      if (!hiddenSet || hiddenSet.size === 0) {
+        for (let i = 0; i < allIDs.length; i++) {
+          visibleItems.push({ modelID, expressID: allIDs[i], fileUrl });
+          if (i % YIELD_THRESHOLD === 0) await yieldToMain();
+        }
+      } else {
+        for (let i = 0; i < allIDs.length; i++) {
+          const expressID = allIDs[i];
+          if (!hiddenSet.has(expressID)) {
+            visibleItems.push({ modelID, expressID, fileUrl });
+          }
+          if (i % YIELD_THRESHOLD === 0) await yieldToMain();
+        }
+      }
+    }
+    return visibleItems;
+  }
+
+  async getPropertiesBatch(itemsChunk) {
+    const results = [];
+    // Process items with frequent yields
+    for (let i = 0; i < itemsChunk.length; i++) {
+      const item = itemsChunk[i];
+
+      // Use true to get Geometry for table rows (volume/area)
+      const props = await this.getSingleItemProperties(item, true);
+
+      const flatProps = {
+        id: `${item.modelID}-${item.expressID}`,
+        modelID: item.modelID,
+        expressID: item.expressID,
+      };
+
+      if (props && props.groups) {
+        Object.entries(props.groups).forEach(([groupName, groupData]) => {
+          Object.entries(groupData).forEach(([key, val]) => {
+            flatProps[`${groupName}.${key}`] = val;
+          });
+        });
+      }
+      results.push(flatProps);
+
+      // Yield EVERY ITEM because _fetchItemData is heavy
+      await yieldToMain();
+    }
+    return results;
+  }
+
+
+
+  async getAllUniquePropertyNames(visibleItems) {
+    const uniqueKeys = new Set();
+
+    // Default columns
+    uniqueKeys.add("Presentation Layers.Layer");
+    uniqueKeys.add("Reference Object.Name");
+    uniqueKeys.add("Reference Object.File Name");
+
+
+    const sampleSize = Math.min(visibleItems.length, 15);
+    const step = Math.floor(visibleItems.length / sampleSize) || 1;
+
+    for (let i = 0; i < sampleSize; i++) {
+      const item = visibleItems[i * step];
+      if (!item) continue;
+
+      // CRITICAL: false to skip geometry calculation during scan -> No freeze
+      const props = await this.getSingleItemProperties(item, false);
+
+      if (props && props.groups) {
+        Object.entries(props.groups).forEach(([groupName, groupData]) => {
+          Object.keys(groupData).forEach((key) => {
+            uniqueKeys.add(`${groupName}.${key}`);
+          });
+        });
+      }
+      await yieldToMain();
+    }
+
+    return Array.from(uniqueKeys).sort();
   }
 }
