@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { ViewItem } from '@/types/view';
 import { IFile } from '@/types/explorer'
-import { Pencil, X } from 'lucide-react'
+import { Paperclip, Pencil, X } from 'lucide-react'
 
 type Props = {
   file: IFile | null;
@@ -103,7 +103,6 @@ export default function FileDetailTab({ file }: Props) {
           <button
             className="px-4 py-1 text-sm bg-blue-600 text-white rounded"
             onClick={() => {
-              // TODO: call API update
               console.log('SAVE', { name, tags });
               setMode('view');
             }}
@@ -163,7 +162,11 @@ export default function FileDetailTab({ file }: Props) {
           label="Created"
           value={
             file.createdAt
-              ? `${formatDate(file.createdAt)} by ${file.createdBy ?? '--'}`
+              ? `${formatDate(file.createdAt)} by ${
+                  typeof file.createdBy === 'string'
+                    ? file.createdBy
+                    : file.createdBy?? 'Unknown'
+                }`
               : '--'
           }
         />
@@ -172,7 +175,11 @@ export default function FileDetailTab({ file }: Props) {
           label="Modified"
           value={
             file.updatedAt
-              ? `${formatDate(file.updatedAt)} by ${file.modifiedBy ?? '--'}`
+              ? `${formatDate(file.updatedAt)} by ${
+                  typeof file.modifiedBy === 'string'
+                    ? file.modifiedBy
+                    : file.modifiedBy ?? 'Unknown'
+                }`
               : '--'
           }
         />
@@ -186,7 +193,6 @@ export default function FileDetailTab({ file }: Props) {
 
         <div className="border-t p-3">
           {!isCommenting ? (
-            /* ===== COLLAPSED STATE ===== */
             <button
               className="text-sm text-gray-500 hover:text-gray-700"
               onClick={() => setIsCommenting(true)}
@@ -194,7 +200,6 @@ export default function FileDetailTab({ file }: Props) {
               Add a comment...
             </button>
           ) : (
-            /* ===== EDIT STATE ===== */
             <>
               <textarea
                 value={comment}
@@ -207,7 +212,8 @@ export default function FileDetailTab({ file }: Props) {
 
               <div className="flex items-center justify-between mt-2">
                 <button className="text-xl text-gray-500">
-                  📎
+                <Paperclip size={18}/>
+
                 </button>
 
                 <div className="flex gap-2">

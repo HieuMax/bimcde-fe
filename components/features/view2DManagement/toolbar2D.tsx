@@ -29,6 +29,7 @@ interface DetailToolbarProps {
   canShare?: boolean;
   onOpenViewPanel?: () => void;
   onOpenTodoPanel?: () => void;
+  canDownload?: boolean;
 }
 
 export default function DetailToolbar({
@@ -37,6 +38,7 @@ export default function DetailToolbar({
   onShare,
   onOpenTodoPanel,
   onOpenViewPanel,
+  canDownload = true,
 }: DetailToolbarProps) {
   const router = useRouter();
   const params = useParams();
@@ -120,6 +122,9 @@ export default function DetailToolbar({
           <ToolButton icon={<CircleCheckBig size={18} />} />
           <ToolButton icon={<View size={18} />} />
           <ToolButton icon={<Download size={18} />} />
+          {/* {canDownload && (
+             <ToolButton icon={<Download size={18} />} />
+          )} */}
         </div>
 
         <div className="w-px h-6 bg-slate-300 mx-2" />

@@ -14,45 +14,54 @@ export default function Page() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  // Lấy token từ URL (do file redirect phía trên bắn sang)
   const shareToken = searchParams?.get("shareToken") ?? undefined;
+  
+  // Xác định chế độ Share
+  const isShareMode = !!shareToken;
 
-  /* ===== FILE STATE ===== */
+  /* ===== STATE ===== */
   const [fileName, setFileName] = useState("Đang tải...");
   const [fileData, setFileData] = useState<IFile | null>(null);
-
-  /* ===== UI STATE ===== */
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
-  /* ===== IMPERATIVE HANDLES (QUAN TRỌNG) ===== */
+  /* ===== REFS ===== */
   const openViewPanelRef = useRef<(() => void) | null>(null);
   const openTodoPanelRef = useRef<(() => void) | null>(null);
 
   /* ===== HANDLERS ===== */
   const handleBack = () => {
     if (shareToken) {
-      router.push("/login");
+      router.push("/login"); 
     } else {
       router.push(`/projects/${params.projectId}/data`);
     }
   };
 
+  const handleLoaded = React.useCallback((file: IFile) => {
+    setFileName(file.name);
+    setFileData(file);
+  }, []);
+  //permission
+  const canDownload = !isShareMode || (fileData?.permission === "DOWNLOAD");
   return (
     <div
       className={`
         flex flex-col bg-white transition-all duration-300
         ${
-          isFullscreen
-            ? "fixed inset-0 z-50 h-screen w-screen"
+          isFullscreen || isShareMode
+            ? "fixed inset-0 z-[999] h-screen w-screen"
             : "flex-1 h-[calc(100vh-60px)] min-h-0 relative"
         }
       `}
     >
-      {/* ================= TOP TOOLBAR ================= */}
+      {/* ================= TOOLBAR ================= */}
       <DetailToolbar
         name={fileName}
         onBack={handleBack}
-        canShare={!shareToken}
+        canShare={!isShareMode} 
+        canDownload={canDownload}
         onShare={() => {
           if (!fileData) return;
           setIsShareOpen(true);
@@ -63,28 +72,21 @@ export default function Page() {
         onOpenTodoPanel={() => openTodoPanelRef.current?.()}
       />
 
-      {/* ================= MAIN CONTENT ================= */}
+      {/* ================= CONTENT ================= */}
       <div className="flex-1 overflow-hidden relative">
         <DetailView2D
-          mode={shareToken ? "share" : "view"}
+          mode={isShareMode ? "share" : "view"} 
           fileId={params.viewId}
           shareToken={shareToken}
-          onLoaded={(file) => {
-            setFileName(file.name);
-            setFileData(file);
-          }}
-          /* ===== KẾT NỐI NGƯỢC LẠI TOOLBAR ===== */
-          onRegisterOpenViewPanel={(fn) => {
-            openViewPanelRef.current = fn;
-          }}
-          onRegisterOpenTodoPanel={(fn) => {
-            openTodoPanelRef.current = fn;
-          }}
+          onLoaded={handleLoaded}
+
+          onRegisterOpenViewPanel={(fn) => { openViewPanelRef.current = fn; }}
+          onRegisterOpenTodoPanel={(fn) => { openTodoPanelRef.current = fn; }}
         />
       </div>
 
-      {/* ================= SHARE DIALOG ================= */}
-      {!shareToken && (
+      {/* ================= DIALOGS ================= */}
+      {!isShareMode && (
         <ShareFileDialog
           open={isShareOpen}
           onOpenChange={setIsShareOpen}
@@ -94,4 +96,5 @@ export default function Page() {
     </div>
   );
 }
-// // bimcde-fe\app\projects\[projectId]\viewer\[viewId]\page.tsx
+
+// bimcde-fe\app\projects\[projectId]\viewer\[viewId]\page.tsx

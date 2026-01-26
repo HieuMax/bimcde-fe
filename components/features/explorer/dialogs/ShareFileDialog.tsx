@@ -1,8 +1,9 @@
+
 "use client";
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
-import { X, Loader2, FileWarning, Copy, Check, Plus, Mail } from "lucide-react";
+import { X, Loader2, FileWarning, Copy, Check, Mail } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
@@ -149,7 +150,7 @@ export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-[500px] p-0 bg-white gap-0 overflow-hidden">
         <DialogHeader className="p-4 pb-2 border-b">
-          <DialogTitle>Chia sẻ tài liệu</DialogTitle>
+          <DialogTitle>Share Data</DialogTitle>
           <DialogDescription className="truncate">{file?.name}</DialogDescription>
         </DialogHeader>
 
@@ -162,98 +163,128 @@ export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
               </div>
            </div>
         ) : (
+          
           <div className="p-4 space-y-4">
-            {/* 1. Share Type */}
             <div className="space-y-1.5">
-              <Label className="text-xs text-slate-500">Loại chia sẻ</Label>
+              <Label className="text-xs text-slate-500">Share with</Label>
               <Select value={shareType} onValueChange={(v: any) => setShareType(v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="PUBLIC_LINK">Công khai (Public Link)</SelectItem>
-                  <SelectItem value="INTERNAL_LINK">Nội bộ (Cần đăng nhập)</SelectItem>
-                  <SelectItem value="SPECIFIC">Người cụ thể (Bắt buộc Email)</SelectItem>
+                  <SelectItem value="SPECIFIC">
+                    Specific members of the project
+                  </SelectItem>
+                  <SelectItem value="INTERNAL_LINK">
+                    Signed in users with the link
+                  </SelectItem>
+                  <SelectItem value="PUBLIC_LINK">
+                    Any users with the link
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
-            {/* 2. Email Input (HIỆN CHO TẤT CẢ CÁC LOẠI SHARE) */}
             <div className="space-y-1.5">
-               <Label className="text-xs text-slate-500 flex justify-between">
-                  <span>Gửi qua Email {shareType !== "SPECIFIC" ? "(Tùy chọn)" : "<span className='text-red-500'>*</span>"}</span>
-               </Label>
-               
-               <div className="border rounded-md p-2 bg-slate-50 min-h-[46px] transition-all focus-within:ring-2 focus-within:ring-offset-1 focus-within:ring-blue-100 focus-within:border-blue-400">
-                  {/* Danh sách Email đã thêm (Chips) */}
-                  <div className="flex flex-wrap gap-2 mb-1">
-                     {recipients.map(r => (
-                        <span key={r.email} className="bg-white border text-xs px-2 py-1 rounded-full flex items-center gap-1 shadow-sm">
-                           <Mail size={10} className="text-slate-400"/>
-                           {r.email} 
-                           <X size={12} className="cursor-pointer hover:text-red-500 ml-1" onClick={() => handleRemoveEmail(r.email)}/>
-                        </span>
-                     ))}
-                     
-                     {/* Ô nhập liệu */}
-                     <input 
-                        className="flex-1 bg-transparent text-sm outline-none min-w-[150px] h-6" 
-                        placeholder={recipients.length === 0 ? "Nhập email rồi nhấn Enter..." : "Thêm email khác..."}
-                        value={emailInput}
-                        onChange={e => setEmailInput(e.target.value)}
-                        onKeyDown={e => {
-                            if (e.key === 'Enter') {
-                                e.preventDefault(); // Chặn submit form
-                                handleAddEmail();
-                            }
-                        }}
-                        // onBlur={handleAddEmail} // Tùy chọn: Tự add khi click ra ngoài
-                     />
-                  </div>
-               </div>
-               
-               {/* Nút Add thủ công (Cho rõ ràng) */}
-               {emailInput.length > 0 && (
-                 <div className="flex justify-end">
-                    <Button size="sm" variant="ghost" className="h-6 text-xs text-blue-600 hover:text-blue-700 p-0" onClick={handleAddEmail}>
-                       <Plus size={12} className="mr-1"/> Thêm vào danh sách
-                    </Button>
-                 </div>
-               )}
+              <Label className="text-xs text-slate-500">
+                People {shareType === "SPECIFIC" && <span className="text-red-500">*</span>}
+              </Label>
+
+              <div className="border rounded-md p-2 bg-slate-50 min-h-[46px] transition-all focus-within:ring-2 focus-within:ring-blue-100 focus-within:border-blue-400">
+                <div className="flex flex-wrap gap-2 mb-1">
+                  {recipients.map(r => (
+                    <span
+                      key={r.email}
+                      className="bg-white border text-xs px-2 py-1 rounded-full flex items-center gap-1 shadow-sm"
+                    >
+                      <Mail size={10} className="text-slate-400" />
+                      {r.email}
+                      <X
+                        size={12}
+                        className="cursor-pointer hover:text-red-500 ml-1"
+                        onClick={() => handleRemoveEmail(r.email)}
+                      />
+                    </span>
+                  ))}
+
+                  <input
+                    className="flex-1 bg-transparent text-sm outline-none min-w-[150px] h-6"
+                    placeholder="Please enter valid email address"
+                    value={emailInput}
+                    onChange={e => setEmailInput(e.target.value)}
+                    onKeyDown={e => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleAddEmail();
+                      }
+                    }}
+                  />
+                </div>
+              </div>
             </div>
 
-            {/* 3. Options Grid */}
-            <div className="grid grid-cols-2 gap-4">
-               <div className="space-y-1.5">
-                  <Label className="text-xs text-slate-500">Hết hạn vào (Tùy chọn)</Label>
-                  <Input type="date" value={expiresAt} onChange={e => setExpiresAt(e.target.value)} />
-               </div>
-               <div className="space-y-1.5">
-                  <Label className="text-xs text-slate-500">Quyền hạn</Label>
-                  <Select value={accessLevel} onValueChange={(v: any) => setAccessLevel(v)}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="VIEW">Chỉ xem (View)</SelectItem>
-                      <SelectItem value="DOWNLOAD">Xem & Tải (Download)</SelectItem>
-                    </SelectContent>
-                  </Select>
-               </div>
-            </div>
+            {(shareType === "SPECIFIC" || shareType === "INTERNAL_LINK") && (
+              <div className="space-y-1.5">
+                <Label className="text-xs text-slate-500">Note</Label>
+                <Textarea
+                  className="h-20 resize-none"
+                  placeholder="Add a message"
+                  value={note}
+                  onChange={e => setNote(e.target.value)}
+                />
+              </div>
+            )}
 
-            {/* 4. Note */}
-            <div className="space-y-1.5">
-               <Label className="text-xs text-slate-500">Lời nhắn trong mail</Label>
-               <Textarea 
-                 className="h-16 resize-none" 
-                 placeholder="VD: Gửi bạn tài liệu dự án..."
-                 value={note} 
-                 onChange={e => setNote(e.target.value)} 
-               />
+            {(shareType === "INTERNAL_LINK" || shareType === "PUBLIC_LINK") && (
+              <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-slate-500">
+                  Link expires on (in UTC)
+                </Label>
+                <Input
+                  type="date"
+                  value={expiresAt}
+                  onChange={e => setExpiresAt(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs text-slate-500">Access</Label>
+                <Select
+                  value={accessLevel}
+                  onValueChange={(v: any) => setAccessLevel(v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="VIEW">View only</SelectItem>
+                    <SelectItem value="DOWNLOAD">View & download</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-            
-            <div className="flex items-center gap-2">
-                <Checkbox checked={showLatest} onCheckedChange={(c) => setShowLatest(c as boolean)}/>
-                <Label className="text-sm cursor-pointer" onClick={() => setShowLatest(!showLatest)}>Luôn hiển thị version mới nhất</Label>
-            </div>
+            )}
+
+            {(shareType === "INTERNAL_LINK" || shareType === "PUBLIC_LINK") && (
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  checked={showLatest}
+                  onCheckedChange={c => setShowLatest(c as boolean)}
+                />
+                <Label className="text-sm cursor-pointer">
+                  Show latest version
+                </Label>
+              </div>
+            )}
+
+            {shareType === "SPECIFIC" && (
+              <div className="border-t border-slate-200 pt-3 text-xs text-slate-500">
+                Note: Any access restrictions placed on the files are removed when the files are shared.
+              </div>
+            )}
           </div>
+
         )}
 
         {/* FOOTER */}
@@ -293,4 +324,3 @@ export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
     </Dialog>
   );
 }
-// bimcde-fe\components\features\explorer\dialogs\ShareFileDialog.tsx

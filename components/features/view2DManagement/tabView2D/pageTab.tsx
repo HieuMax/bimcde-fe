@@ -23,7 +23,6 @@ export default function PagesTab({
   onSelectPage,
   pdfUrl,
 }: PagesTabProps) {
-  /* ===== ROTATION STATE (LOCAL – UI LEVEL) ===== */
   const [pageRotations, setPageRotations] =
     useState<Record<number, number>>({});
 
@@ -31,7 +30,6 @@ export default function PagesTab({
 
   const rotateActivePage = (delta: number) => {
     if (!currentPageIndex) return;
-    // onRotatePage(delta);
 
     setPageRotations((prev) => ({
       ...prev,
@@ -51,7 +49,6 @@ export default function PagesTab({
           Pages ({pages.length})
         </h3>
 
-        {/* ROTATE BUTTONS – OUTSIDE */}
         <div className="flex items-center gap-1">
           <button
             onClick={() => rotateActivePage(-90)}
@@ -70,7 +67,6 @@ export default function PagesTab({
         </div>
       </div>
 
-      {/* ===== NOTE (CHỈ HIỆN KHI XOAY) ===== */}
       {showRotateNote && (
         <div className="px-4 py-2">
           <div className="bg-yellow-100 text-yellow-900 text-xs px-3 py-2">
@@ -79,7 +75,6 @@ export default function PagesTab({
         </div>
       )}
 
-      {/* ===== PAGES LIST ===== */}
       <div className="flex-1 min-h-0">
         <Virtuoso
           style={{ height: '100%' }}
@@ -100,7 +95,6 @@ export default function PagesTab({
                       : 'border-gray-200 hover:border-gray-400'}
                   `}
                 >
-                  {/* THUMBNAIL */}
                   <div className="w-full h-auto flex items-center justify-center overflow-hidden border border-gray-100 bg-white">
                     <div
                       style={{ transform: `rotate(${rotation}deg)` }}
@@ -131,7 +125,6 @@ export default function PagesTab({
                     </div>
                   </div>
 
-                  {/* PAGE LABEL */}
                   <div
                     className={`mt-2 text-[11px] font-bold text-center ${
                       isActive ? 'text-blue-600' : 'text-gray-500'

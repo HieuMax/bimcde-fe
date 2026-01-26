@@ -1,6 +1,7 @@
 import { IExplorerResponse, IFile } from "@/types/explorer";
 import { useApi as apiClient } from "@/app/hooks/useApi";
 import { httpClient } from "@/lib/http-client";
+import axios from "axios";
 
 interface FetchOptions {
   headers?: Record<string, string>;
@@ -222,6 +223,18 @@ export const explorerService = {
     return data;
   },
 
+  getFileByShare: async (shareToken: string) => {
+    const res = await httpClient.get<{
+      projectId: string;
+      fileId: string;
+      viewId: string;
+      accessLevel: string;
+      type: string;
+    }>(`/share/${shareToken}`);
+
+    return res.data;
+  },
+
   getFileDetail: async (id: string, shareToken?: string) => {
     if (shareToken) {
       const res = await httpClient.get<IFile>(
@@ -233,19 +246,13 @@ export const explorerService = {
 
     return await api.get(`/files/${id}`);
   },
-
-  getFileByShare: async (shareToken: string) => {
-    const res = await httpClient.get<{
-      projectId: string;
-      fileId: string;
-      accessLevel: string;
-      type: string;
-    }>(`/share/${shareToken}`);
-
-    // Sau bước resolve này, FE sẽ redirect,
-    // nên ở đây thường KHÔNG cần file detail đầy đủ.
-    return res.data;
-  },
+  getFileDetailPublic(fileId: string, shareToken: string) {
+    return httpClient
+      .get<IFile>(`/files/${fileId}`, {
+        params: { shareToken },
+      })
+      .then(res => res.data);
+  }
 
 };
 // bimcde-fe\services\explorer.service.ts

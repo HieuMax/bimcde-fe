@@ -75,6 +75,8 @@ export interface IFile {
   // Thêm fields mới để tối ưu (ví dụ: search/filter)
   description?: string; // Mô tả file
   lastAccessed?: string; // Để track performance/access
+
+  permission?: "VIEW" | "DOWNLOAD";
 }
 
 // Merge PageItem
@@ -88,7 +90,6 @@ export interface PageItem {
   thumbnail?: string; // Thêm field mới cho thumbnail nhỏ
 }
 
-// Merge ViewItem
 export interface ViewItem {
   _id: string;
   name?: string;
@@ -98,23 +99,42 @@ export interface ViewItem {
   pageIndex?: number;
   scale?: number;
   rotation?: number;
-  createdBy?: string;
+
+  createdBy?: {
+    _id: string;
+    fullName: string;
+    email?: string;
+  } | string;
+
+  updatedBy?: {
+    _id: string;
+    fullName: string;
+    email?: string;
+  } | string;
+
   createdAt?: string;
+  updatedAt?: string;
+
   assignedTo?: string;
   description?: string;
-  tags?: ITag[];
 }
 
-// Merge TodoItem
 export interface TodoItem {
   _id: string;
   title: string;
   description?: string;
-  status?: "open" | "in_progress" | "done";
-  relatedImage?: string;
+  status?: "Open" | "In Progress" | "Done" | "On Hold"; 
+  priority?: "Low" | "Normal" | "High" | "Urgent";
+  type?: string;
+  dueDate?: string;
+  completion?: number;
+  assignee?: string;
+  tags?: string[];
   viewId?: string;
   createdAt?: string;
-  priority?: "low" | "medium" | "high"; // Thêm field mới cho priority
+  createdBy?: string;
+  fileId?: string;
+  projectId?: string;
 }
 
 export type ExplorerItem = IFile | IFolder;
