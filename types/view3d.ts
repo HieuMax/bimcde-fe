@@ -27,6 +27,7 @@ export interface IView {
         visibility: any[];
         selection: any[];
         thumbnail?: string; // Base64
+        modelOpacity?: number;
     };
 
     createdAt: string;

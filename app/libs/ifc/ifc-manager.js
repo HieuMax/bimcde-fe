@@ -1152,4 +1152,52 @@ export class IfcManager {
 
     return Array.from(uniqueKeys).sort();
   }
+
+
+
+
+
+  /**
+   * --- MODEL TRANSPARENCY ---
+   *
+   * @param {number} opacity - 0 -> 1
+   */
+  setModelOpacity(opacity) {
+    const factor = Math.max(0.2, Math.min(1, opacity));
+
+    const isGhostMode = factor < 0.99;
+
+    this.ifcModels.forEach((model) => {
+      if (!model.mesh) return;
+
+      const materials = Array.isArray(model.mesh.material)
+        ? model.mesh.material
+        : [model.mesh.material];
+
+      materials.forEach((mat) => {
+        if (mat.userData.originalOpacity === undefined) {
+          mat.userData.originalOpacity = mat.opacity;
+          mat.userData.originalTransparent = mat.transparent;
+          mat.userData.originalDepthWrite = mat.depthWrite;
+        }
+
+        if (isGhostMode) {
+          mat.opacity = mat.userData.originalOpacity * factor;
+          mat.transparent = true;
+          mat.depthWrite = true;
+          mat.side = THREE.FrontSide;
+          mat.alphaTest = 0;
+
+        } else {
+
+          mat.opacity = mat.userData.originalOpacity;
+          mat.transparent = mat.userData.originalTransparent;
+          mat.depthWrite = mat.userData.originalDepthWrite !== undefined ? mat.userData.originalDepthWrite : true;
+          mat.side = THREE.DoubleSide;
+        }
+
+        mat.needsUpdate = true;
+      });
+    });
+  }
 }
