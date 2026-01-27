@@ -73,6 +73,8 @@ export default function ViewerClient() {
   const isDataTableMode = state === 'data-table';
   const currentSidebarWidth = isDataTableMode ? 0 : (isCollapsed ? 250 : 370);
 
+  const [modelOpacity, setModelOpacity] = useState(1);
+
   const handleOpenTodoDrawer = (todo: any, mode: "view" | "edit" | "create") => {
     if (mode === 'create') {
       onAddTodo();
@@ -172,7 +174,8 @@ export default function ViewerClient() {
       viewState = viewerActions.current.capture();
     }
 
-
+    console.log("Captured viewState:", viewState);
+    console.log("viewerActions.current?.capture:", viewerActions.current?.capture);
     let items: any[] = [];
     let title = undefined;
 
@@ -292,6 +295,10 @@ export default function ViewerClient() {
     return () => clearTimeout(timer);
   }, [isDrawerOpen]);
 
+  useEffect(() => {
+    setModelOpacity(1);
+  }, [ifcUrls]);
+
 
   // --- 1. OPEN DRAWER (ViewList or Create New) ---
   const handleOpenViewDrawer = (view: any, mode: "view" | "edit" | "create") => {
@@ -394,6 +401,8 @@ export default function ViewerClient() {
         onBack={handleBack}
         onRefresh={handleRefresh}
         onAddTodo={onAddTodo}
+        modelOpacity={modelOpacity}
+        onOpacityChange={setModelOpacity}
       />
       {/* handle navbar and extend when click item can create todo related to it */}
       <div className="flex flex-1 relative overflow-hidden">
@@ -459,6 +468,8 @@ export default function ViewerClient() {
               onOpenViewDrawer={handleOpenViewDrawer}
               onRestoreView={handleRestoreView}
               onUpdateSnapshot={handleUpdateSnapshot}
+              modelOpacity={modelOpacity}
+              onOpacityChange={setModelOpacity}
             // sidebarWidth={currentSidebarWidth}
             />
 

@@ -40,6 +40,8 @@ export default function IfcViewer({
   onOpenViewDrawer,
   onRestoreView,
   onUpdateSnapshot,
+  modelOpacity,
+  onOpacityChange
 }) {
   const canvasRef = useRef(null);
   const loaderRef = useRef(null);
@@ -258,13 +260,19 @@ export default function IfcViewer({
       camera: cameraState,
       visibility: hiddenState,
       selection: selectionState,
-      thumbnail: thumbnail
+      thumbnail: thumbnail,
+      modelOpacity: modelOpacity
     };
   };
 
   // === RESTORE STATE ===
   const restoreState = async (viewState, todoItems = []) => {
     if (!viewState || !sceneRef.current || !loaderRef.current) return;
+
+    if (onOpacityChange) {
+      const savedOpacity = viewState.modelOpacity !== undefined ? viewState.modelOpacity : 1;
+      onOpacityChange(savedOpacity);
+    }
 
     // ---------------------------------------------------------
     // 1. PREPARE MAPPING (URL <-> Model ID)
@@ -458,7 +466,8 @@ export default function IfcViewer({
       camera,
       visibility: safeVisibility,
       selection: safeSelection,
-      thumbnail
+      thumbnail,
+      modelOpacity: modelOpacity
     };
   };
 
@@ -488,6 +497,17 @@ export default function IfcViewer({
       handleShowProperties();
     }
   }, [selectedItems]);
+
+
+
+
+
+  // --- EFFECT: UPDATE OPACITY ---
+  useEffect(() => {
+    if (loaderRef.current) {
+      loaderRef.current.setModelOpacity(modelOpacity);
+    }
+  }, [modelOpacity])
 
 
   const Loading = () => {

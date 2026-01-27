@@ -23,6 +23,7 @@ import {
     Grid3x3,
     RotateCcw,
     ChevronDown,
+    Ghost,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -38,6 +39,8 @@ interface NavbarProps {
     onRefresh?: () => void;
     onAction?: () => void;
     onAddTodo?: () => void;
+    modelOpacity?: number;
+    onOpacityChange?: (value: number) => void;
 }
 
 // Helper component to render a button with a tooltip to avoid code repetition
@@ -69,7 +72,10 @@ function NavIconButton({ icon: Icon, label, onClick, className }: NavButtonProps
     )
 }
 
-export function Navbar({ onBack, onRefresh, onAction, onAddTodo }: NavbarProps) {
+export function Navbar({ onBack, onRefresh, onAction, onAddTodo,
+    modelOpacity = 1,
+    onOpacityChange
+}: NavbarProps) {
     return (
         <TooltipProvider delayDuration={300}>
             <nav className="sticky top-0 z-50 bg-background border-b border-border shadow-sm flex-none">
@@ -248,6 +254,44 @@ export function Navbar({ onBack, onRefresh, onAction, onAddTodo }: NavbarProps) 
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
+
+                        <div className="w-px h-6 bg-border mx-1" />
+
+
+                        {/* --- BUTTON TRANSPARENCY --- */}
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className={`h-9 w-9 ${modelOpacity < 1 ? "bg-blue-100 text-blue-600" : ""}`}
+                                >
+                                    <Ghost className="h-4 w-4" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent className="w-56 p-4" align="start">
+                                <div className="flex flex-col gap-3">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-sm font-medium">Model Opacity</span>
+                                        <span className="text-xs text-muted-foreground">{Math.round(modelOpacity * 100)}%</span>
+                                    </div>
+
+                                    <div className="flex items-center h-5">
+                                        <input
+                                            type="range"
+                                            min="0.2"
+                                            max="1"
+                                            step="0.01"
+                                            value={modelOpacity}
+                                            onChange={(e) => onOpacityChange?.(parseFloat(e.target.value))}
+                                            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                                        />
+                                    </div>
+                                </div>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+
+                        <div className="w-px h-6 bg-border mx-1" />
 
                         <div className="w-px h-6 bg-border mx-1" />
                         <NavIconButton icon={MoreVertical} label="More options" />
