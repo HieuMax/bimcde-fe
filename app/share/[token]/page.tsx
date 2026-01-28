@@ -52,4 +52,3 @@ export default function ShareResolvePage() {
     </div>
   );
 }
-// bimcde-fe\app\share\[token]\page.tsx

@@ -116,7 +116,12 @@ export default function DetailView2D({
     }
 
     try {
-      const elementToCapture = document.querySelector('.react-pdf__Page') as HTMLElement || document.querySelector('.viewport-container') as HTMLElement;
+      // const elementToCapture = document.querySelector('.react-pdf__Page') as HTMLElement || document.querySelector('.viewport-container') as HTMLElement;
+      const elementToCapture =
+        document.querySelector(
+          `.react-pdf__Page[data-page-number="${pageIndex}"]`
+        ) as HTMLElement;
+
       let snapshotUrl = "";
       if (elementToCapture) {
         try {
@@ -170,6 +175,8 @@ export default function DetailView2D({
     setSelectedView(v);
     setSelectedTodo(null);
     setRightPanel({ type: "viewDetail", data: v });
+  
+    setCurrentSrc(null); // 🔥 BẮT BUỘC với PDF
 
     if (v.pageIndex && v.pageIndex > 0) setPageIndex(v.pageIndex);
     const rotationToRestore = v.rotation ?? 0;
@@ -351,8 +358,10 @@ export default function DetailView2D({
         }
 
         setPages(derivedPages);
-        setPageIndex(1);
-
+        // setPageIndex(1);
+        if (!selectedView) {
+          setPageIndex(1);
+        }
       } catch (e) {
         console.error("Load detail failed:", e);
         setError((e as Error).message);

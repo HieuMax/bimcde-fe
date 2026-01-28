@@ -1,9 +1,9 @@
 import { httpClient } from "@/lib/http-client";
 import { TodoItem } from "@/types/explorer"; 
+import { useApi as apiClient } from '@/app/hooks/useApi';
 
-// 👇 Trỏ về Local để dev
 const TODO_API_URL = "http://localhost:4000/api";
-
+const api = apiClient();
 export const todoService = {
   // 1. Lấy danh sách
   getTodosByFile: async (fileId: string) => {

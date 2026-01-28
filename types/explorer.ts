@@ -40,7 +40,6 @@ export interface IFileVersion {
   createdAt: string;
 }
 
-// Merge FileItem và FileDetail vào IFile để thống nhất
 export type FileType = "PDF" | "IMAGE"; // Từ view.ts
 
 export interface IFile {
@@ -51,7 +50,6 @@ export interface IFile {
   currentVersion: number;
   versions?: IFileVersion[];
 
-  // Flatten fields for display (từ explorer.ts)
   size: number;
   mimeType: string;
   location: string;
@@ -72,9 +70,8 @@ export interface IFile {
   createdAt?: string;
   createdBy?: IFolder['createdBy'];
 
-  // Thêm fields mới để tối ưu (ví dụ: search/filter)
-  description?: string; // Mô tả file
-  lastAccessed?: string; // Để track performance/access
+  description?: string; 
+  lastAccessed?: string; 
 
   permission?: "VIEW" | "DOWNLOAD";
 }
@@ -87,7 +84,7 @@ export interface PageItem {
   fileId: string;
   imageSrc?: string;
   source?: "pdf" | "file" | "view";
-  thumbnail?: string; // Thêm field mới cho thumbnail nhỏ
+  thumbnail?: string;
 }
 
 export interface ViewItem {

@@ -64,7 +64,7 @@ export default function FileViewport({
           zoom={zoom}
           pageRotation={pageRotation}
           onZoom={onZoom}
-          onRotatePage={onRotatePage}
+          onRotatePage={onRotatePage} 
           onPrev={onPrev}
           onNext={onNext}
           onPageRendered={onRendered}

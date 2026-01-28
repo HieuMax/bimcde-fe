@@ -63,7 +63,7 @@ export default function PdfViewerClient({
 
   return (
     <div className="w-full h-full relative bg-[#6b6a73]">
-      <div ref={containerRef} className="absolute inset-0 overflow-y-auto">
+      <div ref={containerRef} className="absolute inset-0 overflow-y-auto p-2">
         <Document
           file={src}
           loading={null}
