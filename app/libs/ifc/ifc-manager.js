@@ -6,6 +6,8 @@ import { IFCSPACE, IFCOPENINGELEMENT } from 'web-ifc';
 import * as THREE from 'three';
 
 const yieldToMain = () => new Promise(resolve => setTimeout(resolve, 0));
+const degToRad = (deg) => deg * (Math.PI / 180);
+const radToDeg = (rad) => rad * (180 / Math.PI);
 
 export class IfcManager {
   constructor(scene, ifcModels) {
@@ -271,10 +273,13 @@ export class IfcManager {
     if (!subset) return;
 
 
+    const model = this.ifcModels.find(m => m.modelID === modelID);
+    const parentMesh = model ? model.mesh : null;
+
     const geometry = subset.geometry.clone();
     const glowMaterial = new THREE.MeshPhongMaterial({
-      color: 0xffff00,
-      emissive: 0xffff00,
+      color: 0xFFFF39,
+      emissive: 0xFFFF39,
       emissiveIntensity: 0.4,
       transparent: true,
       opacity: 0.3,
@@ -284,9 +289,16 @@ export class IfcManager {
     });
 
     const glowMesh = new THREE.Mesh(geometry, glowMaterial);
-    glowMesh.position.copy(subset.position);
-    glowMesh.rotation.copy(subset.rotation);
-    glowMesh.scale.copy(subset.scale);
+    if (parentMesh) {
+      glowMesh.position.copy(parentMesh.position);
+      glowMesh.rotation.copy(parentMesh.rotation);
+      glowMesh.scale.copy(parentMesh.scale);
+      glowMesh.updateMatrixWorld(true);
+    } else {
+      glowMesh.position.copy(subset.position);
+      glowMesh.rotation.copy(subset.rotation);
+      glowMesh.scale.copy(subset.scale);
+    }
 
     glowMesh.userData = { isHighlight: true, modelID };
 
@@ -303,67 +315,20 @@ export class IfcManager {
     });
 
     const edgesMesh = new THREE.LineSegments(edgesGeom, edgeMaterial);
-    edgesMesh.position.copy(subset.position);
-    edgesMesh.rotation.copy(subset.rotation);
-    edgesMesh.scale.copy(subset.scale);
-
+    if (parentMesh) {
+      edgesMesh.position.copy(parentMesh.position);
+      edgesMesh.rotation.copy(parentMesh.rotation);
+      edgesMesh.scale.copy(parentMesh.scale);
+      edgesMesh.updateMatrixWorld(true);
+    } else {
+      edgesMesh.position.copy(subset.position);
+      edgesMesh.rotation.copy(subset.rotation);
+      edgesMesh.scale.copy(subset.scale);
+    }
+    edgesMesh.userData = { isHighlight: true, modelID };
     this.scene.add(edgesMesh);
     this.highlightMeshes.push(edgesMesh);
   }
-
-  // async highlight(modelID, expressID) {
-  //   this.removeHighlight();
-
-  //   this.highlightModelID = modelID;
-  //   this.highlightExpressID = expressID;
-
-  //   const subset = this.ifcLoader.ifcManager.createSubset({
-  //     modelID,
-  //     ids: [expressID],
-  //     applyBVH: true,
-  //     removePrevious: true,
-  //   });
-
-  //   if (!subset) return;
-
-  //   const geometry = subset.geometry.clone();
-
-  //   const glowMaterial = new THREE.MeshPhongMaterial({
-  //     color: 0xffff00,
-  //     emissive: 0xffff00,
-  //     emissiveIntensity: 0.4,
-  //     transparent: true,
-  //     opacity: 0.3,
-  //     depthTest: false,
-  //     side: THREE.DoubleSide,
-  //     wireframe: false,
-  //   });
-
-  //   const glowMesh = new THREE.Mesh(geometry, glowMaterial);
-  //   glowMesh.position.copy(subset.position);
-  //   glowMesh.rotation.copy(subset.rotation);
-  //   glowMesh.scale.copy(subset.scale);
-  //   this.scene.add(glowMesh);
-  //   this.highlightMeshes.push(glowMesh);
-
-  //   const edgesGeom = new THREE.EdgesGeometry(geometry, 25);
-  //   const edgeMaterial = new THREE.LineBasicMaterial({
-  //     color: 0xffff00,
-  //     transparent: true,
-  //     opacity: 0.8,
-  //     depthTest: false,
-  //     linewidth: 3,
-  //   });
-
-  //   const edgesMesh = new THREE.LineSegments(edgesGeom, edgeMaterial);
-  //   edgesMesh.position.copy(subset.position);
-  //   edgesMesh.rotation.copy(subset.rotation);
-  //   edgesMesh.scale.copy(subset.scale);
-  //   this.scene.add(edgesMesh);
-  //   this.highlightMeshes.push(edgesMesh);
-
-  //   this.rebuildSubset(modelID);
-  // }
 
   async highlight(modelID, expressID) {
     await this.highlightItems([{ modelID, expressID }]);
@@ -528,6 +493,13 @@ export class IfcManager {
       removePrevious: true,
       applyBVH: true,
     });
+
+    if (model.mesh) {
+      subset.position.copy(model.mesh.position);
+      subset.rotation.copy(model.mesh.rotation);
+      subset.scale.copy(model.mesh.scale);
+      subset.updateMatrixWorld(true);
+    }
 
     model.mesh.visible = false;
     subset.visible = !isModelHidden;
@@ -1198,6 +1170,116 @@ export class IfcManager {
 
         mat.needsUpdate = true;
       });
+    });
+  }
+
+
+
+
+
+
+
+  /**
+   * --- MODEL TRANSFORM (Move / Rotate / Scale) ---
+   */
+  getModelTransform(modelID) {
+    const model = this.ifcModels.find(m => m.modelID === modelID);
+    if (!model || !model.mesh) return null;
+
+    const m = model.mesh;
+
+    return {
+      position: {
+        x: m.position.x,
+        y: m.position.y,
+        z: m.position.z
+      },
+      rotation: {
+        x: radToDeg(m.rotation.x),
+        y: radToDeg(m.rotation.y),
+        z: radToDeg(m.rotation.z)
+      },
+      scale: m.scale.x
+    };
+  }
+
+  setModelTransform(modelID, data) {
+    const targetModelID = parseInt(modelID);
+
+    const model = this.ifcModels.find(m => m.modelID === targetModelID);
+    if (!model || !model.mesh) return;
+
+    const m = model.mesh;
+
+    // 1. Position
+    if (data.position) {
+      m.position.set(
+        parseFloat(data.position.x),
+        parseFloat(data.position.y),
+        parseFloat(data.position.z)
+      );
+    }
+
+    // 2. Rotation
+    if (data.rotation) {
+      m.rotation.set(
+        degToRad(parseFloat(data.rotation.x)),
+        degToRad(parseFloat(data.rotation.y)),
+        degToRad(parseFloat(data.rotation.z))
+      );
+    }
+
+    // 3. Scale
+    if (data.scale) {
+      const s = parseFloat(data.scale);
+      m.scale.set(s, s, s);
+    }
+
+    // 4. Update Matrix 
+    m.updateMatrixWorld(true);
+
+    this.highlightMeshes.forEach(mesh => {
+      if (mesh.userData.modelID === modelID) {
+        mesh.position.copy(m.position);
+        mesh.rotation.copy(m.rotation);
+        mesh.scale.copy(m.scale);
+        mesh.updateMatrixWorld(true);
+      }
+    });
+
+    const subset = this.hiddenSubsets.get(modelID);
+    if (subset) {
+      subset.position.copy(m.position);
+      subset.rotation.copy(m.rotation);
+      subset.scale.copy(m.scale);
+      subset.updateMatrixWorld(true);
+    }
+  }
+
+  getAllModelsTransform() {
+    return this.ifcModels.map(m => {
+      if (!m.mesh) return null;
+      return {
+        modelID: m.modelID,
+        fileUrl: m.url,
+        position: { x: m.mesh.position.x, y: m.mesh.position.y, z: m.mesh.position.z },
+        rotation: { x: m.mesh.rotation.x, y: m.mesh.rotation.y, z: m.mesh.rotation.z }, // Lưu Radian
+        scale: m.mesh.scale.x
+      };
+    }).filter(item => item !== null);
+  }
+
+  restoreAllModelsTransform(transforms) {
+    if (!transforms || !Array.isArray(transforms)) return;
+
+    transforms.forEach(t => {
+      const model = this.ifcModels.find(m => m.url === t.fileUrl);
+      if (model && model.mesh) {
+        model.mesh.position.set(t.position.x, t.position.y, t.position.z);
+        model.mesh.rotation.set(t.rotation.x, t.rotation.y, t.rotation.z);
+        model.mesh.scale.set(t.scale, t.scale, t.scale);
+        model.mesh.updateMatrixWorld(true);
+      }
     });
   }
 }

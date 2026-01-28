@@ -28,6 +28,7 @@ export interface IView {
         selection: any[];
         thumbnail?: string; // Base64
         modelOpacity?: number;
+        modelTransforms?: IModelTransform[];
     };
 
     createdAt: string;
@@ -49,4 +50,11 @@ export interface UpdateViewInfoDto {
     description?: string;
     shareWith?: string[];
     tags?: string[];
+}
+export interface IModelTransform {
+    modelID: number;
+    fileUrl: string;
+    position: { x: number, y: number, z: number };
+    rotation: { x: number, y: number, z: number };
+    scale: number;
 }

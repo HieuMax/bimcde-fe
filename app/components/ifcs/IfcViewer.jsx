@@ -15,7 +15,8 @@ import {
   ChevronRight,
   Info,
   EllipsisVertical,
-  Menu, Search, Check
+  Menu, Search, Check,
+  Settings2
 } from 'lucide-react';
 import './ifc.css';
 import LoadingBar from '../LoadingBar';
@@ -26,6 +27,7 @@ import { Topics } from '@/components/_3d/topics/Topics';
 import { ClashSets } from '@/components/_3d/clash_sets/ClashSets';
 import { Organizer } from '@/components/_3d/organizer/Organizer';
 import { PropertiesDrawer } from './PropertiesDrawer';
+import { ModelPositionDrawer } from './ModelPositionDrawer';
 
 export default function IfcViewer({
   ifcUrls,
@@ -82,6 +84,30 @@ export default function IfcViewer({
 
   // DATA TABLE
   const isDataTable = state === 'data-table';
+
+
+  // --- STATE POSITION DRAWER ---
+  const [isPosDrawerOpen, setIsPosDrawerOpen] = useState(false);
+  const [posDrawerModel, setPosDrawerModel] = useState(null);
+  const [posDrawerData, setPosDrawerData] = useState(null);
+
+  // --- HANDLER ---
+  const handleOpenPositionSettings = (model) => {
+    if (!loaderRef.current) return;
+
+    const transform = loaderRef.current.getModelTransform(model.ifcModelID);
+
+    setPosDrawerModel({ id: model.ifcModelID, name: model.name });
+    setPosDrawerData(transform);
+    setOpenMenuKey(null);
+    setIsPosDrawerOpen(true);
+  };
+
+  const handleSavePosition = (modelId, data) => {
+    if (loaderRef.current) {
+      loaderRef.current.setModelTransform(modelId, data);
+    }
+  };
 
   useEffect(() => {
     if (!ifcUrls?.length || !canvasRef.current) return;
@@ -240,31 +266,6 @@ export default function IfcViewer({
   const isLayerVisible = (modelID, typeId) => !hiddenLayers.has(layerKey(modelID, typeId));
 
 
-  // Related to camera state
-  const captureCurrentState = () => {
-    if (!sceneRef.current || !loaderRef.current) return null;
-
-    const cameraState = sceneRef.current.getCameraState();
-
-    const hiddenState = loaderRef.current.getVisibilityState();
-
-    const selectionState = selectedItems.map(item => ({
-      modelID: item.modelID,
-      expressID: item.expressID,
-      fileUrl: item.fileUrl
-    }));
-
-    const thumbnail = sceneRef.current.getScreenshot();
-
-    return {
-      camera: cameraState,
-      visibility: hiddenState,
-      selection: selectionState,
-      thumbnail: thumbnail,
-      modelOpacity: modelOpacity
-    };
-  };
-
   // === RESTORE STATE ===
   const restoreState = async (viewState, todoItems = []) => {
     if (!viewState || !sceneRef.current || !loaderRef.current) return;
@@ -272,6 +273,10 @@ export default function IfcViewer({
     if (onOpacityChange) {
       const savedOpacity = viewState.modelOpacity !== undefined ? viewState.modelOpacity : 1;
       onOpacityChange(savedOpacity);
+    }
+
+    if (viewState.modelTransforms) {
+      loaderRef.current.restoreAllModelsTransform(viewState.modelTransforms);
     }
 
     // ---------------------------------------------------------
@@ -390,15 +395,6 @@ export default function IfcViewer({
     }
   };
 
-  useEffect(() => {
-    if (onRegisterCapture) {
-      onRegisterCapture({
-        capture: captureCurrentState,
-        restore: restoreState
-      });
-    }
-  }, [onRegisterCapture, selectedItems]);
-
 
   // Helper
   const getContext = () => {
@@ -425,14 +421,14 @@ export default function IfcViewer({
         // --------------------
       });
     }
+  }, [onRegisterCapture, selectedItems, modelOpacity, models]);
 
-    return () => {
-      if (loaderRef.current) {
-        console.log("Unmounting Viewer - Disposing Manager");
-        loaderRef.current.dispose();
-      }
-    };
-  }, []);
+  useEffect(() => {
+    if (loaderRef.current) {
+      console.log("Unmounting Viewer - Disposing Manager");
+      loaderRef.current.dispose();
+    }
+  }, [])
 
   const getSnapshot = () => {
     if (!loaderRef.current || !sceneRef.current) return null;
@@ -462,12 +458,14 @@ export default function IfcViewer({
 
     const thumbnail = sceneRef.current.getScreenshot();
 
+    const modelTransforms = loaderRef.current.getAllModelsTransform();
     return {
       camera,
       visibility: safeVisibility,
       selection: safeSelection,
       thumbnail,
-      modelOpacity: modelOpacity
+      modelOpacity: modelOpacity,
+      modelTransforms: modelTransforms
     };
   };
 
@@ -699,6 +697,30 @@ export default function IfcViewer({
                               }}
                             >
                               {m.name}
+                            </span>
+
+                            <span
+                              style={{ cursor: 'pointer', marginLeft: 'auto', marginTop: "4px" }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenMenuKey(openMenuKey === `model-${m.id}` ? null : `model-${m.id}`);
+                              }}
+                            >
+                              <EllipsisVertical size={20} />
+
+                              {openMenuKey === `model-${m.id}` && (
+                                <div className="absolute bg-white border shadow-lg z-50 rounded-md py-1 right-2 w-40">
+                                  <div
+                                    className="px-3 py-2 hover:bg-gray-100 text-sm cursor-pointer flex items-center gap-2"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenPositionSettings(m);
+                                    }}
+                                  >
+                                    <Settings2 size={14} /> Position Settings
+                                  </div>
+                                </div>
+                              )}
                             </span>
                           </div>
                           <div className="">
@@ -1127,6 +1149,18 @@ export default function IfcViewer({
         onOpenChange={setIsPropertiesOpen}
         data={propertiesData}
         loading={isLoadingProps}
+      />
+
+
+
+      {/* RENDER MODEL POSITION DRAWER */}
+      <ModelPositionDrawer
+        open={isPosDrawerOpen}
+        onOpenChange={setIsPosDrawerOpen}
+        modelId={posDrawerModel?.id ?? null}
+        modelName={posDrawerModel?.name ?? ""}
+        initialData={posDrawerData}
+        onSave={handleSavePosition}
       />
     </div>
   );
