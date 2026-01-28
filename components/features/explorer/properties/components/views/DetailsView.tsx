@@ -77,7 +77,7 @@ export default function DetailsView({
       // IFC → 3D Viewer
       if (IFC_FILES.includes(fileExt)) {
         router.push(
-          `/viewer?urls=${encodeURIComponent(JSON.stringify([item.location]))}`,
+          `/projects/${projectId}/viewer3d?urls=${encodeURIComponent(JSON.stringify([item.location]))}`
         );
         return;
       }

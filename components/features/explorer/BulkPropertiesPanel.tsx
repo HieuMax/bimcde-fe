@@ -12,12 +12,14 @@ import {
   Lock,
   Unlock,
   Tags,
+  Eye,
 } from "lucide-react";
 import FileIcon from "./views/FileIcon";
 import { Folder } from "lucide-react";
 import MoveDestinationView from "./MoveDestinationView";
 import TagsView from "./properties/views/TagsView";
 import { useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 
 interface Props {
   selectedItems: (IFile | IFolder)[];
@@ -40,9 +42,11 @@ export default function BulkPropertiesPanel({
   onToggleLock,
   onMoveItems,
   projectId,
+
 }: Props) {
   const [view, setView] = useState<"list" | "move" | "tags">("list");
   const queryClient = useQueryClient();
+  const router = useRouter();
 
   if (view === "move") {
     return (
@@ -85,6 +89,33 @@ export default function BulkPropertiesPanel({
     );
   }
 
+
+  const handleViewFile = () => {
+    if (selectedItems.length > 1) {
+      let urls = [];
+      for (const item of selectedItems) {
+        const fileExt = (item as IFile).name
+          .toString()
+          .split(".")
+          .pop()
+          ?.toLowerCase();
+        if (!fileExt) continue;
+        const IFC_FILES = ["ifc"];
+        // IFC → 3D Viewer
+
+        if (IFC_FILES.includes(fileExt)) {
+          urls.push((item as IFile).location);
+        }
+      }
+
+      if (urls.length === 0) return;
+      router.push(
+        `/projects/${projectId}/viewer3d?urls=${encodeURIComponent(JSON.stringify(urls))}`
+      );
+      return;
+    }
+  };
+
   return (
     <div className="flex flex-col h-full bg-white">
       {/* HEADER */}
@@ -104,6 +135,14 @@ export default function BulkPropertiesPanel({
 
       {/* ACTIONS LIST */}
       <div className="p-4 space-y-2 border-b">
+        <Button
+          onClick={handleViewFile}
+          className="bg-slate-800 hover:bg-slate-700 text-white h-9 px-4 text-sm font-medium mr-auto"
+        >
+          <Eye className="mr-2 h-4 w-4" />
+          View
+        </Button>
+
         <Button
           variant="ghost"
           className="w-full justify-start gap-3 text-blue-600 hover:text-blue-700 hover:bg-blue-50 font-medium"
