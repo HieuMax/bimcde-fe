@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { Document, Page } from 'react-pdf';
 import { Virtuoso } from 'react-virtuoso';
 import { RotateCcw, RotateCw } from 'lucide-react';
-import { PageItem } from '@/types/view';
+import { PageItem } from '@/types/view2d';
 
 interface PagesTabProps {
   pages: PageItem[];

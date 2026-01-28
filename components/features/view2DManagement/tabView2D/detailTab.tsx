@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ViewItem } from '@/types/view';
+import { View2DItem } from '@/types/view2d';
 import { IFile } from '@/types/explorer'
 import { Paperclip, Pencil, X } from 'lucide-react'
 
 type Props = {
   file: IFile | null;
-  view?: ViewItem | null;
+  view?: View2DItem | null;
 };
 
 function formatFileSize(bytes?: number): string {

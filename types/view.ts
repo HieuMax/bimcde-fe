@@ -1,111 +1,59 @@
-/* ===================== FILE ===================== */
-
-export type FileType = "PDF" | "IMAGE";
-
-export interface FileVersion {
-  version: number;
-  location: string;
-  mimeType?: string;
-  uploadedBy?: string;
+export interface ICamera {
+  position: { x: number; y: number; z: number };
+  target: { x: number; y: number; z: number };
+  up: { x: number; y: number; z: number };
+  projection: "ORTHO" | "PERSPECTIVE";
+  zoom?: number;
 }
 
-export interface FileItem {
+export interface ISectionPlane {
+  position: { x: number; y: number; z: number };
+  normal: { x: number; y: number; z: number };
+}
+
+export interface IViewState {
+  camera: ICamera;
+  hiddenElements?: string[]; // Array of GUIDs
+  selectedElements?: string[];
+  coloredElements?: { color: string; elementIds: string[] }[];
+  sectionPlanes?: ISectionPlane[];
+  markupData?: any;
+}
+
+export interface IView {
   _id: string;
-  name: string;
   projectId: string;
-
-  fileUrl: string;
-  fileType: FileType;
-
-  previewSrc?: string;
-  uploadedBy?: string;
-
-  createdAt?: string;
-  versions?: FileVersion[];
-  currentVersion?: number;  
-}
-
-export interface FileDetail {
-  id: string;
   name: string;
-
-  currentVersion: number;
-  size?: number;
-  mimeType?: string;
-
-  location?: string;        // breadcrumb
-  fileUrl?: string;
-
-  createdAt?: string;
-  createdBy?: string;
-
-  updatedAt?: string;
-  modifiedBy?: string;
-
-  isLocked?: boolean;
-  lockedBy?: string;
-
+  description?: string | null;
+  thumbnailUrl?: string | null;
+  type: "3D" | "2D";
+  relatedFileId?: string; // If 2D
+  createdBy: {
+    _id: string;
+    fullName: string;
+    email: string;
+  };
+  sharedWith: {
+    isPublic: boolean;
+    users: string[]; // User IDs
+  };
+  viewState: IViewState;
+  createdAt: string;
+  updatedAt: string;
 }
 
-
-/* ===================== PAGE ===================== */
-
-export interface PageItem {
-  _id: string;
-
-  index: number; 
-  pageNumber?: number;
-
-  fileId: string;
-
-  imageSrc?: string;
-  source?: "pdf" | "file" | "view";
-}
-
-/* ===================== VIEW ===================== */
-
-export interface ViewItem {
-  _id: string;
-  name?: string;
-
+export interface CreateViewDTO {
   projectId: string;
-  fileId: string | FileItem;
-
-  previewSrc?: string;
-
-  pageIndex?: number;
-  scale?: number;
-  rotation?: number;
-
-  createdBy?: string;
-  createdAt?: string;
-  assignedTo?: string;
-}
-
-/* ===================== API RESPONSE ===================== */
-
-export interface FileDetailResponse {
-  _id: string;
   name: string;
-  projectId: string;
-
-  versions: FileVersion[];
-  currentVersion: number;
-
-  createdAt?: string;
-}
-
-/* ===================== TODO ===================== */
-
-export interface TodoItem {
-  _id: string;
-  title: string;
   description?: string;
-
-  status?: "open" | "in_progress" | "done";
-
-  relatedImage?: string;
-  viewId?: string;
-
-  createdAt?: string;
+  thumbnailUrl?: string;
+  type: "3D" | "2D";
+  relatedFileId?: string;
+  viewState: IViewState;
+  sharedWith?: {
+    isPublic?: boolean;
+    users?: string[];
+  };
 }
+
+export interface UpdateViewDTO extends Partial<CreateViewDTO> {}

@@ -3,6 +3,11 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { explorerService } from "@/services/explorer.service";
+import type { ViewItem, TodoItem, PageItem } from "@/types/explorer"; // Hoặc @/types/explorer tùy project của bạn
+import { ITag } from "@/types/tag";
+import {motion,  AnimatePresence } from 'framer-motion';
+import { AnimatedPanel } from "@/components/ui/amination";
+import { CreateViewDTO } from "@/types/view";
 import LeftPanelTool from "./leftPanelTool";
 import LeftPanelBody from "./leftPanelBody";
 import ViewDetailPanel from "./tabView2D/properties2DView/viewProperties";
@@ -11,10 +16,11 @@ import CreateViewPanel from "./createModel/createView";
 import CreateTodoPanel from "./createModel/createTodo";
 import FileViewport from "./viewPort";
 import { IFile, IFileVersion } from "@/types/explorer";
-import { viewService } from "@/services/view.service";
-import { todoService } from "@/services/todo.service";
+import { view2DService } from "@/services/view2d.service";
+import { todoService2D } from "@/services/todo2d.service";
 
 import html2canvas from "html2canvas";
+import { toast } from "sonner";
 type PdfjsInstance = typeof import("react-pdf").pdfjs;
 const pdfjsRef: { current: PdfjsInstance | null } = { current: null };
 const ensurePdfjs = async (): Promise<PdfjsInstance | null> => {
@@ -34,10 +40,7 @@ const ensurePdfjs = async (): Promise<PdfjsInstance | null> => {
 };
 
 // --- IMPORT TYPES ---
-import type { ViewItem, TodoItem, PageItem } from "@/types/explorer"; // Hoặc @/types/explorer tùy project của bạn
-import { ITag } from "@/types/tag";
-import {motion,  AnimatePresence } from 'framer-motion';
-import { AnimatedPanel } from "@/components/ui/amination";
+
 
 type RightPanelState =
   | { type: "viewDetail"; data: ViewItem }
@@ -102,7 +105,7 @@ export default function DetailView2D({
     ? ["page"] 
     : ["page", "view", "todo", "filedetail"];
   // --- LOGIC VIEW ---
-  const handleCreateView = async (data: { name: string; description: string; createdBy?: string }) => {
+  const handleCreateView2D = async (data: { name: string; description: string; createdBy?: string }) => {
     console.log("Check Token trước khi gửi:", localStorage.getItem('accessToken'));
     const targetFileId = fileId || params.viewId;
     const targetProjectId = params.projectId;
@@ -127,7 +130,7 @@ export default function DetailView2D({
         }
       }
 
-      const newView = await viewService.createView({
+      const newView = await view2DService.createView({
         name: data.name,
         description: data.description,
         createdBy: data.createdBy,
@@ -150,7 +153,7 @@ export default function DetailView2D({
 
   const handleDeleteView = async (viewId: string) => {
     try {
-      await viewService.deleteView(viewId);
+      await view2DService.deleteView(viewId);
       setViews((prev) => prev.filter((v) => v._id !== viewId));
       if (rightPanel?.type === "viewDetail" && rightPanel.data._id === viewId) {
         setRightPanel(null);
@@ -181,7 +184,7 @@ export default function DetailView2D({
     if (!targetFileId) return;
 
     try {
-      const newTodo = await todoService.createTodo({
+      const newTodo = await todoService2D.createTodo({
         ...data,
         fileId: targetFileId,
         projectId: params.projectId,
@@ -197,13 +200,10 @@ export default function DetailView2D({
   };
   const handleDeleteTodo = async (todoId: string) => {
     try {
-        // 👇 1. QUAN TRỌNG: Phải gọi dòng này để báo Backend xóa
-        await todoService.deleteTodo(todoId);
+        await todoService2D.deleteTodo(todoId);
 
-        // 2. Sau khi API báo thành công thì mới xóa trên UI
         setTodos((prev) => prev.filter((t) => t._id !== todoId));
 
-        // 3. Đóng panel nếu đang xem đúng todo bị xóa
         if (rightPanel?.type === "todoDetail" && rightPanel.data._id === todoId) {
             setRightPanel(null);
             setSelectedTodo(null);
@@ -226,6 +226,23 @@ export default function DetailView2D({
       return 1;
     }
   };
+  // [NEW] Hàm giả lập lấy state từ Viewer 2D
+  // Trong thực tế, bạn sẽ lấy thông tin này từ component <FileViewport /> thông qua ref hoặc context
+  const get2DViewerState = () => {
+    return {
+      camera: {
+        position: { x: 0, y: 0, z: 0 },
+        target: { x: 0, y: 0, z: 0 },
+        up: { x: 0, y: 1, z: 0 },
+        projection: "ORTHO" as const, // 2D bắt buộc là ORTHO
+        zoom: zoom, // Lấy state zoom hiện tại của component
+      },
+      markupData: {
+        pageIndex: pageIndex, // Lưu lại đang xem trang nào
+        rotate: rotate, // Lưu lại góc xoay
+      },
+    };
+  };
 
   // Rotate Logic
   const rotateCurrentPage = (delta: number) => {
@@ -236,6 +253,9 @@ export default function DetailView2D({
   };
 
   // Effects
+  // [NEW] Hàm xử lý tạo View
+ 
+  /* ===== sync active tool ===== */
   useEffect(() => {
     onRegisterOpenViewPanel?.(() => setRightPanel({ type: "createView" }));
   }, [onRegisterOpenViewPanel]);
@@ -351,10 +371,10 @@ export default function DetailView2D({
 
       try {
         // Load Views
-        const viewsData = await viewService.getViewsByFile(targetId);
+        const viewsData = await view2DService.getViewsByFile(targetId);
         if (Array.isArray(viewsData)) setViews(viewsData);
 
-        const todosData = await todoService.getTodosByFile(targetId);
+        const todosData = await todoService2D.getTodosByFile(targetId);
         if (Array.isArray(todosData)) {
             setTodos(todosData);
         } else if ((todosData as any).data) {
@@ -516,12 +536,18 @@ export default function DetailView2D({
                 />
               </AnimatedPanel>
             )}
+          {/* {rightPanel?.type === "createView" && (
+            <CreateViewPanel
+              onClose={() => setRightPanel(null)}
+              onSave={handleCreateView}
+            />
+          )} */}
 
             {rightPanel.type === "createView" && (
               <AnimatedPanel animationKey="create-view">
                 <CreateViewPanel
                   onClose={() => setRightPanel(null)}
-                  onSave={handleCreateView}
+                  onSave={handleCreateView2D}
                 />
               </AnimatedPanel>
             )}

@@ -26,7 +26,6 @@ export default function CommentList({
   onUpdate,
   onDelete,
 }: Props) {
-  console.log(comments);
   return (
     <div className="p-4 pb-0">
       <h3 className="text-base font-medium text-foreground mb-4">

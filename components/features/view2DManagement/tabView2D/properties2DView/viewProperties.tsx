@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { 
   Edit2, MessageSquarePlus, Paperclip, 
   X, Send} from 'lucide-react';
-import { viewService } from '@/services/view.service';
+import { view2DService } from '@/services/view2d.service';
 
 // --- Types ---
 interface Attachment {
@@ -78,7 +78,7 @@ export default function ViewDetailPanel({
     }
     setLoading(true);
     try {
-      const updated = await viewService.updateView(view._id, { name: tempName.trim() });
+      const updated = await view2DService.updateView(view._id, { name: tempName.trim() });
       setIsEditingName(false);
       onUpdateSuccess?.(updated);
     } catch (error) {

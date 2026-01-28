@@ -1,62 +1,38 @@
-// src/services/view.service.ts
-import { httpClient } from "@/lib/http-client"; // Import wrapper bạn đã viết
-import { ViewItem } from "@/types/view";
+import { CreateViewDTO, IView, UpdateViewDTO } from "@/types/view";
+import { useApi as apiClient } from "@/app/hooks/useApi";
 
-// 👇 ĐỊNH NGHĨA API RIÊNG CHO VIEW (Trỏ về Local)
-const VIEW_API_URL = "http://localhost:4000/api";
+const api = apiClient();
 
 export const viewService = {
-  /**
-   * Lấy danh sách Views
-   */
-  getViewsByFile: async (fileId: string) => {
-    const response = await httpClient.get<{ data: ViewItem[] }>(
-      `${VIEW_API_URL}/views/file/${fileId}`
-    );
-
-    return response.data; 
-  },
-
-  /**
-   * Tạo View mới
-   */
-  createView: async (payload: {
-    name: string;
-    description: string;
-    projectId: string;
-    fileId: string;
-    pageIndex: number;
-    scale: number;
-    rotation: number;
-    previewSrc?: string;
-    createdBy?: string; // 👈 Thêm createdBy
-  }) => {
-    // Truyền Full URL
-    const response = await httpClient.post<ViewItem>(
-      `${VIEW_API_URL}/views`, 
-      payload
-    );
-    return response.data;
-  },
-
-  updateView: async (
-    viewId: string,
-    payload: { name: string; description?: string }
+  getViews: async (
+    projectId: string,
+    filters?: { type?: string; createdBy?: string }
   ) => {
-    const response = await httpClient.put<ViewItem>(
-      `${VIEW_API_URL}/views/${viewId}`,
-      payload
-    );
+    const params: Record<string, string> = { projectId };
+    if (filters?.type) params.type = filters.type;
+    if (filters?.createdBy) params.createdBy = filters.createdBy;
 
-    return response.data;
+    const data = await api.get("/views", { params });
+    return data as IView[];
   },
 
+  getViewById: async (viewId: string) => {
+    const data = await api.get(`/views/${viewId}`);
+    return data as IView;
+  },
+
+  createView: async (viewData: CreateViewDTO) => {
+    const data = await api.post("/views", viewData);
+    return data as IView;
+  },
+
+  updateView: async (viewId: string, updateData: UpdateViewDTO) => {
+    const data = await api.put(`/views/${viewId}`, updateData);
+    return data as IView;
+  },
 
   deleteView: async (viewId: string) => {
-    // Gọi method DELETE
-    const response = await httpClient.delete(
-        `${VIEW_API_URL}/views/${viewId}`
-    );
-    return response.data;
-  }
+    const data = await api.delete(`/views/${viewId}`);
+    return data;
+  },
 };
