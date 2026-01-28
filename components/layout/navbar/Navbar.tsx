@@ -292,8 +292,6 @@ export function Navbar({ onBack, onRefresh, onAction, onAddTodo,
                         </DropdownMenu>
 
                         <div className="w-px h-6 bg-border mx-1" />
-
-                        <div className="w-px h-6 bg-border mx-1" />
                         <NavIconButton icon={MoreVertical} label="More options" />
 
                     </div>
