@@ -3,11 +3,6 @@
 import { useEffect, useState, useRef } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { explorerService } from "@/services/explorer.service";
-import type { ViewItem, TodoItem, PageItem } from "@/types/explorer"; // Hoặc @/types/explorer tùy project của bạn
-import { ITag } from "@/types/tag";
-import {motion,  AnimatePresence } from 'framer-motion';
-import { AnimatedPanel } from "@/components/ui/amination";
-import { CreateViewDTO } from "@/types/view";
 import LeftPanelTool from "./leftPanelTool";
 import LeftPanelBody from "./leftPanelBody";
 import ViewDetailPanel from "./tabView2D/properties2DView/viewProperties";
@@ -17,10 +12,9 @@ import CreateTodoPanel from "./createModel/createTodo";
 import FileViewport from "./viewPort";
 import { IFile, IFileVersion } from "@/types/explorer";
 import { view2DService } from "@/services/view2d.service";
-import { todoService2D } from "@/services/todo2d.service";
+import { todo2DService } from "@/services/todo2d.service";
 
 import html2canvas from "html2canvas";
-import { toast } from "sonner";
 type PdfjsInstance = typeof import("react-pdf").pdfjs;
 const pdfjsRef: { current: PdfjsInstance | null } = { current: null };
 const ensurePdfjs = async (): Promise<PdfjsInstance | null> => {
@@ -40,7 +34,10 @@ const ensurePdfjs = async (): Promise<PdfjsInstance | null> => {
 };
 
 // --- IMPORT TYPES ---
-
+import type { ViewItem, TodoItem, PageItem } from "@/types/explorer"; // Hoặc @/types/explorer tùy project của bạn
+import { ITag } from "@/types/tag";
+import {motion,  AnimatePresence } from 'framer-motion';
+import { AnimatedPanel } from "@/components/ui/amination";
 
 type RightPanelState =
   | { type: "viewDetail"; data: ViewItem }
@@ -101,9 +98,11 @@ export default function DetailView2D({
   const [isLeftPanelOpen, setIsLeftPanelOpen] = useState<boolean>(true);
 
   const userPermission = file?.permission || "DOWNLOAD"; 
+
   const allowedTools: ActiveTool[] = (isShareMode && userPermission === "VIEW")
     ? ["page"] 
     : ["page", "view", "todo", "filedetail"];
+
   // --- LOGIC VIEW ---
   const handleCreateView2D = async (data: { name: string; description: string; createdBy?: string }) => {
     console.log("Check Token trước khi gửi:", localStorage.getItem('accessToken'));
@@ -191,7 +190,7 @@ export default function DetailView2D({
     if (!targetFileId) return;
 
     try {
-      const newTodo = await todoService2D.createTodo({
+      const newTodo = await todo2DService.createTodo({
         ...data,
         fileId: targetFileId,
         projectId: params.projectId,
@@ -207,7 +206,7 @@ export default function DetailView2D({
   };
   const handleDeleteTodo = async (todoId: string) => {
     try {
-        await todoService2D.deleteTodo(todoId);
+        await todo2DService.deleteTodo(todoId);
 
         setTodos((prev) => prev.filter((t) => t._id !== todoId));
 
@@ -233,23 +232,6 @@ export default function DetailView2D({
       return 1;
     }
   };
-  // [NEW] Hàm giả lập lấy state từ Viewer 2D
-  // Trong thực tế, bạn sẽ lấy thông tin này từ component <FileViewport /> thông qua ref hoặc context
-  const get2DViewerState = () => {
-    return {
-      camera: {
-        position: { x: 0, y: 0, z: 0 },
-        target: { x: 0, y: 0, z: 0 },
-        up: { x: 0, y: 1, z: 0 },
-        projection: "ORTHO" as const, // 2D bắt buộc là ORTHO
-        zoom: zoom, // Lấy state zoom hiện tại của component
-      },
-      markupData: {
-        pageIndex: pageIndex, // Lưu lại đang xem trang nào
-        rotate: rotate, // Lưu lại góc xoay
-      },
-    };
-  };
 
   // Rotate Logic
   const rotateCurrentPage = (delta: number) => {
@@ -260,9 +242,6 @@ export default function DetailView2D({
   };
 
   // Effects
-  // [NEW] Hàm xử lý tạo View
- 
-  /* ===== sync active tool ===== */
   useEffect(() => {
     onRegisterOpenViewPanel?.(() => setRightPanel({ type: "createView" }));
   }, [onRegisterOpenViewPanel]);
@@ -383,7 +362,7 @@ export default function DetailView2D({
         const viewsData = await view2DService.getViewsByFile(targetId);
         if (Array.isArray(viewsData)) setViews(viewsData);
 
-        const todosData = await todoService2D.getTodosByFile(targetId);
+        const todosData = await todo2DService.getTodosByFile(targetId);
         if (Array.isArray(todosData)) {
             setTodos(todosData);
         } else if ((todosData as any).data) {
@@ -437,6 +416,27 @@ export default function DetailView2D({
     }
   }, [allowedTools, activeTool]);
 
+  // useEffect(() => {
+  //   if (isShareMode && userPermission === "VIEW") return;
+
+  //   const fetchMetadata = async () => {
+  //     const targetId = fileId || params.viewId;
+  //     if (!targetId) return;
+
+  //     try {
+  //       const viewsData = await view2DService.getViewsByFile(targetId);
+  //       if (Array.isArray(viewsData)) setViews(viewsData);
+
+  //       const todosData = await todo2DService.getTodosByFile(targetId);
+  //       if (Array.isArray(todosData)) setTodos(todosData);
+  //     } catch (error) {
+  //       console.error("Lỗi tải metadata:", error);
+  //     }
+  //   };
+
+  //   fetchMetadata();
+  // }, [fileId, params.viewId, isShareMode, userPermission]);
+
   if (loading) return <div className="flex items-center justify-center h-full text-gray-500">Loading 2D Management...</div>;
   if (error) return <div className="p-6 text-red-600">{error}</div>;
 
@@ -468,7 +468,6 @@ export default function DetailView2D({
               <LeftPanelBody
               activeTool={activeTool}
               allowedKeys={allowedTools} 
-              todoCount={todos.length}
               data={{
                 file: selectedFile || file,
                 view: selectedView,
@@ -545,12 +544,6 @@ export default function DetailView2D({
                 />
               </AnimatedPanel>
             )}
-          {/* {rightPanel?.type === "createView" && (
-            <CreateViewPanel
-              onClose={() => setRightPanel(null)}
-              onSave={handleCreateView}
-            />
-          )} */}
 
             {rightPanel.type === "createView" && (
               <AnimatedPanel animationKey="create-view">

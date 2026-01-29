@@ -1,44 +1,41 @@
-import { httpClient } from "@/lib/http-client";
-import { TodoItem } from "@/types/explorer"; 
+import { useApi as apiClient } from "@/app/hooks/useApi";
+import { TodoItem } from "@/types/explorer";
 
-// 👇 Trỏ về Local để dev
-const TODO_API_URL = "http://localhost:4000/api";
+const api = apiClient();
+const BASE_URL = "/todos2d";
 
-export const todoService2D = {
-  // 1. Lấy danh sách
+export const todo2DService = {
+  /**
+   * 1. Lấy danh sách todo theo file
+   */
   getTodosByFile: async (fileId: string) => {
-    const response = await httpClient.get<{ data: TodoItem[] }>(
-      `${TODO_API_URL}/todos/file/${fileId}`
-    );
-    // Xử lý linh hoạt response
-    if (Array.isArray(response)) return response;
-    if ((response as any).data) return (response as any).data;
-    return [];
+    const data = await api.get(`${BASE_URL}/file/${fileId}`);
+    return data as TodoItem[];
   },
 
-  // 2. Tạo mới
-  createTodo: async (payload: any) => {
-    const response = await httpClient.post(
-      `${TODO_API_URL}/todos`, 
-      payload
-    );
-    return response.data;
+  /**
+   * 2. Tạo todo mới
+   */
+  createTodo: async (payload: Partial<TodoItem>) => {
+    const res = await api.post(BASE_URL, payload);
+    return res as TodoItem;
   },
 
-  // 3. Xóa (Đã có)
+  /**
+   * 3. Xoá todo
+   */
   deleteTodo: async (todoId: string) => {
-    const response = await httpClient.delete(
-      `${TODO_API_URL}/todos/${todoId}`
-    );
-    return response.data;
+    await api.delete(`${BASE_URL}/${todoId}`);
   },
 
-  // 4. 👇 BỔ SUNG: Cập nhật (Dùng cho nút Edit)
-  updateTodo: async (todoId: string, payload: Partial<TodoItem>) => {
-    const response = await httpClient.put(
-      `${TODO_API_URL}/todos/${todoId}`,
-      payload
-    );
-    return response.data;
-  }
+  /**
+   * 4. Cập nhật todo (Edit)
+   */
+  updateTodo: async (
+    todoId: string,
+    payload: Partial<TodoItem>
+  ) => {
+    const res = await api.patch(`${BASE_URL}/${todoId}`, payload);
+    return res as TodoItem;
+  },
 };

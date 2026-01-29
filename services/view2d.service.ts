@@ -1,56 +1,35 @@
-import { httpClient } from "@/lib/http-client";
+import { useApi as apiClient } from "@/app/hooks/useApi";
 import { View2DItem } from "@/types/view2d";
 
-// 👉 sau này có thể bỏ hardcode, dùng env
-const VIEW_2D_API_URL = "/views";
+const api = apiClient();
+const BASE_URL = "/views2d";
 
 export const view2DService = {
   /**
-   * Lấy danh sách View theo file (2D)
+   * GIỮ NGUYÊN TÊN HÀM CŨ
    */
   getViewsByFile: async (fileId: string) => {
-    const response = await httpClient.get<{ data: View2DItem[] }>(
-      `${VIEW_2D_API_URL}/file/${fileId}`
-    );
-    return response.data;
+    const data = await api.get(`${BASE_URL}/file/${fileId}`);
+    return data as View2DItem[];
   },
 
   /**
-   * Tạo View 2D (PDF/Image)
+   * GIỮ NGUYÊN createView
    */
-  createView: async (payload: {
-    name: string;
-    description?: string;
-    projectId: string;
-    fileId: string;
-    pageIndex: number;
-    scale: number;
-    rotation: number;
-    previewSrc?: string;
-    createdBy?: string;
-  }) => {
-    const response = await httpClient.post<View2DItem>(
-      VIEW_2D_API_URL,
-      payload
-    );
-    return response.data;
+  createView: async (payload: Partial<View2DItem>) => {
+    const res = await api.post(BASE_URL, payload);
+    return res as View2DItem;
   },
 
   updateView: async (
     viewId: string,
-    payload: { name: string; description?: string }
+    payload: Partial<View2DItem>
   ) => {
-    const response = await httpClient.put<View2DItem>(
-      `${VIEW_2D_API_URL}/${viewId}`,
-      payload
-    );
-    return response.data;
+    const res = await api.patch(`${BASE_URL}/${viewId}`, payload);
+    return res as View2DItem;
   },
 
   deleteView: async (viewId: string) => {
-    const response = await httpClient.delete(
-      `${VIEW_2D_API_URL}/${viewId}`
-    );
-    return response.data;
+    await api.delete(`${BASE_URL}/${viewId}`);
   },
 };

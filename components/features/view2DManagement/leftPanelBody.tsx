@@ -17,6 +17,7 @@ type ActiveTool = 'filedetail' | 'page' | 'view' | 'todo';
 
 type LeftPanelBodyProps = {
   activeTool: ActiveTool;
+  allowedKeys: ActiveTool[];
   data: {
     file: IFile | null;
     view?: ViewItem | null;
@@ -32,6 +33,7 @@ type LeftPanelBodyProps = {
   onCreateTodo: () => void;
   onDeleteView?: (id: string) => void;
   onDeleteTodo?: (id: string) => void;
+  
 };
 
 export default function LeftPanelBody(props: LeftPanelBodyProps) {
@@ -45,6 +47,7 @@ export default function LeftPanelBody(props: LeftPanelBodyProps) {
     onCreateTodo,
     onDeleteView,
     onDeleteTodo,
+    
   } = props;
 
   return (
@@ -77,6 +80,7 @@ export default function LeftPanelBody(props: LeftPanelBodyProps) {
             onSelectView={onSelectView}
             onCreateView={onCreateView}
             onDeleteView={onDeleteView}
+            
           />
         )}
 

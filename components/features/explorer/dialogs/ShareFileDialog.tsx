@@ -1,4 +1,3 @@
-
 "use client";
 
 import { useState, useEffect } from "react";
@@ -123,22 +122,22 @@ export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
         toast.error("Lỗi server: Không nhận được token.");
         return;
       }
-      const origin = window.location.origin;
 
+      const clientUrl =
+        process.env.NEXT_PUBLIC_CLIENT_URL || window.location.origin;
       // Tạo đường dẫn
-      // const link = `${origin}/projects/${projectId}/viewer/${file?._id}?shareToken=${token}`;
-      const link = `${origin}/share/${token}`;
+      const link = `${clientUrl}/share/${token}`;
       setShareLink(link);
       
       // Hiển thị thông báo phù hợp
       if (recipients.length > 0) {
-        toast.success(`Đã tạo Link và gửi Email thành công cho ${recipients.length} người!`);
+        toast.success(`Link created and email sent successfully to ${recipients.length} people!`);
       } else {
-        toast.success("Tạo Link thành công!");
+        toast.success("Link created successfully!");
       }
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.message || "Lỗi khi thực hiện chia sẻ");
+      toast.error(err?.response?.data?.message || "Error when performing sharing");
     }
   });
 
@@ -158,8 +157,8 @@ export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
            <div className="m-4 p-4 bg-amber-50 border border-amber-200 rounded-md flex gap-3 items-center">
               <FileWarning className="text-amber-600 h-6 w-6" />
               <div>
-                 <p className="font-medium text-amber-800">Không thể chia sẻ Thư mục</p>
-                 <p className="text-xs text-amber-600">Vui lòng chọn File cụ thể.</p>
+                 <p className="font-medium text-amber-800">Unable to share folder</p>
+                 <p className="text-xs text-amber-600">Please select the specific file.</p>
               </div>
            </div>
         ) : (
@@ -292,7 +291,7 @@ export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
            {shareLink ? (
               <div className="space-y-3 animate-in fade-in zoom-in-95 duration-200">
                  <div className="flex items-center gap-2 text-green-600 text-sm font-medium">
-                    <Check size={16}/> Chia sẻ thành công!
+                    <Check size={16}/> Sharing success!
                  </div>
                  <div className="flex gap-2">
                     <Input value={shareLink} readOnly className="bg-white font-mono text-xs" />
@@ -300,18 +299,18 @@ export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
                        <Copy size={16}/>
                     </Button>
                  </div>
-                 <Button variant="outline" className="w-full" onClick={handleClose}>Đóng</Button>
+                 <Button variant="outline" className="w-full" onClick={handleClose}>Close</Button>
               </div>
            ) : (
               <div className="flex justify-end gap-2">
                  {isFolder ? (
-                    <Button variant="outline" onClick={handleClose}>Đóng</Button>
+                    <Button variant="outline" onClick={handleClose}>Close</Button>
                  ) : (
                     <>
-                       <Button variant="ghost" onClick={handleClose}>Hủy</Button>
+                       <Button variant="ghost" onClick={handleClose}>Cancel</Button>
                        <Button onClick={() => shareMutation.mutate()} disabled={!canSubmit || shareMutation.isPending}>
                           {shareMutation.isPending ? <Loader2 className="animate-spin mr-2 h-4 w-4"/> : (
-                              recipients.length > 0 ? "Tạo Link & Gửi Mail" : "Tạo Link Share"
+                              recipients.length > 0 ? "Create a Link and Send an Email" : "Create a Share Link"
                           )}
                        </Button>
                     </>
