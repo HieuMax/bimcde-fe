@@ -43,7 +43,11 @@ export default function IfcViewer({
   onRestoreView,
   onUpdateSnapshot,
   modelOpacity,
-  onOpacityChange
+  onOpacityChange,
+  onOpenNewClashDrawer,
+  clashResults,
+  autoExpandedClashSetId,
+  onRestoreClashSet
 }) {
   const canvasRef = useRef(null);
   const loaderRef = useRef(null);
@@ -166,28 +170,33 @@ export default function IfcViewer({
 
         modelUrlMap.current = {};
 
-        const loadPromises = ifcUrls.map(url => loaderRef.current.loadIfcUrl(url));
+        // const loadPromises = ifcUrls.map(url => loaderRef.current.loadIfcUrl(url));
 
-        const loadedModels = await Promise.all(loadPromises);
         const newModels = [];
 
-        for (let i = 0; i < loadedModels.length; i++) {
-          const model = loadedModels[i];
+        for (let i = 0; i < ifcUrls.length; i++) {
           const url = ifcUrls[i];
-          const modelID = model.modelID;
+          console.log(`[Viewer] Loading model ${i + 1}/${ifcUrls.length}: ${url}`);
 
-          modelUrlMap.current[modelID] = url;
+          try {
+            const model = await loaderRef.current.loadIfcUrl(url);
+            const modelID = model.modelID;
+            modelUrlMap.current[modelID] = url;
 
-          const { tree, layers } = await loaderRef.current.getSpatialTree(modelID);
-          newModels.push({
-            id: i,
-            ifcModelID: modelID,
-            name: url.split('/').pop(),
-            tree,
-            layers,
-            mesh: model.mesh,
-            visible: true,
-          });
+            const { tree, layers } = await loaderRef.current.getSpatialTree(modelID);
+
+            newModels.push({
+              id: i,
+              ifcModelID: modelID,
+              name: url.split('/').pop(),
+              tree,
+              layers,
+              mesh: model.mesh,
+              visible: true,
+            });
+          } catch (err) {
+            console.error(`Error loading model ${url}:`, err);
+          }
         }
         setModels(newModels);
         if (onLoaded) onLoaded();
@@ -417,7 +426,8 @@ export default function IfcViewer({
         // capture: () => loaderRef.current?.getSnapshot(),
         capture: getSnapshot,
         restore: restoreState,
-        getContext: getContext
+        getContext: getContext,
+        runClashTest: runClashTest
         // --------------------
       });
     }
@@ -429,6 +439,28 @@ export default function IfcViewer({
       loaderRef.current.dispose();
     }
   }, [])
+
+
+  // --- WRAPPER CLASH TEST ---
+  const runClashTest = async (modelIDs, tolerance) => {
+    if (!loaderRef.current) return 0;
+    return await loaderRef.current.runClashTest(modelIDs, tolerance);
+  };
+
+
+  const handleSelectClashItem = (item1, item2) => {
+    if (!loaderRef.current) return;
+
+    const itemsToHighlight = [
+      { modelID: item1.modelID, expressID: item1.expressID },
+      { modelID: item2.modelID, expressID: item2.expressID }
+    ];
+
+    loaderRef.current.highlightItems(itemsToHighlight);
+
+    // Zoom camera  (Optional)
+    // loaderRef.current.zoomToItems(itemsToHighlight); 
+  };
 
   const getSnapshot = () => {
     if (!loaderRef.current || !sceneRef.current) return null;
@@ -1041,7 +1073,14 @@ export default function IfcViewer({
                     width: '100%',
                   }}
                 >
-                  <ClashSets />
+                  <ClashSets
+                    onOpenNewClashDrawer={onOpenNewClashDrawer}
+                    projectId={projectId}
+                    onSelectClashItem={handleSelectClashItem}
+                    clashResults={clashResults}
+                    onRestoreClashSet={onRestoreClashSet}
+                    autoExpandedSetId={autoExpandedClashSetId}
+                  />
                 </div>
               )}
             </div>

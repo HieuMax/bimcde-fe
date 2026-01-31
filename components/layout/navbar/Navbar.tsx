@@ -39,6 +39,7 @@ interface NavbarProps {
     onRefresh?: () => void;
     onAction?: () => void;
     onAddTodo?: () => void;
+    onAddView: () => void;
     modelOpacity?: number;
     onOpacityChange?: (value: number) => void;
 }
@@ -72,9 +73,14 @@ function NavIconButton({ icon: Icon, label, onClick, className }: NavButtonProps
     )
 }
 
-export function Navbar({ onBack, onRefresh, onAction, onAddTodo,
+export function Navbar({
+    onBack,
+    onRefresh,
+    onAction,
+    onAddTodo,
     modelOpacity = 1,
-    onOpacityChange
+    onOpacityChange,
+    onAddView
 }: NavbarProps) {
     return (
         <TooltipProvider delayDuration={300}>
@@ -155,7 +161,7 @@ export function Navbar({ onBack, onRefresh, onAction, onAddTodo,
                         <NavIconButton icon={Ruler} label="Measurement option" />
                         <NavIconButton icon={MessageCircleDashed} label="Add markup" />
                         <NavIconButton icon={SquareScissors} label="Clip plane" />
-                        <NavIconButton icon={CameraIcon} label="Add view" />
+                        <NavIconButton icon={CameraIcon} label="Add view" onClick={onAddView} />
                         <NavIconButton icon={ClipboardCheck} label="Add todo" onClick={onAddTodo} />
 
                         {/* Divider */}

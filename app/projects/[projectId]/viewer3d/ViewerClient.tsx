@@ -3,13 +3,16 @@
 import { useSearchParams, useRouter, useParams } from 'next/navigation';
 import React, { useEffect, useMemo, useState } from 'react';
 import IfcViewer from '@/app/components/ifcs/IfcViewer';
-import { Box, Layers, ClipboardCheck, ChevronRight, ChevronLeft, Camera, FolderTree, Sheet, BadgeInfo, BookText } from 'lucide-react';
+import { Box, Layers, ClipboardCheck, ChevronRight, ChevronLeft, Camera, FolderTree, Sheet, BadgeInfo, BookText, Loader2 } from 'lucide-react';
 import { Navbar } from '@/components/layout/navbar/Navbar';
 import { NewTodoDrawer } from '@/components/todos/NewTodoDrawer';
 import { viewService3D as viewService } from '@/services/view3d.service';
 import { toast } from 'sonner';
 import { ViewDrawer } from '@/components/views/ViewDrawer';
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { NewClashDrawer } from '@/components/_3d/clash_sets/NewClashDrawer';
+import { CreateClashSetDto } from '@/types/clash';
+import { clashService } from '@/services/clash.service';
 
 interface SelectedItem {
   modelID?: string;
@@ -46,11 +49,18 @@ export default function ViewerClient() {
   const [drawerInitialData, setDrawerInitialData] = useState<NewTodoInitialData | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  const [pendingTodo, setPendingTodo] = useState<{
-    todo: any;
-    mode: "view" | "edit" | "create";
-    type?: "todo" | "view";
-  } | null>(null);
+  // --- CONSTANTS STORAGE KEYS ---
+  const STORAGE_TAB_KEY = `bimcde_viewer_tab_${projectId}`;
+  const STORAGE_PENDING_CLASH = `bimcde_pending_clash_${projectId}`;
+  const STORAGE_PENDING_TODO = `bimcde_pending_todo_${projectId}`;
+
+  // const [pendingTodo, setPendingTodo] = useState<{
+  //   todo: any;
+  //   mode: "view" | "edit" | "create";
+  //   type?: "todo" | "view";
+  // } | null>(null);
+
+  const [pendingTodo, setPendingTodo] = useState<any>(null);
 
   const queryClient = useQueryClient();
 
@@ -58,6 +68,7 @@ export default function ViewerClient() {
     capture: () => any;
     restore: (state: any, items: any[]) => void;
     getContext: () => any[];
+    runClashTest: (modelIDs: any[], tolerance: number, onProgress: (p: number, t: string) => void) => Promise<any[]>;
   } | null>(null);
 
   const [todoToEdit, setTodoToEdit] = useState<any>(null);
@@ -71,9 +82,141 @@ export default function ViewerClient() {
 
   // --- DATA TABLE ---
   const isDataTableMode = state === 'data-table';
-  const currentSidebarWidth = isDataTableMode ? 0 : (isCollapsed ? 250 : 370);
 
   const [modelOpacity, setModelOpacity] = useState(1);
+
+
+  // --- STATE CLASH DRAWER ---
+  const [isClashDrawerOpen, setIsClashDrawerOpen] = useState(false);
+  const [clashResults, setClashResults] = useState<any[]>([]);
+  const [isRunningClash, setIsRunningClash] = useState(false);
+  const [clashProgress, setClashProgress] = useState(0);
+  const [clashStatusText, setClashStatusText] = useState("");
+  const [pendingClashSetId, setPendingClashSetId] = useState<string | null>(null);
+
+  // --- MODELS FOR CLASH ---
+  const availableModelsForClash = useMemo(() => {
+    return ifcUrls.map((url, idx) => ({
+      id: idx,
+      name: url.split('/').pop() || `Model ${idx}`,
+      fileUrl: url
+    }));
+  }, [ifcUrls]);
+
+  // --- SAVE CLASH MUTATION ---
+  const saveClashMutation = useMutation({
+    mutationFn: (data: CreateClashSetDto) => clashService.create(data),
+    onSuccess: (newSet) => {
+      toast.success("Clash set saved successfully!");
+      queryClient.invalidateQueries({ queryKey: ['clash-sets', projectId] });
+
+      setClashResults(prev => [newSet, ...prev]);
+
+      setState('clash-sets');
+    },
+    onError: (err) => {
+      console.error(err);
+      toast.error("Failed to save clash set to database.");
+    }
+  });
+
+  // --- RUN ANALYSIS FLOW ---
+  const runAnalysis = async (setupData: any) => {
+    if (!viewerActions.current?.runClashTest) return;
+    setIsRunningClash(true);
+    setClashProgress(0);
+
+    try {
+      const { models, tolerance, name, type, ignoreSameType } = setupData;
+
+      const modelIDs = models.map((m: any) => m.modelId);
+
+      const detectedClashes = await viewerActions.current.runClashTest(
+        modelIDs,
+        tolerance,
+        (percent, text) => {
+          setClashProgress(percent);
+          setClashStatusText(text);
+        }
+      );
+
+      const modelsWithUrl = models.map((m: any) => ({
+        modelId: m.modelId,
+        version: m.version,
+        fileUrl: ifcUrls[m.modelId as number]
+      }));
+
+      const payload: CreateClashSetDto = {
+        projectId: projectId as string,
+        name: name,
+        type: type || 'clash',
+        tolerance: tolerance,
+        ignoreSameType: ignoreSameType || false,
+        models: modelsWithUrl,
+        items: detectedClashes
+      };
+
+      saveClashMutation.mutate(payload);
+
+    } catch (error) {
+      console.error(error);
+      toast.error("Error during clash detection");
+    } finally {
+      setIsRunningClash(false);
+    }
+  };
+
+  const handleRestoreClashSet = (clashSet: any) => {
+    const targetUrls = clashSet.models.map((m: any) => m.fileUrl).filter(Boolean);
+    if (targetUrls.length === 0) {
+      console.warn("Clash set missing file URLs");
+      return;
+    }
+
+    const isContextMatch = areArraysEqual(ifcUrls, targetUrls);
+
+    if (isContextMatch) {
+      console.log("Context match. Expanding set...");
+      setPendingClashSetId(clashSet._id);
+    } else {
+      console.log("Context mismatch. Switching models for Clash...");
+      switchContextAndReload(
+        targetUrls,
+        clashSet._id,
+        'clash'
+      );
+    }
+  };
+
+  // ==============================================================================================
+  // STATE PERSISTENCE
+  // ==============================================================================================
+
+  useEffect(() => {
+    const savedTab = sessionStorage.getItem(STORAGE_TAB_KEY);
+    if (savedTab) setState(savedTab);
+
+    const savedTodoStr = sessionStorage.getItem(STORAGE_PENDING_TODO);
+    if (savedTodoStr) {
+      try {
+        const parsedTodo = JSON.parse(savedTodoStr);
+        setPendingTodo(parsedTodo);
+        sessionStorage.removeItem(STORAGE_PENDING_TODO);
+      } catch (e) {
+        console.error("Failed to parse pending todo", e);
+      }
+    }
+
+    const savedClashId = sessionStorage.getItem(STORAGE_PENDING_CLASH);
+    if (savedClashId) {
+      setPendingClashSetId(savedClashId);
+      sessionStorage.removeItem(STORAGE_PENDING_CLASH);
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    if (state) sessionStorage.setItem(STORAGE_TAB_KEY, state);
+  }, [state, projectId]);
 
   const handleOpenTodoDrawer = (todo: any, mode: "view" | "edit" | "create") => {
     if (mode === 'create') {
@@ -157,11 +300,14 @@ export default function ViewerClient() {
   }, [searchParams, projectId, router]);
 
   const handleBack = () => {
-    router.push(`/projects/${projectId}/data`);
+    sessionStorage.removeItem(STORAGE_TAB_KEY);
+    sessionStorage.removeItem(STORAGE_PENDING_CLASH);
+    sessionStorage.removeItem(STORAGE_PENDING_TODO);
+    window.location.href = `/projects/${projectId}/data`;
   };
 
   const handleRefresh = () => {
-    console.log("Refresh Action Clicked");
+    window.location.reload()
   };
 
   const onAddTodo = () => {
@@ -220,52 +366,37 @@ export default function ViewerClient() {
     setIsDrawerOpen(true);
   };
 
-
   const handleSelectTodo = (todo: any) => {
-
     let targetUrls: string[] = [];
-
     if (todo.items && todo.items.length > 0) {
-
       targetUrls = Array.from(new Set(todo.items.map((i: any) => i.fileUrl) as string[]));
     }
 
-
-    if (targetUrls.length === 0) {
-      if (todo.viewState) {
-
-        viewerActions.current?.restore(todo.viewState, []);
-      }
-      return;
-    }
-
-
-    const isContextMatch = areArraysEqual(ifcUrls, targetUrls);
+    const isContextMatch = targetUrls.length === 0 || areArraysEqual(ifcUrls, targetUrls);
 
     if (isContextMatch) {
-      console.log("Context match, restoring view only...");
-      if (viewerActions.current?.restore) {
+      setPendingClashSetId(null);
+      sessionStorage.removeItem(STORAGE_PENDING_CLASH);
+      if (viewerActions.current?.restore && todo.viewState) {
         viewerActions.current.restore(todo.viewState, todo.items);
       }
     } else {
-      console.log("Context mismatch, switching models...", targetUrls);
-
-      setPendingTodo(todo);
-
-      const newUrlsParams = JSON.stringify(targetUrls);
-      router.push(`/projects/${projectId}/viewer3d?urls=${encodeURIComponent(newUrlsParams)}`);
+      switchContextAndReload(
+        targetUrls,
+        { todo, mode: "view", type: "todo" },
+        'view_todo'
+      );
     }
   };
 
 
-
   const handleViewerLoaded = () => {
     if (pendingTodo) {
-      console.log("New model loaded, processing pending todo...");
-
+      console.log("Processing pending todo/view context...", pendingTodo);
       setTimeout(() => {
         const { todo, mode, type } = pendingTodo;
 
+        // Restore Camera & Items
         if (viewerActions.current?.restore && todo.viewState) {
           viewerActions.current.restore(todo.viewState, todo.items || []);
         }
@@ -275,17 +406,45 @@ export default function ViewerClient() {
           setViewDrawerMode(mode);
           setIsViewDrawerOpen(true);
           setIsDrawerOpen(false);
+          if (state !== 'views') setState('views');
         } else {
           setTodoToEdit(todo);
           setDrawerMode(mode);
           setIsDrawerOpen(true);
           setIsViewDrawerOpen(false);
+          if (state !== 'todos') setState('todos');
         }
 
+        // Reset state
         setPendingTodo(null);
-      }, 500);
+      }, 800);
+      return;
+    }
+
+    if (pendingClashSetId) {
+      console.log("Processing pending clash set:", pendingClashSetId);
+      if (state !== 'clash-sets') setState('clash-sets');
     }
   };
+
+  // ==============================================================================================
+  // CONTEXT SWITCHING
+  // ==============================================================================================
+
+  const switchContextAndReload = (targetUrls: string[], pendingData: any, type: 'clash' | 'view_todo') => {
+    sessionStorage.removeItem(STORAGE_PENDING_CLASH);
+    sessionStorage.removeItem(STORAGE_PENDING_TODO);
+
+    if (type === 'clash') {
+      sessionStorage.setItem(STORAGE_PENDING_CLASH, pendingData);
+    } else {
+      sessionStorage.setItem(STORAGE_PENDING_TODO, JSON.stringify(pendingData));
+    }
+
+    const newUrlsParams = JSON.stringify(targetUrls);
+    console.log("Switching context via Hard Reload...", targetUrls);
+    window.location.href = `/projects/${projectId}/viewer3d?urls=${encodeURIComponent(newUrlsParams)}`;
+  }
 
 
   useEffect(() => {
@@ -335,6 +494,10 @@ export default function ViewerClient() {
     }
   };
 
+  const onAddView = () => {
+    handleOpenViewDrawer(null, 'create');
+  };
+
   // --- 2. UPDATE SNAPSHOT (...) ---
   const handleUpdateSnapshot = async (view: any) => {
     if (!viewerActions.current?.capture) return;
@@ -370,28 +533,56 @@ export default function ViewerClient() {
   };
 
   // --- 3. RESTORE VIEW (same as handleSelectTodo) ---
+  // const handleRestoreView = (view: any) => {
+  //   if (!view.items || !view.viewState) return;
+
+  //   // Get unique URL
+  //   const targetUrls = Array.from(new Set(view.items.map((i: any) => i.fileUrl) as string[]));
+
+  //   // Compare Context
+  //   const isContextMatch = targetUrls.length === 0 || areArraysEqual(ifcUrls, targetUrls);
+
+  //   if (isContextMatch) {
+  //     console.log("Context match, restoring view...");
+  //     if (viewerActions.current?.restore) {
+  //       viewerActions.current.restore(view.viewState, []);
+  //     }
+  //   } else {
+  //     console.log("Context mismatch, switching models for view...");
+
+  //     setIsViewDrawerOpen(false);
+  //     setPendingTodo({ todo: view, mode: "view", type: 'view' });
+
+  //     const newUrlsParams = JSON.stringify(targetUrls);
+  //     // window.location.href = `/projects/${projectId}/viewer3d?urls=${encodeURIComponent(newUrlsParams)}`;
+  //     router.push(`/projects/${projectId}/viewer3d?urls=${encodeURIComponent(newUrlsParams)}`);
+  //   }
+  // };
+
   const handleRestoreView = (view: any) => {
     if (!view.items || !view.viewState) return;
-
-    // Get unique URL
     const targetUrls = Array.from(new Set(view.items.map((i: any) => i.fileUrl) as string[]));
 
-    // Compare Context
-    const isContextMatch = targetUrls.length === 0 || areArraysEqual(ifcUrls, targetUrls);
+    if (targetUrls.length === 0) {
+      if (viewerActions.current?.restore) viewerActions.current.restore(view.viewState, []);
+      return;
+    }
+
+    const isContextMatch = areArraysEqual(ifcUrls, targetUrls);
 
     if (isContextMatch) {
-      console.log("Context match, restoring view...");
+      setPendingClashSetId(null);
+      sessionStorage.removeItem(STORAGE_PENDING_CLASH);
+
       if (viewerActions.current?.restore) {
         viewerActions.current.restore(view.viewState, []);
       }
     } else {
-      console.log("Context mismatch, switching models for view...");
-
-      setIsViewDrawerOpen(false);
-      setPendingTodo({ todo: view, mode: "view", type: 'view' });
-
-      const newUrlsParams = JSON.stringify(targetUrls);
-      router.push(`/projects/${projectId}/viewer3d?urls=${encodeURIComponent(newUrlsParams)}`);
+      switchContextAndReload(
+        targetUrls,
+        { todo: view, mode: "view", type: 'view' },
+        'view_todo'
+      );
     }
   };
 
@@ -403,8 +594,8 @@ export default function ViewerClient() {
         onAddTodo={onAddTodo}
         modelOpacity={modelOpacity}
         onOpacityChange={setModelOpacity}
+        onAddView={onAddView}
       />
-      {/* handle navbar and extend when click item can create todo related to it */}
       <div className="flex flex-1 relative overflow-hidden">
 
         <div className="w-10 min-h-full bg-gray-200 z-10">
@@ -453,6 +644,23 @@ export default function ViewerClient() {
               flexShrink: 0
             }}
           >
+
+            {/* PROGRESS OVERLAY */}
+            {isRunningClash && (
+              <div className="absolute top-4 right-4 z-50 bg-white p-4 rounded-lg shadow-lg border w-80 animate-in slide-in-from-right-10">
+                <div className="flex items-center gap-3 mb-2">
+                  <Loader2 className="w-5 h-5 animate-spin text-blue-600" />
+                  <span className="font-semibold text-sm">Running Clash Detection...</span>
+                </div>
+                <div className="w-full bg-slate-100 h-2 rounded-full mb-1">
+                  <div className="bg-blue-600 h-2 rounded-full transition-all duration-300" style={{ width: `${clashProgress}%` }} />
+                </div>
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>{clashStatusText}</span><span>{clashProgress}%</span>
+                </div>
+              </div>
+            )}
+
             <IfcViewer
               setSelectdItemsForNavbar={setSelectedItems}
               isCollapsed={isCollapsed}
@@ -463,14 +671,15 @@ export default function ViewerClient() {
               onLoaded={handleViewerLoaded}
               onSelectTodo={handleSelectTodo}
               onOpenTodoDrawer={handleOpenTodoDrawer}
-
-              //
               onOpenViewDrawer={handleOpenViewDrawer}
               onRestoreView={handleRestoreView}
               onUpdateSnapshot={handleUpdateSnapshot}
               modelOpacity={modelOpacity}
               onOpacityChange={setModelOpacity}
-            // sidebarWidth={currentSidebarWidth}
+              onOpenNewClashDrawer={() => setIsClashDrawerOpen(true)}
+              clashResults={clashResults}
+              onRestoreClashSet={handleRestoreClashSet}
+              autoExpandedClashSetId={pendingClashSetId}
             />
 
 
@@ -511,6 +720,17 @@ export default function ViewerClient() {
             viewerActions.current.restore(viewState, []);
           }
         }}
+      />
+
+
+      {/* --- RENDER CLASH DRAWER --- */}
+      <NewClashDrawer
+        open={isClashDrawerOpen}
+        onOpenChange={setIsClashDrawerOpen}
+        availableModels={availableModelsForClash}
+        onRunTest={runAnalysis}
+        projectId={projectId as string}
+        onClashSetCreated={() => { }}
       />
     </div>
   );
