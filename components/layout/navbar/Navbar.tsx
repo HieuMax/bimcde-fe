@@ -24,6 +24,10 @@ import {
     RotateCcw,
     ChevronDown,
     Ghost,
+    Move, // Icon Pan
+    Orbit, // Icon Rotate
+    Footprints,
+    Check, // Icon Walk
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -33,6 +37,11 @@ import {
     TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { cn } from '@/lib/utils';
+import { useMemo } from 'react';
+
+export type CameraMode = 'orbit' | 'pan' | 'look-around' | 'walk';
+export type ActiveToolType = 'todo' | 'view' | 'measurement' | 'clipping' | 'properties' | null;
 
 interface NavbarProps {
     onBack?: () => void;
@@ -42,6 +51,10 @@ interface NavbarProps {
     onAddView: () => void;
     modelOpacity?: number;
     onOpacityChange?: (value: number) => void;
+    activeTool?: ActiveToolType;
+    onToolSelect?: (tool: ActiveToolType) => void;
+    cameraMode?: CameraMode;
+    onCameraModeChange?: (mode: CameraMode) => void;
 }
 
 // Helper component to render a button with a tooltip to avoid code repetition
@@ -49,18 +62,25 @@ interface NavButtonProps {
     icon: LucideIcon;
     label: string;
     onClick?: () => void;
+    isActive?: boolean;
     className?: string;
 }
 
-function NavIconButton({ icon: Icon, label, onClick, className }: NavButtonProps) {
+function NavIconButton({ icon: Icon, label, onClick, isActive, className }: NavButtonProps) {
     return (
         <Tooltip>
             <TooltipTrigger asChild>
                 <Button
                     variant="ghost"
                     size="sm"
-                    className={`h-8 w-8 p-0 hover:bg-accent ${className || ''}`}
                     onClick={onClick}
+                    className={cn(
+                        "h-9 w-9 transition-colors",
+                        isActive
+                            ? "bg-blue-100 text-blue-600 hover:bg-blue-200 hover:text-blue-700 border-blue-200"
+                            : "hover:text-foreground hover:bg-accent",
+                        className
+                    )}
                 >
                     <Icon className="h-6 w-6" />
                     <span className="sr-only">{label}</span>
@@ -78,10 +98,24 @@ export function Navbar({
     onRefresh,
     onAction,
     onAddTodo,
+    activeTool,
     modelOpacity = 1,
     onOpacityChange,
-    onAddView
+    onAddView,
+    cameraMode = 'orbit',
+    onCameraModeChange,
 }: NavbarProps) {
+
+    const CurrentCameraIcon = useMemo(() => {
+        switch (cameraMode) {
+            case 'pan': return Move;
+            case 'look-around': return Eye;
+            case 'walk': return Footprints;
+            default: return Orbit;
+        }
+    }, [cameraMode]);
+
+
     return (
         <TooltipProvider delayDuration={300}>
             <nav className="sticky top-0 z-50 bg-background border-b border-border shadow-sm flex-none">
@@ -106,45 +140,41 @@ export function Navbar({
                         </Tooltip>
 
                         <div className="w-px h-6 bg-border mx-1" />
-                        {/* Camera Controls */}
-                        <DropdownMenu>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-8 w-12"
-                                        >
-                                            <Box />
-                                            <ChevronDown className="h-2 w-2 ml-0.5" />
-                                        </Button>
-                                    </DropdownMenuTrigger>
-                                </TooltipTrigger>
-                                <TooltipContent side="bottom">Camera Controls</TooltipContent>
-                            </Tooltip>
 
-                            <DropdownMenuContent align="start" className="w-40">
-                                <DropdownMenuItem>
-                                    <RotateCcw className="mr-2 h-4 w-4" />
-                                    Rotate
+                        {/* --- CAMERA CONTROLS DROPDOWN --- */}
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className={cn(
+                                        "h-9 w-9",
+                                        cameraMode !== 'orbit'
+                                            ? "bg-blue-100 text-blue-600 hover:bg-blue-200"
+                                            : "text-muted-foreground"
+                                    )}
+                                >
+                                    <CurrentCameraIcon className="h-5 w-5" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="center">
+                                <DropdownMenuItem onClick={() => onCameraModeChange?.('orbit')}>
+                                    <Orbit className="mr-2 h-4 w-4" /> Orbit (Rotate)
+                                    {cameraMode === 'orbit' && <Check className="ml-auto h-4 w-4" />}
                                 </DropdownMenuItem>
-                                <DropdownMenuItem>
-                                    <Eye className="mr-2 h-4 w-4" />
-                                    Pan
+                                <DropdownMenuItem onClick={() => onCameraModeChange?.('pan')}>
+                                    <Move className="mr-2 h-4 w-4" /> Pan Only
+                                    {cameraMode === 'pan' && <Check className="ml-auto h-4 w-4" />}
                                 </DropdownMenuItem>
-                                <DropdownMenuItem>
-                                    <Grid3x3 className="mr-2 h-4 w-4" />
-                                    Look around
+                                <DropdownMenuItem onClick={() => onCameraModeChange?.('look-around')}>
+                                    <Eye className="mr-2 h-4 w-4" /> Look Around
+                                    {cameraMode === 'look-around' && <Check className="ml-auto h-4 w-4" />}
                                 </DropdownMenuItem>
-                                {/* <DropdownMenuItem>
-                                    <Grid3x3 className="mr-2 h-4 w-4 rotate-90" />
-                                    Walk mode
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={() => onCameraModeChange?.('walk')}>
+                                    <Footprints className="mr-2 h-4 w-4" /> Walk Mode (WASD)
+                                    {cameraMode === 'walk' && <Check className="ml-auto h-4 w-4" />}
                                 </DropdownMenuItem>
-                                <DropdownMenuItem>
-                                    <Grid3x3 className="mr-2 h-4 w-4 rotate-90" />
-                                    Path navigation
-                                </DropdownMenuItem> */}
                             </DropdownMenuContent>
                         </DropdownMenu>
 
@@ -161,8 +191,8 @@ export function Navbar({
                         <NavIconButton icon={Ruler} label="Measurement option" />
                         <NavIconButton icon={MessageCircleDashed} label="Add markup" />
                         <NavIconButton icon={SquareScissors} label="Clip plane" />
-                        <NavIconButton icon={CameraIcon} label="Add view" onClick={onAddView} />
-                        <NavIconButton icon={ClipboardCheck} label="Add todo" onClick={onAddTodo} />
+                        <NavIconButton icon={CameraIcon} label="Add view" onClick={onAddView} isActive={activeTool === 'view'} />
+                        <NavIconButton icon={ClipboardCheck} label="Add todo" onClick={onAddTodo} isActive={activeTool === 'todo'} />
 
                         {/* Divider */}
                         <div className="w-px h-6 bg-border mx-1" />
