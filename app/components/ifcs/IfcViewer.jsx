@@ -223,6 +223,9 @@ export default function IfcViewer({
               if (threeSceneRef.current) {
                 threeSceneRef.current.setCameraMode(mode);
               }
+            },
+            setView: (viewType) => {
+              if (threeSceneRef.current) threeSceneRef.current.setView(viewType);
             }
           });
         }

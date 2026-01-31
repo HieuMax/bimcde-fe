@@ -2,21 +2,17 @@
 
 import {
     ArrowLeft,
-    SquareDashed,
     MousePointer,
     CopyPlusIcon,
     MessageCircleDashed,
     CameraIcon,
     SquareScissors,
-    Rotate3D,
     Box,
     ClipboardCheck,
     MoreVertical,
-    Camera,
     Settings,
     Fullscreen,
     Eye,
-    Lock,
     Download,
     LucideIcon,
     Ruler,
@@ -27,7 +23,10 @@ import {
     Move, // Icon Pan
     Orbit, // Icon Rotate
     Footprints,
-    Check, // Icon Walk
+    Check,
+    ArrowRight,
+    ArrowDown,
+    ArrowUp, // Icon Walk
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -43,6 +42,7 @@ import { useMemo } from 'react';
 export type CameraMode = 'orbit' | 'pan' | 'look-around' | 'walk';
 export type ActiveToolType = 'todo' | 'view' | 'measurement' | 'clipping' | 'properties' | null;
 export type SelectionMode = 'single' | 'multiple';
+export type ViewOptionType = 'axon' | 'top' | 'front' | 'left' | 'right' | 'back' | 'bottom';
 
 interface NavbarProps {
     onBack?: () => void;
@@ -58,6 +58,8 @@ interface NavbarProps {
     onCameraModeChange?: (mode: CameraMode) => void;
     selectionMode?: SelectionMode;
     onSelectionModeChange?: (mode: SelectionMode) => void;
+    activeView?: ViewOptionType;
+    onViewChange?: (view: ViewOptionType) => void;
 }
 
 // Helper component to render a button with a tooltip to avoid code repetition
@@ -108,7 +110,9 @@ export function Navbar({
     cameraMode = 'orbit',
     onCameraModeChange,
     selectionMode = 'single',
-    onSelectionModeChange
+    onSelectionModeChange,
+    activeView,
+    onViewChange,
 }: NavbarProps) {
 
     const CurrentCameraIcon = useMemo(() => {
@@ -216,51 +220,58 @@ export function Navbar({
                         {/* Divider */}
                         <div className="w-px h-6 bg-border mx-1" />
 
+                        {/* --- VIEW OPTIONS DROPDOWN --- */}
                         <DropdownMenu>
                             <Tooltip>
                                 <TooltipTrigger asChild>
                                     <DropdownMenuTrigger asChild>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-8 w-12"
-                                        >
-                                            <Box />
+                                        <Button variant="ghost" size="icon" className="h-8 w-12">
+                                            <Box className="h-5 w-5" />
                                             <ChevronDown className="h-2 w-2 ml-0.5" />
                                         </Button>
                                     </DropdownMenuTrigger>
                                 </TooltipTrigger>
-                                <TooltipContent side="bottom">Perform action</TooltipContent>
+                                <TooltipContent side="bottom">View Options</TooltipContent>
                             </Tooltip>
 
                             <DropdownMenuContent align="start" className="w-40">
-                                <DropdownMenuItem>
-                                    <RotateCcw className="mr-2 h-4 w-4" />
-                                    Axon View
+                                <DropdownMenuItem onClick={() => onViewChange?.('axon')}>
+                                    <RotateCcw className="mr-2 h-4 w-4" /> Axon View
+                                    {activeView === 'axon' && <Check className="ml-auto h-4 w-4" />}
                                 </DropdownMenuItem>
-                                <DropdownMenuItem>
-                                    <Eye className="mr-2 h-4 w-4" />
-                                    Top view
+
+                                <DropdownMenuSeparator />
+
+                                <DropdownMenuItem onClick={() => onViewChange?.('top')}>
+                                    <ArrowDown className="mr-2 h-4 w-4" /> Top View
+                                    {activeView === 'top' && <Check className="ml-auto h-4 w-4" />}
                                 </DropdownMenuItem>
-                                <DropdownMenuItem>
-                                    <Grid3x3 className="mr-2 h-4 w-4" />
-                                    Front View
+
+                                <DropdownMenuItem onClick={() => onViewChange?.('bottom')}>
+                                    <ArrowUp className="mr-2 h-4 w-4" /> Bottom View
+                                    {activeView === 'bottom' && <Check className="ml-auto h-4 w-4" />}
                                 </DropdownMenuItem>
-                                <DropdownMenuItem>
-                                    <Grid3x3 className="mr-2 h-4 w-4 rotate-90" />
-                                    Left View
+
+                                <DropdownMenuSeparator />
+
+                                <DropdownMenuItem onClick={() => onViewChange?.('front')}>
+                                    <Box className="mr-2 h-4 w-4" /> Front View
+                                    {activeView === 'front' && <Check className="ml-auto h-4 w-4" />}
                                 </DropdownMenuItem>
-                                <DropdownMenuItem>
-                                    <Grid3x3 className="mr-2 h-4 w-4 rotate-90" />
-                                    Back View
+
+                                <DropdownMenuItem onClick={() => onViewChange?.('back')}>
+                                    <Box className="mr-2 h-4 w-4 opacity-50" /> Back View
+                                    {activeView === 'back' && <Check className="ml-auto h-4 w-4" />}
                                 </DropdownMenuItem>
-                                <DropdownMenuItem>
-                                    <Grid3x3 className="mr-2 h-4 w-4 rotate-90" />
-                                    Right View
+
+                                <DropdownMenuItem onClick={() => onViewChange?.('left')}>
+                                    <ArrowLeft className="mr-2 h-4 w-4" /> Left View
+                                    {activeView === 'left' && <Check className="ml-auto h-4 w-4" />}
                                 </DropdownMenuItem>
-                                <DropdownMenuItem>
-                                    <Grid3x3 className="mr-2 h-4 w-4 rotate-90" />
-                                    Bottom View
+
+                                <DropdownMenuItem onClick={() => onViewChange?.('right')}>
+                                    <ArrowRight className="mr-2 h-4 w-4" /> Right View
+                                    {activeView === 'right' && <Check className="ml-auto h-4 w-4" />}
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>

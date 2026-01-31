@@ -4,7 +4,7 @@ import { useSearchParams, useRouter, useParams } from 'next/navigation';
 import React, { useEffect, useMemo, useState } from 'react';
 import IfcViewer from '@/app/components/ifcs/IfcViewer';
 import { Box, Layers, ClipboardCheck, ChevronRight, ChevronLeft, Camera, FolderTree, Sheet, BadgeInfo, BookText, Loader2 } from 'lucide-react';
-import { ActiveToolType, CameraMode, Navbar, SelectionMode } from '@/components/layout/navbar/Navbar';
+import { ActiveToolType, CameraMode, Navbar, SelectionMode, ViewOptionType } from '@/components/layout/navbar/Navbar';
 import { NewTodoDrawer } from '@/components/todos/NewTodoDrawer';
 import { viewService3D as viewService } from '@/services/view3d.service';
 import { toast } from 'sonner';
@@ -45,6 +45,9 @@ export default function ViewerClient() {
   const [ifcUrls, setIfcUrls] = useState<string[]>([]);
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([])
 
+  // --- VIEW OPTION STATE ---
+  const [activeView, setActiveView] = useState<ViewOptionType>('axon');
+
   // --- SELECTION STATE ---
   const [selectionMode, setSelectionMode] = useState<SelectionMode>('single');
 
@@ -84,6 +87,7 @@ export default function ViewerClient() {
     getContext: () => any[];
     runClashTest: (modelIDs: any[], tolerance: number, onProgress: (p: number, t: string) => void) => Promise<any[]>;
     setCameraMode: (mode: CameraMode) => void;
+    setView: (view: ViewOptionType) => void;
   } | null>(null);
 
   const [todoToEdit, setTodoToEdit] = useState<any>(null);
@@ -124,6 +128,13 @@ export default function ViewerClient() {
       fileUrl: url
     }));
   }, [ifcUrls]);
+
+  const handleViewChange = (view: ViewOptionType) => {
+    setActiveView(view);
+    if (viewerActions.current?.setView) {
+      viewerActions.current.setView(view);
+    }
+  };
 
   // --- SAVE CLASH MUTATION ---
   const saveClashMutation = useMutation({
@@ -635,6 +646,8 @@ export default function ViewerClient() {
         onCameraModeChange={handleCameraModeChange}
         selectionMode={selectionMode}
         onSelectionModeChange={setSelectionMode}
+        activeView={activeView}
+        onViewChange={handleViewChange}
       />
       <div className="flex flex-1 relative overflow-hidden">
 
