@@ -469,6 +469,79 @@ export class ThreeScene {
 
     return dataURL;
   }
+
+
+  animateCameraTo(targetPosition, targetLookAt, duration = 800) {
+    const startPos = this.camera.position.clone();
+    const startTarget = this.controls.target.clone();
+    const startTime = performance.now();
+
+    const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+
+    const animate = (currentTime) => {
+      const elapsed = currentTime - startTime;
+      let progress = elapsed / duration;
+
+      if (progress < 1) {
+        const ease = easeOutCubic(progress);
+
+        this.camera.position.lerpVectors(startPos, targetPosition, ease);
+        this.controls.target.lerpVectors(startTarget, targetLookAt, ease);
+
+        this.controls.update();
+        requestAnimationFrame(animate);
+      } else {
+        this.camera.position.copy(targetPosition);
+        this.controls.target.copy(targetLookAt);
+        this.controls.update();
+      }
+    };
+
+    requestAnimationFrame(animate);
+  }
+
+  // --- LOGIC SET VIEW ---
+  setView(viewType) {
+    if (!this.camera || !this.controls) return;
+
+    this.camera.up.set(0, 1, 0);
+
+    const distance = this.camera.position.distanceTo(this.controls.target);
+    const target = this.controls.target.clone();
+    const newPosition = new Vector3();
+
+    switch (viewType) {
+      case 'axon':
+        const isoVec = new Vector3(1, 1, 1).normalize().multiplyScalar(distance);
+        newPosition.copy(target).add(isoVec);
+        break;
+
+      case 'top':
+        newPosition.set(target.x, target.y + distance, target.z);
+        break;
+
+      case 'bottom':
+        newPosition.set(target.x, target.y - distance, target.z);
+        break;
+
+      case 'front':
+        newPosition.set(target.x, target.y, target.z + distance);
+        break;
+
+      case 'back':
+        newPosition.set(target.x, target.y, target.z - distance);
+        break;
+
+      case 'left':
+        newPosition.set(target.x - distance, target.y, target.z);
+        break;
+
+      case 'right':
+        newPosition.set(target.x + distance, target.y, target.z);
+        break;
+    }
+    this.animateCameraTo(newPosition, target);
+  }
 }
 
 const AXIS_COLORS = {
