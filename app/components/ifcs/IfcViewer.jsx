@@ -48,12 +48,15 @@ export default function IfcViewer({
   clashResults,
   autoExpandedClashSetId,
   onRestoreClashSet,
-  cameraMode
+  cameraMode,
+  selectionMode
 }) {
   const canvasRef = useRef(null);
   const loaderRef = useRef(null);
   const sceneRef = useRef(null);
   const threeSceneRef = useRef(null);
+  const selectedItemsRef = useRef([]);
+  const selectionModeRef = useRef(selectionMode)
   const modelUrlMap = useRef({})
 
   const [isLoading, setIsLoading] = useState(false);
@@ -115,6 +118,14 @@ export default function IfcViewer({
   };
 
   useEffect(() => {
+    selectedItemsRef.current = selectedItems;
+  }, [selectedItems]);
+
+  useEffect(() => {
+    selectionModeRef.current = selectionMode;
+  }, [selectionMode]);
+
+  useEffect(() => {
     if (threeSceneRef.current && cameraMode) {
       threeSceneRef.current.setCameraMode(cameraMode);
     }
@@ -152,19 +163,51 @@ export default function IfcViewer({
         canvas.addEventListener('mouseup', (event) => {
           if (!isDragging.current) {
             const result = loaderRef.current.pick(event, scene.getCamera(), scene.getRenderer());
+            const currentMode = selectionModeRef.current || 'single';
+
+            const prevSelected = selectedItemsRef.current;
+            let newSelection = [];
 
             if (result) {
               const sourceUrl = modelUrlMap.current[result.modelID]
               const enrichedItem = { ...result, fileUrl: sourceUrl }
-              if (setSelectdItemsForNavbar) {
-                setSelectdItemsForNavbar([enrichedItem]);
+              // if (setSelectdItemsForNavbar) {
+              //   setSelectdItemsForNavbar([enrichedItem]);
+              // }
+              // setSelectedItems([result]);
+              if (currentMode === 'single') {
+                // Single: Thay thế hoàn toàn
+                newSelection = [enrichedItem];
+              } else {
+                // Multiple: Toggle
+                const exists = prevSelected.find(
+                  item => item.modelID === result.modelID && item.expressID === result.expressID
+                );
+
+                if (exists) {
+                  // Remove
+                  newSelection = prevSelected.filter(item => item !== exists);
+                } else {
+                  // Add
+                  newSelection = [...prevSelected, enrichedItem];
+                }
               }
-              setSelectedItems([result]);
+              loaderRef.current.highlightItems(newSelection)
             } else {
-              setSelectedItems([]);
-              if (setSelectdItemsForNavbar) {
-                setSelectdItemsForNavbar([]);
-              }
+              // setSelectedItems([]);
+              // if (setSelectdItemsForNavbar) {
+              //   setSelectdItemsForNavbar([]);
+              // }
+              newSelection = [];
+              loaderRef.current.removeHighlight();
+            }
+
+
+            // Update Local State
+            setSelectedItems(newSelection);
+
+            if (setSelectdItemsForNavbar) {
+              setSelectdItemsForNavbar(newSelection);
             }
           }
         });
@@ -1153,20 +1196,44 @@ export default function IfcViewer({
                   className="hover:text-blue-400 transition"
                   title="Toggle visibility"
                   onClick={() => {
-                    const item = selectedItems[0];
-                    const key = `${item.modelID}-${item.expressID}`;
+                    const firstItem = selectedItems[0];
+                    const firstKey = `${firstItem.modelID}-${firstItem.expressID}`;
+                    const isFirstHidden = hiddenItems[firstKey];
+                    const shouldHide = !isFirstHidden;
+
                     setHiddenItems((prev) => {
                       const updated = { ...prev };
-                      if (updated[key]) {
-                        delete updated[key];
-                      } else {
-                        updated[key] = true;
-                      }
+                      selectedItems.forEach(item => {
+                        const key = `${item.modelID}-${item.expressID}`;
+                        if (shouldHide) {
+                          updated[key] = true;
+                        } else {
+                          delete updated[key];
+                        }
+                      });
                       return updated;
                     });
-                    loaderRef.current.toggleItemVisibility(item.modelID, item.expressID);
+
+                    selectedItems.forEach(item => {
+                      const key = `${item.modelID}-${item.expressID}`;
+                      const isItemCurrentlyHidden = hiddenItems[key];
+
+                      if (shouldHide && !isItemCurrentlyHidden) {
+                        loaderRef.current.toggleItemVisibility(item.modelID, item.expressID);
+                      }
+                      else if (!shouldHide && isItemCurrentlyHidden) {
+                        loaderRef.current.toggleItemVisibility(item.modelID, item.expressID);
+                      }
+                    });
+
+                    if (shouldHide) {
+                      loaderRef.current.removeHighlight();
+                    } else {
+                      loaderRef.current.highlightItems(selectedItems);
+                    }
                   }}
                 >
+                  {/* Icon */}
                   {hiddenItems[`${selectedItems[0]?.modelID}-${selectedItems[0]?.expressID}`] ? (
                     <EyeOff />
                   ) : (

@@ -4,7 +4,7 @@ import { useSearchParams, useRouter, useParams } from 'next/navigation';
 import React, { useEffect, useMemo, useState } from 'react';
 import IfcViewer from '@/app/components/ifcs/IfcViewer';
 import { Box, Layers, ClipboardCheck, ChevronRight, ChevronLeft, Camera, FolderTree, Sheet, BadgeInfo, BookText, Loader2 } from 'lucide-react';
-import { ActiveToolType, CameraMode, Navbar } from '@/components/layout/navbar/Navbar';
+import { ActiveToolType, CameraMode, Navbar, SelectionMode } from '@/components/layout/navbar/Navbar';
 import { NewTodoDrawer } from '@/components/todos/NewTodoDrawer';
 import { viewService3D as viewService } from '@/services/view3d.service';
 import { toast } from 'sonner';
@@ -44,6 +44,9 @@ export default function ViewerClient() {
   const [state, setState] = React.useState('models');
   const [ifcUrls, setIfcUrls] = useState<string[]>([]);
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([])
+
+  // --- SELECTION STATE ---
+  const [selectionMode, setSelectionMode] = useState<SelectionMode>('single');
 
   // --- CAMERA STATE ---
   const [cameraMode, setCameraMode] = useState<CameraMode>('orbit');
@@ -630,6 +633,8 @@ export default function ViewerClient() {
         }}
         cameraMode={cameraMode}
         onCameraModeChange={handleCameraModeChange}
+        selectionMode={selectionMode}
+        onSelectionModeChange={setSelectionMode}
       />
       <div className="flex flex-1 relative overflow-hidden">
 
@@ -716,6 +721,7 @@ export default function ViewerClient() {
               onRestoreClashSet={handleRestoreClashSet}
               autoExpandedClashSetId={pendingClashSetId}
               cameraMode={cameraMode}
+              selectionMode={selectionMode}
             />
 
 

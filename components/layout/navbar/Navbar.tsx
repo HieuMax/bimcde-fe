@@ -42,6 +42,7 @@ import { useMemo } from 'react';
 
 export type CameraMode = 'orbit' | 'pan' | 'look-around' | 'walk';
 export type ActiveToolType = 'todo' | 'view' | 'measurement' | 'clipping' | 'properties' | null;
+export type SelectionMode = 'single' | 'multiple';
 
 interface NavbarProps {
     onBack?: () => void;
@@ -55,6 +56,8 @@ interface NavbarProps {
     onToolSelect?: (tool: ActiveToolType) => void;
     cameraMode?: CameraMode;
     onCameraModeChange?: (mode: CameraMode) => void;
+    selectionMode?: SelectionMode;
+    onSelectionModeChange?: (mode: SelectionMode) => void;
 }
 
 // Helper component to render a button with a tooltip to avoid code repetition
@@ -104,6 +107,8 @@ export function Navbar({
     onAddView,
     cameraMode = 'orbit',
     onCameraModeChange,
+    selectionMode = 'single',
+    onSelectionModeChange
 }: NavbarProps) {
 
     const CurrentCameraIcon = useMemo(() => {
@@ -182,9 +187,23 @@ export function Navbar({
                         <div className="w-px h-6 bg-border mx-1" />
 
                         {/* Layout Tools */}
-                        <NavIconButton icon={MousePointer} label="Single Selection mode" />
-                        <NavIconButton icon={SquareDashed} label="Area Selection mode" />
-                        <NavIconButton icon={CopyPlusIcon} label="Multiple-select mode" />
+                        {/* --- SELECTION TOOLS --- */}
+
+                        {/* Single Select */}
+                        <NavIconButton
+                            icon={MousePointer}
+                            label="Single Selection"
+                            isActive={selectionMode === 'single'}
+                            onClick={() => onSelectionModeChange?.('single')}
+                        />
+
+                        {/* Multiple Select */}
+                        <NavIconButton
+                            icon={CopyPlusIcon}
+                            label="Multiple Selection"
+                            isActive={selectionMode === 'multiple'}
+                            onClick={() => onSelectionModeChange?.('multiple')}
+                        />
 
                         <div className="w-px h-6 bg-border mx-1" />
 
