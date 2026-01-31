@@ -4,7 +4,7 @@ import { useSearchParams, useRouter, useParams } from 'next/navigation';
 import React, { useEffect, useMemo, useState } from 'react';
 import IfcViewer from '@/app/components/ifcs/IfcViewer';
 import { Box, Layers, ClipboardCheck, ChevronRight, ChevronLeft, Camera, FolderTree, Sheet, BadgeInfo, BookText, Loader2 } from 'lucide-react';
-import { Navbar } from '@/components/layout/navbar/Navbar';
+import { ActiveToolType, CameraMode, Navbar } from '@/components/layout/navbar/Navbar';
 import { NewTodoDrawer } from '@/components/todos/NewTodoDrawer';
 import { viewService3D as viewService } from '@/services/view3d.service';
 import { toast } from 'sonner';
@@ -45,6 +45,17 @@ export default function ViewerClient() {
   const [ifcUrls, setIfcUrls] = useState<string[]>([]);
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([])
 
+  // --- CAMERA STATE ---
+  const [cameraMode, setCameraMode] = useState<CameraMode>('orbit');
+
+  const handleCameraModeChange = (mode: CameraMode) => {
+    setCameraMode(mode);
+
+    if (viewerActions.current?.setCameraMode) {
+      viewerActions.current.setCameraMode(mode);
+    }
+  };
+
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [drawerInitialData, setDrawerInitialData] = useState<NewTodoInitialData | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -69,6 +80,7 @@ export default function ViewerClient() {
     restore: (state: any, items: any[]) => void;
     getContext: () => any[];
     runClashTest: (modelIDs: any[], tolerance: number, onProgress: (p: number, t: string) => void) => Promise<any[]>;
+    setCameraMode: (mode: CameraMode) => void;
   } | null>(null);
 
   const [todoToEdit, setTodoToEdit] = useState<any>(null);
@@ -84,6 +96,13 @@ export default function ViewerClient() {
   const isDataTableMode = state === 'data-table';
 
   const [modelOpacity, setModelOpacity] = useState(1);
+
+
+  const activeTool: ActiveToolType = useMemo(() => {
+    if (isDrawerOpen) return 'todo';
+    if (isViewDrawerOpen) return 'view';
+    return null;
+  }, [isDrawerOpen, isViewDrawerOpen]);
 
 
   // --- STATE CLASH DRAWER ---
@@ -311,6 +330,10 @@ export default function ViewerClient() {
   };
 
   const onAddTodo = () => {
+    if (isDrawerOpen) {
+      setIsDrawerOpen(false);
+      return;
+    }
     setTodoToEdit(null);
     setDrawerMode("create");
 
@@ -364,6 +387,7 @@ export default function ViewerClient() {
 
     setDrawerInitialData(initialData);
     setIsDrawerOpen(true);
+    setIsViewDrawerOpen(false)
   };
 
   const handleSelectTodo = (todo: any) => {
@@ -495,7 +519,12 @@ export default function ViewerClient() {
   };
 
   const onAddView = () => {
+    if (isViewDrawerOpen) {
+      setIsViewDrawerOpen(false);
+      return;
+    }
     handleOpenViewDrawer(null, 'create');
+    setIsDrawerOpen(false);
   };
 
   // --- 2. UPDATE SNAPSHOT (...) ---
@@ -595,6 +624,12 @@ export default function ViewerClient() {
         modelOpacity={modelOpacity}
         onOpacityChange={setModelOpacity}
         onAddView={onAddView}
+        activeTool={activeTool}
+        onToolSelect={(tool) => {
+          console.log("Selected tool:", tool);
+        }}
+        cameraMode={cameraMode}
+        onCameraModeChange={handleCameraModeChange}
       />
       <div className="flex flex-1 relative overflow-hidden">
 
@@ -680,6 +715,7 @@ export default function ViewerClient() {
               clashResults={clashResults}
               onRestoreClashSet={handleRestoreClashSet}
               autoExpandedClashSetId={pendingClashSetId}
+              cameraMode={cameraMode}
             />
 
 

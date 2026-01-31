@@ -47,12 +47,13 @@ export default function IfcViewer({
   onOpenNewClashDrawer,
   clashResults,
   autoExpandedClashSetId,
-  onRestoreClashSet
+  onRestoreClashSet,
+  cameraMode
 }) {
   const canvasRef = useRef(null);
   const loaderRef = useRef(null);
   const sceneRef = useRef(null);
-
+  const threeSceneRef = useRef(null);
   const modelUrlMap = useRef({})
 
   const [isLoading, setIsLoading] = useState(false);
@@ -114,6 +115,12 @@ export default function IfcViewer({
   };
 
   useEffect(() => {
+    if (threeSceneRef.current && cameraMode) {
+      threeSceneRef.current.setCameraMode(cameraMode);
+    }
+  }, [cameraMode]);
+
+  useEffect(() => {
     if (!ifcUrls?.length || !canvasRef.current) return;
 
     const load = async () => {
@@ -124,6 +131,7 @@ export default function IfcViewer({
       if (!loaderRef.current) {
         const scene = new ThreeScene(canvasRef.current);
         sceneRef.current = scene;
+        threeSceneRef.current = scene;
         loaderRef.current = new IfcManager(scene.scene, []);
 
         canvas.addEventListener('mousedown', (e) => {
@@ -160,6 +168,21 @@ export default function IfcViewer({
             }
           }
         });
+
+
+        if (onRegisterCapture) {
+          onRegisterCapture({
+            capture: getSnapshot,
+            restore: restoreState,
+            getContext: getContext,
+            runClashTest: runClashTest,
+            setCameraMode: (mode) => {
+              if (threeSceneRef.current) {
+                threeSceneRef.current.setCameraMode(mode);
+              }
+            }
+          });
+        }
       }
 
       //
@@ -419,19 +442,6 @@ export default function IfcViewer({
     }
     return context;
   };
-
-  useEffect(() => {
-    if (onRegisterCapture) {
-      onRegisterCapture({
-        // capture: () => loaderRef.current?.getSnapshot(),
-        capture: getSnapshot,
-        restore: restoreState,
-        getContext: getContext,
-        runClashTest: runClashTest
-        // --------------------
-      });
-    }
-  }, [onRegisterCapture, selectedItems, modelOpacity, models]);
 
   useEffect(() => {
     if (loaderRef.current) {

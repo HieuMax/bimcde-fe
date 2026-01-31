@@ -11,6 +11,10 @@ import {
   SpriteMaterial,
   CanvasTexture,
   Vector3,
+  Clock,
+  MOUSE,
+  TOUCH,
+  Raycaster
 } from 'three';
 
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls';
@@ -20,6 +24,7 @@ export class ThreeScene {
   constructor(canvas) {
     this.threeCanvas = canvas;
     this.scene = new Scene();
+    this.clock = new Clock();
 
     const parent = canvas.parentElement;
     const width = parent.clientWidth;
@@ -35,6 +40,35 @@ export class ThreeScene {
     });
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+    this.controls.enableDamping = true;
+    this.controls.dampingFactor = 0.25;
+
+    this.keys = {
+      KeyW: false, KeyA: false, KeyS: false, KeyD: false,
+      ShiftLeft: false, ShiftRight: false, Space: false
+    };
+    this.cameraMode = 'orbit';
+
+    this.velocity = new Vector3();
+    this.direction = new Vector3();
+    this.onGround = false;
+
+    this.moveSpeed = 8.0;
+    this.runSpeedMultiplier = 2.5;
+    this.jumpHeight = 12.0;
+    this.gravity = 35.0;
+    this.playerHeight = 1.7;
+    this.maxStepHeight = 0.35;
+
+    this.raycaster = new Raycaster(new Vector3(), new Vector3(0, -1, 0), 0, 50);
+
+    this.onKeyDown = this.onKeyDown.bind(this);
+    this.onKeyUp = this.onKeyUp.bind(this);
+
+    window.addEventListener('keydown', this.onKeyDown);
+    window.addEventListener('keyup', this.onKeyUp);
+
+
     this.stats = new Stats();
 
     // axis
@@ -43,6 +77,166 @@ export class ThreeScene {
     this.axisCamera = new OrthographicCamera(-2.2, 2.2, 2.2, -2.2, 0, 10);
 
     this.setupScene();
+
+    this.setCameraMode('orbit');
+  }
+
+  dispose() {
+    window.removeEventListener('keydown', this.onKeyDown);
+    window.removeEventListener('keyup', this.onKeyUp);
+    this.renderer.dispose();
+  }
+
+  onKeyDown = (event) => {
+    if (event.code === 'Space') event.preventDefault();
+
+    if (this.keys.hasOwnProperty(event.code)) {
+      this.keys[event.code] = true;
+    }
+  }
+
+  onKeyUp = (event) => {
+    if (this.keys.hasOwnProperty(event.code)) {
+      this.keys[event.code] = false;
+    }
+  }
+
+
+  setCameraMode(mode) {
+    if (!this.controls) return;
+    this.cameraMode = mode;
+    console.log(`Switching Camera to: ${mode}`);
+
+    // Reset Physics
+    this.velocity.set(0, 0, 0);
+    Object.keys(this.keys).forEach(k => this.keys[k] = false);
+    this.onGround = true;
+
+    // Reset Controls
+    this.controls.enableRotate = true;
+    this.controls.enableZoom = true;
+    this.controls.enablePan = true;
+    this.controls.screenSpacePanning = true;
+    this.controls.maxPolarAngle = Math.PI;
+    this.controls.minPolarAngle = 0;
+
+    this.controls.mouseButtons = {
+      LEFT: MOUSE.ROTATE,
+      MIDDLE: MOUSE.DOLLY,
+      RIGHT: MOUSE.PAN
+    };
+
+    switch (mode) {
+      case 'orbit': break;
+      case 'pan':
+        this.controls.enableRotate = false;
+        this.controls.mouseButtons = { LEFT: MOUSE.PAN, MIDDLE: MOUSE.DOLLY, RIGHT: MOUSE.PAN };
+        break;
+      case 'look-around':
+        this.controls.enablePan = false;
+        this.controls.enableZoom = false;
+        this.controls.maxPolarAngle = Math.PI - 0.2;
+        this.controls.minPolarAngle = 0.2;
+        break;
+      case 'walk':
+        console.log("Walk Mode Active");
+        this.controls.enablePan = false;
+        this.controls.screenSpacePanning = false;
+        this.controls.maxPolarAngle = Math.PI / 1.4;
+        break;
+    }
+    this.controls.update();
+  }
+
+  updateMovement(delta) {
+    if (this.cameraMode !== 'walk') return;
+
+    // 1. Friction & Gravity
+    this.velocity.x -= this.velocity.x * 10.0 * delta;
+    this.velocity.z -= this.velocity.z * 10.0 * delta;
+    this.velocity.y -= this.gravity * delta;
+
+    // 2. Raycasting
+    this.raycaster.ray.origin.copy(this.camera.position);
+    const intersections = this.raycaster.intersectObjects(this.scene.children, true);
+
+    let groundHeight = -Infinity;
+    let foundGround = false;
+
+    for (let i = 0; i < intersections.length; i++) {
+      const hit = intersections[i];
+      if (hit.object.isMesh && hit.object.visible) {
+        if (hit.distance > 0) {
+          groundHeight = hit.point.y;
+          foundGround = true;
+          break;
+        }
+      }
+    }
+
+    const currentFeetY = this.camera.position.y - this.playerHeight;
+
+    const heightDiff = groundHeight - currentFeetY;
+
+    const isWalkable = heightDiff <= this.maxStepHeight;
+
+    if (foundGround && isWalkable) {
+      if (heightDiff >= -0.5 && this.velocity.y <= 0) {
+        this.velocity.y = 0;
+        this.onGround = true;
+
+        const targetY = groundHeight + this.playerHeight;
+
+        this.camera.position.y += (targetY - this.camera.position.y) * 0.3;
+
+        this.controls.target.y = this.camera.position.y;
+      }
+    } else {
+      this.onGround = false;
+
+      if (this.camera.position.y < -100) {
+        this.velocity.y = 0;
+        this.camera.position.y = 10;
+        this.controls.target.y = 10;
+      }
+    }
+
+    if (this.keys.Space && this.onGround) {
+      this.velocity.y = this.jumpHeight;
+      this.onGround = false;
+    }
+
+    const speed = (this.keys.ShiftLeft || this.keys.ShiftRight)
+      ? this.moveSpeed * this.runSpeedMultiplier
+      : this.moveSpeed;
+    const actualMoveSpeed = speed * delta;
+
+    const forward = new Vector3();
+    this.camera.getWorldDirection(forward);
+    forward.y = 0;
+    forward.normalize();
+
+    const right = new Vector3();
+    right.crossVectors(forward, this.camera.up).normalize();
+
+    const moveVec = new Vector3();
+    if (this.keys.KeyW) moveVec.add(forward);
+    if (this.keys.KeyS) moveVec.sub(forward);
+    if (this.keys.KeyA) moveVec.sub(right);
+    if (this.keys.KeyD) moveVec.add(right);
+
+    if (moveVec.length() > 0) moveVec.normalize().multiplyScalar(actualMoveSpeed);
+
+    this.camera.position.add(moveVec);
+    this.controls.target.add(moveVec);
+
+    if (!this.onGround) {
+      const verticalMove = this.velocity.y * delta;
+      this.camera.position.y += verticalMove;
+      this.controls.target.y += verticalMove;
+    }
+
+    this.controls.update();
   }
 
   setupScene() {
@@ -77,6 +271,13 @@ export class ThreeScene {
 
   setupAnimation = () => {
     this.stats.begin();
+
+    const delta = this.clock.getDelta();
+    if (this.cameraMode === 'walk') {
+      this.updateMovement(delta);
+    } else {
+      this.controls.update();
+    }
 
     const canvas = this.renderer.domElement;
     const fullWidth = canvas.width;
@@ -159,10 +360,10 @@ export class ThreeScene {
 
   setupMonitoring() {
     this.stats.showPanel(0);
-    this.stats.dom.style.cssText = 'position:absolute;top:1rem;left:1rem;z-index:1;';
-    requestAnimationFrame(() => {
-      document.body.appendChild(this.stats.dom);
-    });
+    // this.stats.dom.style.cssText = 'position:absolute;top:1rem;left:1rem;z-index:1;';
+    // requestAnimationFrame(() => {
+    //   document.body.appendChild(this.stats.dom);
+    // });
   }
 
   setupCamera() {
