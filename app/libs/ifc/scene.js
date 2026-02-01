@@ -39,6 +39,8 @@ export class ThreeScene {
       alpha: true,
     });
 
+    this.renderer.localClippingEnabled = true;
+
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
     this.controls.dampingFactor = 0.25;
@@ -152,61 +154,6 @@ export class ThreeScene {
   updateMovement(delta) {
     if (this.cameraMode !== 'walk') return;
 
-    // 1. Friction & Gravity
-    this.velocity.x -= this.velocity.x * 10.0 * delta;
-    this.velocity.z -= this.velocity.z * 10.0 * delta;
-    this.velocity.y -= this.gravity * delta;
-
-    // 2. Raycasting
-    this.raycaster.ray.origin.copy(this.camera.position);
-    const intersections = this.raycaster.intersectObjects(this.scene.children, true);
-
-    let groundHeight = -Infinity;
-    let foundGround = false;
-
-    for (let i = 0; i < intersections.length; i++) {
-      const hit = intersections[i];
-      if (hit.object.isMesh && hit.object.visible) {
-        if (hit.distance > 0) {
-          groundHeight = hit.point.y;
-          foundGround = true;
-          break;
-        }
-      }
-    }
-
-    const currentFeetY = this.camera.position.y - this.playerHeight;
-
-    const heightDiff = groundHeight - currentFeetY;
-
-    const isWalkable = heightDiff <= this.maxStepHeight;
-
-    if (foundGround && isWalkable) {
-      if (heightDiff >= -0.5 && this.velocity.y <= 0) {
-        this.velocity.y = 0;
-        this.onGround = true;
-
-        const targetY = groundHeight + this.playerHeight;
-
-        this.camera.position.y += (targetY - this.camera.position.y) * 0.3;
-
-        this.controls.target.y = this.camera.position.y;
-      }
-    } else {
-      this.onGround = false;
-
-      if (this.camera.position.y < -100) {
-        this.velocity.y = 0;
-        this.camera.position.y = 10;
-        this.controls.target.y = 10;
-      }
-    }
-
-    if (this.keys.Space && this.onGround) {
-      this.velocity.y = this.jumpHeight;
-      this.onGround = false;
-    }
-
     const speed = (this.keys.ShiftLeft || this.keys.ShiftRight)
       ? this.moveSpeed * this.runSpeedMultiplier
       : this.moveSpeed;
@@ -228,22 +175,11 @@ export class ThreeScene {
 
     if (moveVec.length() > 0) moveVec.normalize().multiplyScalar(actualMoveSpeed);
 
-    if (this.keys.KeyR) {
-      moveVec.y += actualMoveSpeed;
-    }
-
-    if (this.keys.KeyT) {
-      moveVec.y -= actualMoveSpeed;
-    }
+    if (this.keys.KeyR) moveVec.y += actualMoveSpeed;
+    if (this.keys.KeyT) moveVec.y -= actualMoveSpeed;
 
     this.camera.position.add(moveVec);
     this.controls.target.add(moveVec);
-
-    // if (!this.onGround) {
-    //   const verticalMove = this.velocity.y * delta;
-    //   this.camera.position.y += verticalMove;
-    //   this.controls.target.y += verticalMove;
-    // }
 
     this.controls.update();
   }

@@ -554,12 +554,8 @@ export default function IfcViewer({
 
     if (viewState.clippingPlanes) {
       loaderRef.current.restoreClippingState(viewState.clippingPlanes);
-      if (sceneRef.current) {
-        sceneRef.current.getRenderer().clippingPlanes = loaderRef.current.clippingPlanes;
-      }
     } else {
       loaderRef.current.deleteAllPlanes();
-      if (sceneRef.current) sceneRef.current.getRenderer().clippingPlanes = [];
     }
 
     if (itemsToHighlight.length > 0) {
