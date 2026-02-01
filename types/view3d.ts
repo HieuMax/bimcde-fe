@@ -29,6 +29,7 @@ export interface IView {
         thumbnail?: string; // Base64
         modelOpacity?: number;
         modelTransforms?: IModelTransform[];
+        clippingPlanes?: { normal: number[], constant: number }[];
     };
 
     createdAt: string;

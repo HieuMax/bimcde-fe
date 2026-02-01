@@ -1954,9 +1954,15 @@ export class IfcManager {
 
     // SAVED: material.visible = false
     const mat = new THREE.MeshBasicMaterial({
-      color: 0xffff00, side: THREE.DoubleSide, transparent: true, opacity: 0.3,
-      depthWrite: false, depthTest: false, clippingPlanes: []
+      color: 0xffff00,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.3,
+      depthWrite: false,
+      depthTest: false,
+      clippingPlanes: []
     });
+    mat.visible = false;
     const mesh = new THREE.Mesh(geom, mat);
     mesh.castShadow = false;
     mesh.receiveShadow = false;
@@ -1973,8 +1979,12 @@ export class IfcManager {
 
     const edgesGeom = new THREE.EdgesGeometry(geom);
     const edgeMaterial = new THREE.LineBasicMaterial({
-      color: 0xffff00, transparent: true, opacity: 1.0,
-      depthTest: false, depthWrite: false, clippingPlanes: []
+      color: 0xffff00,
+      transparent: true,
+      opacity: 1.0,
+      depthTest: false,
+      depthWrite: false,
+      clippingPlanes: []
     });
     const edgesMesh = new THREE.LineSegments(edgesGeom, edgeMaterial);
     mesh.userData.border = edgesMesh;
@@ -1986,10 +1996,13 @@ export class IfcManager {
 
     // Link
     mesh.userData.linkedIcon = icon;
+    mesh.userData.icon = icon;
     icon.userData.linkedMesh = mesh;
 
     this.scene.add(mesh);
     this.scene.add(icon);
+
+    this.scissorIcons.push(icon);
 
     this.planeObjects.push(mesh);
     if (!this.iconObjects) this.iconObjects = [];
@@ -2011,5 +2024,14 @@ export class IfcManager {
       const hit = intersects[0];
       this.createPlaneFromIntersection(hit);
     }
+  }
+
+  getClippingState() {
+    if (this.planes.length === 0) return null;
+
+    return this.planes.map(p => ({
+      normal: p.normal.toArray(),
+      constant: p.constant
+    }));
   }
 }
