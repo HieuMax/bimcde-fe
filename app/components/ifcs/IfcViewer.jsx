@@ -16,7 +16,9 @@ import {
   Info,
   EllipsisVertical,
   Menu, Search, Check,
-  Settings2
+  Settings2,
+  Footprints,
+  Move
 } from 'lucide-react';
 import './ifc.css';
 import LoadingBar from '../LoadingBar';
@@ -49,12 +51,15 @@ export default function IfcViewer({
   autoExpandedClashSetId,
   onRestoreClashSet,
   cameraMode,
-  selectionMode
+  selectionMode,
+  activeTool,
+  onToolChange
 }) {
   const canvasRef = useRef(null);
   const loaderRef = useRef(null);
   const sceneRef = useRef(null);
   const threeSceneRef = useRef(null);
+  const requestRef = useRef();
   const selectedItemsRef = useRef([]);
   const selectionModeRef = useRef(selectionMode)
   const modelUrlMap = useRef({})
@@ -117,6 +122,47 @@ export default function IfcViewer({
     }
   };
 
+  const animateClipping = () => {
+    if (loaderRef.current) {
+      loaderRef.current.updateClippingPlanes();
+    }
+    requestRef.current = requestAnimationFrame(animateClipping);
+  };
+
+  useEffect(() => {
+    // Start loop
+    requestRef.current = requestAnimationFrame(animateClipping);
+    return () => cancelAnimationFrame(requestRef.current);
+  }, []);
+
+
+  useEffect(() => {
+    if (!loaderRef.current || !sceneRef.current) return;
+    const renderer = sceneRef.current.getRenderer();
+    const camera = sceneRef.current.getCamera();
+    const controls = sceneRef.current.controls;
+
+    if (activeTool === 'clipping') {
+      loaderRef.current.toggleClipping(true, camera, renderer);
+      renderer.clippingPlanes = loaderRef.current.clippingPlanes;
+
+      if (loaderRef.current.transformControls) {
+        loaderRef.current.transformControls.addEventListener('dragging-changed', (event) => {
+          controls.enabled = !event.value;
+        });
+      }
+    } else {
+      loaderRef.current.toggleClipping(false, camera, renderer);
+      controls.enabled = true;
+    }
+  }, [activeTool]);
+
+
+  const activeToolRef = useRef(activeTool);
+  useEffect(() => {
+    activeToolRef.current = activeTool;
+  }, [activeTool]);
+
   useEffect(() => {
     selectedItemsRef.current = selectedItems;
   }, [selectedItems]);
@@ -162,6 +208,36 @@ export default function IfcViewer({
         /** ONLY PICK IF NOT DRAGGING */
         canvas.addEventListener('mouseup', (event) => {
           if (!isDragging.current) {
+            const isClippingMode = activeToolRef.current === 'clipping';
+
+            const camera = scene.getCamera();
+            const renderer = scene.getRenderer();
+
+            if (isClippingMode) {
+              if (loaderRef.current) {
+                loaderRef.current.handleClippingClick(event, camera, renderer);
+                renderer.clippingPlanes = loaderRef.current.clippingPlanes;
+              }
+              return;
+            }
+
+            if (loaderRef.current) {
+              const clickedPlane = loaderRef.current.pickClipPlane(event, camera, renderer);
+
+              if (clickedPlane) {
+                console.log("Click trúng Icon -> Edit Plane");
+
+                loaderRef.current.editPlane(clickedPlane);
+
+                if (onToolChange) {
+                  onToolChange('clipping');
+                }
+
+                return;
+              }
+            }
+
+
             const result = loaderRef.current.pick(event, scene.getCamera(), scene.getRenderer());
             const currentMode = selectionModeRef.current || 'single';
 
@@ -226,6 +302,22 @@ export default function IfcViewer({
             },
             setView: (viewType) => {
               if (threeSceneRef.current) threeSceneRef.current.setView(viewType);
+            },
+            saveClipping: () => {
+              if (loaderRef.current) {
+                loaderRef.current.saveCurrentClipping();
+                if (sceneRef.current) {
+                  sceneRef.current.getRenderer().clippingPlanes = loaderRef.current.clippingPlanes;
+                }
+              }
+            },
+            cancelClipping: () => {
+              if (loaderRef.current) {
+                loaderRef.current.cancelCurrentClipping();
+                if (sceneRef.current) {
+                  sceneRef.current.getRenderer().clippingPlanes = loaderRef.current.clippingPlanes;
+                }
+              }
             }
           });
         }
@@ -459,6 +551,17 @@ export default function IfcViewer({
       });
     }
 
+
+    if (viewState.clippingPlanes) {
+      loaderRef.current.restoreClippingState(viewState.clippingPlanes);
+      if (sceneRef.current) {
+        sceneRef.current.getRenderer().clippingPlanes = loaderRef.current.clippingPlanes;
+      }
+    } else {
+      loaderRef.current.deleteAllPlanes();
+      if (sceneRef.current) sceneRef.current.getRenderer().clippingPlanes = [];
+    }
+
     if (itemsToHighlight.length > 0) {
       // Highlight items
       loaderRef.current.highlightItems(itemsToHighlight);
@@ -547,13 +650,16 @@ export default function IfcViewer({
     const thumbnail = sceneRef.current.getScreenshot();
 
     const modelTransforms = loaderRef.current.getAllModelsTransform();
+
+    const clippingPlanes = loaderRef.current.getClippingState();
     return {
       camera,
       visibility: safeVisibility,
       selection: safeSelection,
       thumbnail,
       modelOpacity: modelOpacity,
-      modelTransforms: modelTransforms
+      modelTransforms: modelTransforms,
+      clippingPlanes: clippingPlanes
     };
   };
 
@@ -1162,6 +1268,49 @@ export default function IfcViewer({
             }}
           />
 
+          {cameraMode === 'walk' && (
+            <div className="absolute top-4 right-4 z-30 animate-in fade-in slide-in-from-top-2 duration-500 pointer-events-none select-none">
+              <div className="bg-black/60 backdrop-blur-sm text-white p-3 rounded-lg shadow-lg border border-white/10 w-auto min-w-[200px]">
+
+                {/* Header Compact */}
+                <div className="flex items-center gap-2 mb-2 pb-2 border-b border-white/10 text-blue-400">
+                  <Footprints className="h-4 w-4" />
+                  <span className="font-bold text-[10px] uppercase tracking-wider">Fly Mode Controls</span>
+                </div>
+
+                <div className="grid grid-cols-[1fr_auto] gap-y-2 gap-x-4 text-[11px] items-center">
+
+                  {/* Movement */}
+                  <span className="text-slate-300 font-medium">Move</span>
+                  <div className="flex gap-1 justify-end">
+                    <Kbd>W</Kbd><Kbd>A</Kbd><Kbd>S</Kbd><Kbd>D</Kbd>
+                  </div>
+
+                  {/* Elevation */}
+                  <span className="text-slate-300 font-medium">Elevation</span>
+                  <div className="flex gap-1 justify-end">
+                    <Kbd>R</Kbd>
+                    <span className="text-slate-500 self-center text-[10px]">/</span>
+                    <Kbd>T</Kbd>
+                  </div>
+
+                  {/* Speed */}
+                  <span className="text-slate-300 font-medium">Sprint</span>
+                  <div className="flex gap-1 justify-end">
+                    <Kbd>Shift</Kbd>
+                  </div>
+
+                  {/* Look */}
+                  <span className="text-slate-300 font-medium">Look</span>
+                  <div className="flex items-center justify-end gap-1 text-slate-300">
+                    <Move className="h-3 w-3" /> Mouse
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          )}
+
           {/* Selected Item Information */}
           {selectedItems.length > 0 && (
             <div
@@ -1282,5 +1431,14 @@ export default function IfcViewer({
         onSave={handleSavePosition}
       />
     </div>
+  );
+}
+
+
+function Kbd({ children }) {
+  return (
+    <kbd className="bg-white/10 px-1.5 py-0.5 rounded text-slate-100 font-mono font-bold border-b border-white/10 min-w-[20px] text-center text-[10px] inline-block shadow-sm">
+      {children}
+    </kbd>
   );
 }
