@@ -10,6 +10,7 @@ import {
   IFCELEMENTASSEMBLY, IFCFURNISHINGELEMENT, IFCMEMBER, IFCPLATE,
   IFCSPACE, IFCOPENINGELEMENT
 } from 'web-ifc';
+import { TransformControls } from 'three-stdlib';
 
 const IGNORED_TYPES = [
   IFCSPACE,
@@ -49,7 +50,22 @@ export class IfcManager {
     this.ifcLoader = new IFCLoader();
     this.ifcLoader.ifcManager.setWasmPath('/wasm/');
 
+    this.raycaster = new Raycaster();
+    this.raycaster.firstHitOnly = true;
+    this.mouse = new Vector2();
+
+    // --- CLIPPING STATE ---
+    this.planes = [];
+    this.planeObjects = [];
+    this.scissorIcons = []
+    this.pendingPlaneMesh = null;
+    this.transformControls = null;
+
     this.setupLoader();
+  }
+
+  get clippingPlanes() {
+    return [];
   }
 
   async editSubset(type) {
@@ -83,6 +99,16 @@ export class IfcManager {
     await this.ifcLoader.ifcManager.dispose();
     this.ifcLoader = null;
     this.ifcLoader = new IFCLoader();
+
+    if (this.transformControls) {
+      this.transformControls.dispose();
+      this.scene.remove(this.transformControls);
+    }
+    this.planeObjects.forEach(obj => {
+      this.scene.remove(obj);
+      obj.geometry.dispose();
+      obj.material.dispose();
+    });
 
     await this.setupLoader();
   }
@@ -123,7 +149,7 @@ export class IfcManager {
 
     this.ifcModels.push(ifcModel);
     this.scene.add(ifcModel);
-
+    this.updateModelClipPlanes();
     await this.initializeAllExpressIDs(ifcModel.modelID);
 
     const stop = window.performance.now();
@@ -192,6 +218,9 @@ export class IfcManager {
 
     this.raycaster.setFromCamera(this.mouse, camera);
 
+    const previousFirstHitOnly = this.raycaster.firstHitOnly;
+    this.raycaster.firstHitOnly = false;
+
     const pickTargets = [];
 
     for (const model of this.ifcModels) {
@@ -207,13 +236,37 @@ export class IfcManager {
       }
     }
 
-    if (pickTargets.length === 0) return;
+    if (pickTargets.length === 0) {
+      this.raycaster.firstHitOnly = previousFirstHitOnly;
+      return;
+    }
 
     const intersects = this.raycaster.intersectObjects(pickTargets, false);
+    this.raycaster.firstHitOnly = previousFirstHitOnly;
+
     this.removeHighlight();
     if (intersects.length === 0) return;
 
-    const found = intersects[0];
+    let found = null;
+
+    for (const hit of intersects) {
+      const point = hit.point;
+      let isVisible = true;
+
+      for (const plane of this.planes) {
+        if (plane.distanceToPoint(point) < -0.0001) {
+          isVisible = false;
+          break;
+        }
+      }
+
+      if (isVisible) {
+        found = hit;
+        break;
+      }
+    }
+
+    if (!found) return;
     const faceIndex = found.faceIndex;
     const geometry = found.object.geometry;
 
@@ -1567,5 +1620,396 @@ export class IfcManager {
     console.timeEnd("ClashTest");
 
     return confirmedClashes;
+  }
+
+
+
+  // =========================================================================
+  // CLIPPING
+  // =========================================================================
+
+  updateModelClipPlanes() {
+    for (const model of this.ifcModels) {
+      if (model.mesh && model.mesh.material) {
+        const materials = Array.isArray(model.mesh.material) ? model.mesh.material : [model.mesh.material];
+        materials.forEach(mat => {
+          mat.clippingPlanes = this.planes;
+          mat.needsUpdate = true;
+        });
+      }
+    }
+  }
+
+  toggleClipping(active, camera, renderer) {
+    // renderer.localClippingEnabled = active;
+    renderer.localClippingEnabled = true;
+
+    if (active) {
+      if (!this.transformControls) {
+        if (typeof TransformControls === 'undefined') return;
+        this.transformControls = new TransformControls(camera, renderer.domElement);
+        this.transformControls.addEventListener('change', () => this.updateClippingPlanes());
+        // ViewerClient handle dragging-changed
+        this.transformControls.addEventListener('dragging-changed', (event) => { });
+        this.scene.add(this.transformControls);
+      }
+
+      if (this.pendingPlaneMesh) {
+        this.transformControls.attach(this.pendingPlaneMesh);
+        this.transformControls.visible = true;
+      }
+    } else {
+      if (this.transformControls) {
+        this.transformControls.detach();
+        this.transformControls.visible = false;
+      }
+      this.cancelCurrentClipping();
+    }
+  }
+
+  createCanvasIcon() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+
+    ctx.beginPath();
+    ctx.arc(64, 64, 50, 0, 2 * Math.PI);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.fill();
+
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = '#000000';
+    ctx.stroke();
+
+    ctx.font = "80px Arial";
+    ctx.fillStyle = "#000000";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("✂", 64, 70);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    const material = new THREE.SpriteMaterial({
+      map: texture,
+      depthTest: false,
+      depthWrite: false,
+      clippingPlanes: []
+    });
+
+    const sprite = new THREE.Sprite(material);
+    sprite.renderOrder = 9999;
+    sprite.userData.isIcon = true;
+
+    return sprite;
+  }
+
+  createPlaneFromIntersection(intersection) {
+    this.removePendingPlane();
+
+    const normal = intersection.face.normal.clone().applyQuaternion(intersection.object.quaternion).negate();
+    const constant = -intersection.point.dot(normal);
+
+    const plane = new THREE.Plane(normal, constant);
+    // this.clippingPlanes.push(plane);
+    this.planes.push(plane);
+    this.updateModelClipPlanes();
+
+    const size = 30;
+    const geom = new THREE.PlaneGeometry(size, size);
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0xffff00,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.3,
+      depthWrite: false,
+      depthTest: false,
+      clippingPlanes: []
+    });
+
+    const mesh = new THREE.Mesh(geom, mat);
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
+
+    // Offset
+    const offset = 0.1;
+    const visualPosition = normal.clone().multiplyScalar(-constant).add(normal.clone().multiplyScalar(offset));
+
+    mesh.lookAt(normal);
+    mesh.position.copy(visualPosition);
+    mesh.userData.plane = plane;
+    mesh.isPlaneHelper = true;
+    mesh.renderOrder = 1000;
+
+    const edgesGeom = new THREE.EdgesGeometry(geom);
+    const edgeMaterial = new THREE.LineBasicMaterial({
+      color: 0xffff00, transparent: true, opacity: 1.0,
+      depthTest: false, depthWrite: false, clippingPlanes: []
+    });
+    const edgesMesh = new THREE.LineSegments(edgesGeom, edgeMaterial);
+    mesh.userData.border = edgesMesh;
+    mesh.add(edgesMesh);
+
+    const icon = this.createCanvasIcon();
+    icon.position.copy(visualPosition);
+    icon.visible = false;
+
+    mesh.userData.linkedIcon = icon;
+    mesh.userData.icon = icon;
+    icon.userData.linkedMesh = mesh;
+
+    this.scene.add(mesh);
+    this.scene.add(icon);
+
+    this.scissorIcons.push(icon);
+
+    this.planeObjects.push(mesh);
+
+    if (!this.iconObjects) this.iconObjects = [];
+    this.iconObjects.push(icon);
+    this.pendingPlaneMesh = mesh;
+
+    if (this.transformControls) {
+      this.transformControls.attach(mesh);
+      this.transformControls.visible = true;
+    }
+  }
+
+  // --- LOGIC SAVE ---
+  saveCurrentClipping() {
+    if (this.pendingPlaneMesh) {
+      const mesh = this.pendingPlaneMesh;
+      const icon = mesh.userData.linkedIcon;
+
+      if (this.transformControls) {
+        this.transformControls.detach();
+        this.transformControls.visible = false;
+      }
+
+      mesh.material.visible = false;
+
+      if (icon) icon.visible = true;
+
+      this.pendingPlaneMesh = null;
+    }
+  }
+
+  // --- LOGIC EDIT ---
+  editPlane(mesh) {
+    this.cancelCurrentClipping();
+
+    const icon = mesh.userData.linkedIcon;
+
+    mesh.visible = true;
+    mesh.material.opacity = 0.3;
+    mesh.material.visible = true;
+
+    if (icon) icon.visible = false;
+
+    this.pendingPlaneMesh = mesh;
+
+    if (this.transformControls) {
+      this.transformControls.attach(mesh);
+      this.transformControls.visible = true;
+    }
+  }
+
+  // --- LOGIC CLICK ---
+  pickClipPlane(event, camera, renderer) {
+    const bounds = renderer.domElement.getBoundingClientRect();
+    this.mouse.x = ((event.clientX - bounds.left) / bounds.width) * 2 - 1;
+    this.mouse.y = -((event.clientY - bounds.top) / bounds.height) * 2 + 1;
+
+    this.raycaster.setFromCamera(this.mouse, camera);
+
+    const visibleIcons = this.scissorIcons.filter(icon => icon.visible);
+    const iconIntersects = this.raycaster.intersectObjects(visibleIcons, false);
+
+    if (iconIntersects.length > 0) {
+      const icon = iconIntersects[0].object;
+      return icon.userData.linkedMesh;
+    }
+
+    const visibleMeshes = this.planeObjects.filter(m => m.material.visible);
+    const meshIntersects = this.raycaster.intersectObjects(visibleMeshes, false);
+
+    if (meshIntersects.length > 0) {
+      return meshIntersects[0].object;
+    }
+
+    return null;
+  }
+
+  updateClippingPlanes() {
+    if (this.pendingPlaneMesh) {
+      const mesh = this.pendingPlaneMesh;
+      const plane = mesh.userData.plane;
+
+      const icon = mesh.userData.linkedIcon;
+      if (plane) {
+        const normal = new THREE.Vector3(0, 0, 1).applyQuaternion(mesh.quaternion);
+        const constant = -mesh.position.dot(normal) + 0.1;
+        plane.normal.copy(normal);
+        plane.constant = constant;
+      }
+
+      if (icon) {
+        icon.position.copy(mesh.position);
+      }
+    }
+  }
+
+  cancelCurrentClipping() {
+    if (this.pendingPlaneMesh) {
+      this.removePlane(this.pendingPlaneMesh);
+      this.pendingPlaneMesh = null;
+    }
+    if (this.transformControls) {
+      this.transformControls.detach();
+      this.transformControls.visible = false;
+    }
+  }
+
+  removePendingPlane() {
+    if (this.pendingPlaneMesh) {
+      this.removePlane(this.pendingPlaneMesh);
+      this.pendingPlaneMesh = null;
+    }
+  }
+
+  removePlane(mesh) {
+    this.scene.remove(mesh);
+    if (mesh.geometry) mesh.geometry.dispose();
+    if (mesh.material) mesh.material.dispose();
+
+    const icon = mesh.userData.linkedIcon;
+    if (icon) {
+      this.scene.remove(icon);
+      if (icon.material) icon.material.dispose();
+      if (this.iconObjects) {
+        this.iconObjects = this.iconObjects.filter(i => i !== icon);
+        this.updateModelClipPlanes();
+      }
+    }
+
+    if (mesh.userData.icon) {
+      this.scissorIcons = this.scissorIcons.filter(i => i !== mesh.userData.icon);
+    }
+
+    this.planeObjects = this.planeObjects.filter(p => p !== mesh);
+
+    const plane = mesh.userData.plane;
+    if (plane) {
+      // this.clippingPlanes = this.clippingPlanes.filter(p => p !== plane);
+      this.planes = this.planes.filter(p => p !== plane);
+      this.updateModelClipPlanes();
+    }
+  }
+
+  deleteAllPlanes() {
+    this.planeObjects.forEach(obj => {
+      this.scene.remove(obj);
+      if (obj.userData.linkedIcon) this.scene.remove(obj.userData.linkedIcon);
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) obj.material.dispose();
+    });
+    this.planeObjects = [];
+    this.iconObjects = [];
+    this.scissorIcons = [];
+    // this.clippingPlanes = [];
+    this.planes = [];
+    this.pendingPlaneMesh = null;
+    this.updateModelClipPlanes();
+    if (this.transformControls) this.transformControls.detach();
+  }
+
+  getClippingState() {
+    // if (this.clippingPlanes.length === 0) return null;
+    // return this.clippingPlanes.map(p => ({
+    //   normal: p.normal.toArray(),
+    //   constant: p.constant
+    // }));
+    if (this.planes.length === 0) return null;
+    return this.planes.map(p => ({
+      normal: p.normal.toArray(),
+      constant: p.constant
+    }));
+  }
+
+  restoreClippingState(planesData) {
+    this.deleteAllPlanes();
+    if (!planesData || planesData.length === 0) return;
+    planesData.forEach(pData => {
+      const normal = new THREE.Vector3().fromArray(pData.normal);
+      this.createClippingPlane(normal, pData.constant);
+    });
+  }
+
+  createClippingPlane(normal, constant) {
+    const plane = new THREE.Plane(normal, constant);
+    // this.clippingPlanes.push(plane);
+    this.planes.push(plane);
+    this.updateModelClipPlanes();
+    const size = 30;
+    const geom = new THREE.PlaneGeometry(size, size);
+
+    // SAVED: material.visible = false
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0xffff00, side: THREE.DoubleSide, transparent: true, opacity: 0.3,
+      depthWrite: false, depthTest: false, clippingPlanes: []
+    });
+    const mesh = new THREE.Mesh(geom, mat);
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
+
+    // Offset
+    const offset = 0.1;
+    const visualPosition = normal.clone().multiplyScalar(-constant).add(normal.clone().multiplyScalar(offset));
+
+    mesh.lookAt(normal);
+    mesh.position.copy(visualPosition);
+    mesh.userData.plane = plane;
+    mesh.isPlaneHelper = true;
+    mesh.renderOrder = 1000;
+
+    const edgesGeom = new THREE.EdgesGeometry(geom);
+    const edgeMaterial = new THREE.LineBasicMaterial({
+      color: 0xffff00, transparent: true, opacity: 1.0,
+      depthTest: false, depthWrite: false, clippingPlanes: []
+    });
+    const edgesMesh = new THREE.LineSegments(edgesGeom, edgeMaterial);
+    mesh.userData.border = edgesMesh;
+    mesh.add(edgesMesh);
+
+    const icon = this.createCanvasIcon();
+    icon.position.copy(visualPosition);
+    icon.visible = true;
+
+    // Link
+    mesh.userData.linkedIcon = icon;
+    icon.userData.linkedMesh = mesh;
+
+    this.scene.add(mesh);
+    this.scene.add(icon);
+
+    this.planeObjects.push(mesh);
+    if (!this.iconObjects) this.iconObjects = [];
+    this.iconObjects.push(icon);
+  }
+
+  handleClippingClick(event, camera, renderer) {
+    const bounds = renderer.domElement.getBoundingClientRect();
+    const mouse = new Vector2();
+    mouse.x = ((event.clientX - bounds.left) / bounds.width) * 2 - 1;
+    mouse.y = -((event.clientY - bounds.top) / bounds.height) * 2 + 1;
+
+    this.raycaster.setFromCamera(mouse, camera);
+
+    const models = this.ifcModels.map(m => m.mesh).filter(m => m && m.visible);
+    const intersects = this.raycaster.intersectObjects(models, true);
+
+    if (intersects.length > 0) {
+      const hit = intersects[0];
+      this.createPlaneFromIntersection(hit);
+    }
   }
 }

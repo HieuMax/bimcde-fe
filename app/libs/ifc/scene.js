@@ -45,7 +45,8 @@ export class ThreeScene {
 
     this.keys = {
       KeyW: false, KeyA: false, KeyS: false, KeyD: false,
-      ShiftLeft: false, ShiftRight: false, Space: false
+      ShiftLeft: false, ShiftRight: false, Space: false,
+      KeyR: false, KeyT: false
     };
     this.cameraMode = 'orbit';
 
@@ -56,8 +57,8 @@ export class ThreeScene {
     this.moveSpeed = 8.0;
     this.runSpeedMultiplier = 2.5;
     this.jumpHeight = 12.0;
-    this.gravity = 35.0;
-    this.playerHeight = 1.7;
+    // this.gravity = 35.0;
+    // this.playerHeight = 1.7;
     this.maxStepHeight = 0.35;
 
     this.raycaster = new Raycaster(new Vector3(), new Vector3(0, -1, 0), 0, 50);
@@ -142,7 +143,7 @@ export class ThreeScene {
         console.log("Walk Mode Active");
         this.controls.enablePan = false;
         this.controls.screenSpacePanning = false;
-        this.controls.maxPolarAngle = Math.PI / 1.4;
+        this.controls.maxPolarAngle = Math.PI;
         break;
     }
     this.controls.update();
@@ -227,14 +228,22 @@ export class ThreeScene {
 
     if (moveVec.length() > 0) moveVec.normalize().multiplyScalar(actualMoveSpeed);
 
+    if (this.keys.KeyR) {
+      moveVec.y += actualMoveSpeed;
+    }
+
+    if (this.keys.KeyT) {
+      moveVec.y -= actualMoveSpeed;
+    }
+
     this.camera.position.add(moveVec);
     this.controls.target.add(moveVec);
 
-    if (!this.onGround) {
-      const verticalMove = this.velocity.y * delta;
-      this.camera.position.y += verticalMove;
-      this.controls.target.y += verticalMove;
-    }
+    // if (!this.onGround) {
+    //   const verticalMove = this.velocity.y * delta;
+    //   this.camera.position.y += verticalMove;
+    //   this.controls.target.y += verticalMove;
+    // }
 
     this.controls.update();
   }

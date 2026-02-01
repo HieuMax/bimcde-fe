@@ -26,7 +26,8 @@ import {
     Check,
     ArrowRight,
     ArrowDown,
-    ArrowUp, // Icon Walk
+    ArrowUp,
+    Trash2, // Icon Walk
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -60,6 +61,9 @@ interface NavbarProps {
     onSelectionModeChange?: (mode: SelectionMode) => void;
     activeView?: ViewOptionType;
     onViewChange?: (view: ViewOptionType) => void;
+    onClipSave?: () => void;
+    onClipCancel?: () => void;
+    onToolChange?: (tool: ActiveToolType) => void;
 }
 
 // Helper component to render a button with a tooltip to avoid code repetition
@@ -113,6 +117,10 @@ export function Navbar({
     onSelectionModeChange,
     activeView,
     onViewChange,
+    onToolSelect,
+    onToolChange,
+    onClipSave,
+    onClipCancel,
 }: NavbarProps) {
 
     const CurrentCameraIcon = useMemo(() => {
@@ -123,6 +131,45 @@ export function Navbar({
             default: return Orbit;
         }
     }, [cameraMode]);
+
+
+    if (activeTool === 'clipping') {
+        return (
+            <TooltipProvider delayDuration={300}>
+                <nav className="sticky top-0 z-50 bg-background border-b border-border shadow-sm flex-none">
+                    <div className="flex items-center h-16 px-4 gap-1 justify-between bg-blue-50/50">
+
+                        {/* Left: Message */}
+                        <div className="flex items-center gap-2 text-sm text-blue-700 font-medium animate-pulse">
+                            <SquareScissors className="h-5 w-5" />
+                            <span>Clipping Mode: Click on model to place cut</span>
+                        </div>
+
+                        {/* Right: Actions */}
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-red-600 hover:bg-red-50 border-red-200 gap-2"
+                                onClick={onClipCancel}
+                            >
+                                <Trash2 className="h-4 w-4" /> Cancel
+                            </Button>
+
+                            <Button
+                                variant="default"
+                                size="sm"
+                                className="bg-blue-600 hover:bg-blue-700 gap-2"
+                                onClick={onClipSave}
+                            >
+                                <Check className="h-4 w-4" /> Save Plane
+                            </Button>
+                        </div>
+                    </div>
+                </nav>
+            </TooltipProvider>
+        );
+    }
 
 
     return (
@@ -213,7 +260,13 @@ export function Navbar({
 
                         <NavIconButton icon={Ruler} label="Measurement option" />
                         <NavIconButton icon={MessageCircleDashed} label="Add markup" />
-                        <NavIconButton icon={SquareScissors} label="Clip plane" />
+
+                        <NavIconButton
+                            icon={SquareScissors}
+                            label="Add Clip Plane"
+                            onClick={() => onToolSelect?.('clipping')}
+                        />
+
                         <NavIconButton icon={CameraIcon} label="Add view" onClick={onAddView} isActive={activeTool === 'view'} />
                         <NavIconButton icon={ClipboardCheck} label="Add todo" onClick={onAddTodo} isActive={activeTool === 'todo'} />
 
@@ -357,23 +410,14 @@ export function Navbar({
                             </DropdownMenuContent>
                         </DropdownMenu>
 
-                        <div className="w-px h-6 bg-border mx-1" />
-                        <NavIconButton icon={MoreVertical} label="More options" />
+                        {/* <div className="w-px h-6 bg-border mx-1" />
+                        <NavIconButton icon={MoreVertical} label="More options" /> */}
 
-                    </div>
-
-                    {/* Spacer */}
-                    <div className="flex-1" />
-
-                    {/* Right Section */}
-                    <div className="flex items-center gap-1">
-                        {/* Divider */}
                         <div className="w-px h-6 bg-border mx-1" />
 
                         {/* Settings & Actions */}
-                        <NavIconButton icon={Download} label="Download" />
-                        <NavIconButton icon={Settings} label="Settings" />
                         <NavIconButton icon={Fullscreen} label="Fullscreen" />
+
                     </div>
                 </div>
             </nav>

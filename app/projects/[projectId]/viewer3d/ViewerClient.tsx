@@ -88,6 +88,8 @@ export default function ViewerClient() {
     runClashTest: (modelIDs: any[], tolerance: number, onProgress: (p: number, t: string) => void) => Promise<any[]>;
     setCameraMode: (mode: CameraMode) => void;
     setView: (view: ViewOptionType) => void;
+    saveClipping: () => void;
+    cancelClipping: () => void;
   } | null>(null);
 
   const [todoToEdit, setTodoToEdit] = useState<any>(null);
@@ -104,12 +106,71 @@ export default function ViewerClient() {
 
   const [modelOpacity, setModelOpacity] = useState(1);
 
+  const [activeTool, setActiveTool] = useState<ActiveToolType>(null);
 
-  const activeTool: ActiveToolType = useMemo(() => {
-    if (isDrawerOpen) return 'todo';
-    if (isViewDrawerOpen) return 'view';
-    return null;
-  }, [isDrawerOpen, isViewDrawerOpen]);
+  const handleClipSave = () => {
+    if (viewerActions.current?.saveClipping) {
+      viewerActions.current.saveClipping();
+    }
+    setActiveTool(null);
+    toast.success("Clipping plane saved");
+  };
+
+  const handleClipCancel = () => {
+    if (viewerActions.current?.cancelClipping) {
+      viewerActions.current.cancelClipping();
+    }
+    setActiveTool(null);
+  };
+
+  // const activeTool: ActiveToolType = useMemo(() => {
+  //   if (isDrawerOpen) return 'todo';
+  //   if (isViewDrawerOpen) return 'view';
+  //   return null;
+  // }, [isDrawerOpen, isViewDrawerOpen]);
+
+  const handleToolSelect = (tool: ActiveToolType) => {
+    if (activeTool === tool) {
+      setActiveTool(null);
+      if (tool === 'todo') setIsDrawerOpen(false);
+      if (tool === 'view') setIsViewDrawerOpen(false);
+      if (tool === 'clipping') {
+      }
+      return;
+    }
+
+    setActiveTool(tool);
+
+    switch (tool) {
+      case 'todo':
+        setIsDrawerOpen(true);
+        setIsViewDrawerOpen(false);
+        break;
+      case 'view':
+        setIsViewDrawerOpen(true);
+        setIsDrawerOpen(false);
+        break;
+      case 'clipping':
+      case 'measurement':
+        setIsDrawerOpen(false);
+        setIsViewDrawerOpen(false);
+        break;
+      default:
+        setIsDrawerOpen(false);
+        setIsViewDrawerOpen(false);
+        break;
+    }
+  };
+
+  const handleDrawerClose = (isOpen: boolean) => {
+    setIsDrawerOpen(isOpen);
+    if (!isOpen && activeTool === 'todo') setActiveTool(null);
+  };
+
+  const handleViewDrawerClose = (isOpen: boolean) => {
+    setIsViewDrawerOpen(isOpen);
+    if (!isOpen && activeTool === 'view') setActiveTool(null);
+  };
 
 
   // --- STATE CLASH DRAWER ---
@@ -344,8 +405,9 @@ export default function ViewerClient() {
   };
 
   const onAddTodo = () => {
-    if (isDrawerOpen) {
+    if (isDrawerOpen && activeTool === 'todo') {
       setIsDrawerOpen(false);
+      setActiveTool(null);
       return;
     }
     setTodoToEdit(null);
@@ -401,7 +463,8 @@ export default function ViewerClient() {
 
     setDrawerInitialData(initialData);
     setIsDrawerOpen(true);
-    setIsViewDrawerOpen(false)
+    setIsViewDrawerOpen(false);
+    setActiveTool('todo');
   };
 
   const handleSelectTodo = (todo: any) => {
@@ -533,12 +596,16 @@ export default function ViewerClient() {
   };
 
   const onAddView = () => {
-    if (isViewDrawerOpen) {
+    if (isViewDrawerOpen && activeTool === 'view') {
       setIsViewDrawerOpen(false);
+      setActiveTool(null);
       return;
     }
+
     handleOpenViewDrawer(null, 'create');
+
     setIsDrawerOpen(false);
+    setActiveTool('view');
   };
 
   // --- 2. UPDATE SNAPSHOT (...) ---
@@ -639,15 +706,19 @@ export default function ViewerClient() {
         onOpacityChange={setModelOpacity}
         onAddView={onAddView}
         activeTool={activeTool}
-        onToolSelect={(tool) => {
-          console.log("Selected tool:", tool);
-        }}
+        // onToolSelect={(tool) => {
+        //   console.log("Selected tool:", tool);
+        // }}
         cameraMode={cameraMode}
         onCameraModeChange={handleCameraModeChange}
         selectionMode={selectionMode}
         onSelectionModeChange={setSelectionMode}
         activeView={activeView}
         onViewChange={handleViewChange}
+        onToolSelect={handleToolSelect}
+        onClipSave={handleClipSave}
+        onClipCancel={handleClipCancel}
+        onToolChange={setActiveTool}
       />
       <div className="flex flex-1 relative overflow-hidden">
 
@@ -735,6 +806,8 @@ export default function ViewerClient() {
               autoExpandedClashSetId={pendingClashSetId}
               cameraMode={cameraMode}
               selectionMode={selectionMode}
+              activeTool={activeTool}
+              onToolChange={(tool: ActiveToolType) => setActiveTool(tool)}
             />
 
 
@@ -751,7 +824,7 @@ export default function ViewerClient() {
 
       <NewTodoDrawer
         open={isDrawerOpen}
-        onOpenChange={setIsDrawerOpen}
+        onOpenChange={handleDrawerClose}
         projectId={projectId as string}
         mode={drawerMode}
         todoToEdit={todoToEdit}
@@ -762,10 +835,7 @@ export default function ViewerClient() {
       {/* RENDER VIEW DRAWER */}
       <ViewDrawer
         open={isViewDrawerOpen}
-        onOpenChange={(v) => {
-          setIsViewDrawerOpen(v);
-          if (v) setIsDrawerOpen(false);
-        }}
+        onOpenChange={handleViewDrawerClose}
         projectId={projectId as string}
         mode={viewDrawerMode}
         viewToEdit={viewToEdit}
