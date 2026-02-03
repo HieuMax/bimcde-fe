@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback} from 'react';
 import { ThreeScene } from '@/app/libs/ifc/scene';
+import * as THREE from "three";
 import { IfcManager } from '@/app/libs/ifc/ifc-manager';
 import { TreeNode } from './TreeNode';
 import TodoList from '@/components/todos/TodoList';
@@ -41,7 +42,14 @@ export default function IfcViewer({
   onRestoreView,
   onUpdateSnapshot,
   modelOpacity,
-  onOpacityChange
+  onOpacityChange,
+  clipMode,
+  hoverMode,
+  onVerticalClipCreated,
+  onClearVerticalClips,
+  onClipSelected, 
+  onClipDeselected  ,
+  // onClearVerticalClips
 }) {
   const canvasRef = useRef(null);
   const loaderRef = useRef(null);
@@ -82,6 +90,575 @@ export default function IfcViewer({
 
   // DATA TABLE
   const isDataTable = state === 'data-table';
+
+
+  // 1. Hàm lấy trạng thái Clip hiện tại để lưu
+const getClippingState = () => {
+    // Lấy context từ viewer (tùy thuộc vào library bạn dùng, đây là ví dụ logic)
+    // Nếu dùng ifc.js components:
+    const clipper = viewerRef.current.clipper; 
+    
+    if (!clipper || !clipper.active) {
+        return { enabled: false, planes: [] };
+    }
+
+    // Lấy danh sách các planes (Three.js Plane: normal & constant)
+    const planes = clipper.planes.map(p => ({
+        normal: { x: p.normal.x, y: p.normal.y, z: p.normal.z },
+        constant: p.constant
+    }));
+
+    return {
+        enabled: true,
+        planes: planes
+    };
+};
+
+// 2. Hàm khôi phục Clip từ data đã lưu
+const restoreClippingState = (clippingData) => {
+    const clipper = viewerRef.current.clipper;
+    
+    // Xóa hết clip cũ trước
+    clipper.deleteAllPlanes();
+    
+    if (!clippingData || !clippingData.enabled || !clippingData.planes) {
+        return;
+    }
+
+    // Tạo lại planes
+    clippingData.planes.forEach(pData => {
+        const normal = new THREE.Vector3(pData.normal.x, pData.normal.y, pData.normal.z);
+        // Gọi hàm tạo plane của viewer library
+        clipper.createPlane(normal, pData.constant); 
+    });
+};
+// =====================================================
+// CLIP PLANE 
+// =====================================================
+const [selectedPlaneId, setSelectedPlaneId] = useState(null);
+// Hover
+const hoverGroupRef = useRef(new THREE.Group());
+// state từng mặt
+const sectionIndexRef = useRef(1); 
+
+// Core refs
+const planesDataRef = useRef([]);
+const planeHelpersGroupRef = useRef(new THREE.Group());
+const cutFaceGroupRef = useRef(new THREE.Group());
+
+const draggingPlaneRef = useRef(null);
+const lastMouseYRef = useRef(0);
+
+// =====================================================
+// HELPERS
+// =====================================================
+const getSceneBoundingBox = useCallback(() => {
+  const box = new THREE.Box3();
+  models.forEach(m => m.mesh && box.expandByObject(m.mesh));
+  return box;
+}, [models]);
+
+// MARKER ĐÁNH DẤU THỨ TỰ TỪNG CLIP
+const createSectionMarker = (point, index) => {
+  const canvas = document.createElement('canvas');
+  canvas.width = 128; canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+
+  // Nền tròn
+  ctx.beginPath();
+  ctx.arc(64, 64, 55, 0, Math.PI * 2);
+  ctx.fillStyle = '#2563eb';
+  ctx.fill();
+  
+  // Viền trắng
+  ctx.lineWidth = 8;
+  ctx.strokeStyle = '#ffffff';
+  ctx.stroke();
+
+  // Số
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 64px Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(String(index), 64, 68);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  
+  // 🔥 Dùng SpriteMaterial thay vì MeshBasicMaterial
+  const mat = new THREE.SpriteMaterial({
+    map: texture,
+    depthTest: false, // Luôn nổi lên trên
+    depthWrite: false,
+    sizeAttenuation: true // Thu nhỏ khi ở xa (tự nhiên)
+  });
+
+  const sprite = new THREE.Sprite(mat);
+  sprite.position.copy(point);
+  
+  // 🔥 Scale sprite (Sprite mặc định size 1x1, cần chỉnh to lên chút)
+  sprite.scale.set(1.5, 1.5, 1); 
+  
+  sprite.renderOrder = 10000; // Vẽ sau cùng
+  sprite.userData.isClipHelper = true;
+
+  return sprite;
+};
+
+/**
+ * 🔒 FIXED NORMAL
+ * 👉 LUÔN cắt theo chiều rộng (WORLD Z)
+ * 👉 KHÔNG đổi theo camera
+ */
+
+// =====================================================
+// CLEAR
+// =====================================================
+const clearAllClippingPlanes = useCallback(() => {
+  if (!sceneRef.current) return;
+
+  const renderer = sceneRef.current.getRenderer();
+  renderer.localClippingEnabled = false;
+  renderer.clippingPlanes = [];
+
+  cutFaceGroupRef.current.clear();
+  planeHelpersGroupRef.current.clear();
+  planesDataRef.current = [];
+
+  setSelectedPlaneId(null);
+  sectionIndexRef.current = 1;
+
+  // Reset clipping trên material
+  sceneRef.current.scene.traverse(obj => {
+    if (!obj.isMesh) return;
+    const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+    mats.forEach(m => {
+      m.clippingPlanes = null;
+      m.needsUpdate = true;
+    });
+  });
+}, []);
+
+useEffect(() => {
+  if (!onClearVerticalClips) return;
+
+  onClearVerticalClips(() => {
+    clearAllClippingPlanes();
+  });
+}, [onClearVerticalClips, clearAllClippingPlanes]);
+
+// =====================================================
+// CUT FACE (GREEN PLANE ONLY)
+// =====================================================
+const createCutFaceBackground = useCallback((plane) => {
+    const bbox = getSceneBoundingBox();
+    const size = bbox.getSize(new THREE.Vector3());
+    const width  = Math.max(size.x, size.z) * 1.2;
+    const height = size.y * 1.2;
+
+    const geo = new THREE.PlaneGeometry(width, height);
+
+    // --- A. Nền Mờ ---
+    const canvas = document.createElement('canvas');
+    canvas.width = 64; canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = 'rgba(59, 130, 246, 0.15)'; 
+    ctx.fillRect(0, 0, 64, 64);
+    
+    const bgMat = new THREE.MeshBasicMaterial({
+      map: new THREE.CanvasTexture(canvas),
+      transparent: true,
+      opacity: 1,
+      side: THREE.DoubleSide,
+      depthTest: true, 
+      depthWrite: false,
+      // 🔥 QUAN TRỌNG: Khẳng định lại lần nữa là không bị cắt
+      clippingPlanes: [] 
+    });
+    const background = new THREE.Mesh(geo, bgMat);
+
+    // --- B. Viền ---
+    const borderCanvas = document.createElement('canvas');
+    borderCanvas.width = 512; borderCanvas.height = 512;
+    const bCtx = borderCanvas.getContext('2d');
+    bCtx.strokeStyle = '#2563eb'; bCtx.lineWidth = 15;
+    bCtx.strokeRect(5, 5, 502, 502);
+
+    const borderMat = new THREE.MeshBasicMaterial({
+      map: new THREE.CanvasTexture(borderCanvas),
+      transparent: true,
+      side: THREE.DoubleSide,
+      depthTest: false,
+      clippingPlanes: [] // 🔥 Viền cũng không bị cắt
+    });
+    const borderMesh = new THREE.Mesh(geo, borderMat);
+    
+    const group = new THREE.Group();
+    group.add(background);
+    group.add(borderMesh);
+    
+    // Định vị
+    const p = plane.normal.clone().multiplyScalar(-plane.constant);
+    group.position.copy(p);
+    
+    const forward = new THREE.Vector3(0, 0, 1);
+    group.quaternion.setFromUnitVectors(forward, plane.normal);
+    
+    group.userData.isClipHelper = true; 
+    return group;
+  }, [getSceneBoundingBox]);
+
+// =====================================================
+// APPLY CLIP
+// =====================================================
+  const updateRendererPlanes = useCallback(() => {
+    if (!sceneRef.current) return;
+    const renderer = sceneRef.current.getRenderer();
+
+    // 1. Lấy danh sách tất cả các mặt cắt
+    // const allPlanes = planesDataRef.current.map(d => d.plane);
+    const allPlanes = planesDataRef.current
+      .filter(d => d.isActive)
+      .map(d => d.plane);
+
+    renderer.localClippingEnabled = true;
+    
+    // 🔥 FIX QUAN TRỌNG: KHÔNG gán cho Global Renderer
+    // Để tránh việc mặt cắt này cắt mất hình ảnh của mặt cắt kia
+    renderer.clippingPlanes = []; 
+
+    // 2. Chỉ áp dụng cắt lên các Model (Mesh vật thể)
+    sceneRef.current.scene.traverse(obj => {
+      // Bỏ qua Visual Helper, Bỏ qua Grid, v.v.
+      if (!obj.isMesh || obj.userData.isClipHelper || obj.parent?.userData.isClipHelper) return;
+
+      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+      mats.forEach(m => {
+        // Chỉ vật thể mới chịu tác động của dao cắt
+        if (allPlanes.length > 0) {
+            m.clippingPlanes = allPlanes; 
+            m.clipIntersection = false; // false = Cắt gọt dần (Union)
+            m.clipShadows = true;
+            m.needsUpdate = true;
+        } else {
+            m.clippingPlanes = null;
+            m.needsUpdate = true;
+        }
+      });
+    });
+  }, []);
+
+// =====================================================
+// CREATE SECTION (MAIN)
+// =====================================================
+const createVerticalSectionAtPoint = useCallback(
+  (point, faceNormal = null) => {
+    if (!sceneRef.current) return;
+
+    let normal = new THREE.Vector3();
+    let planePoint = point.clone();
+    let isActive = true;
+
+    if (hoverMode === 'faces' && faceNormal) {
+      // ===== FACES MODE =====
+      normal.copy(faceNormal).normalize();
+
+      // đặt plane ngoài bề mặt
+      const EPS = 0.02;
+      planePoint.add(normal.clone().multiplyScalar(EPS));
+
+      isActive = false; // 🔥 chưa cắt, chờ drag
+    } else {
+      // ===== LINES MODE =====
+      normal.set(0, 0, 1);
+    }
+
+    const plane = new THREE.Plane();
+    plane.setFromNormalAndCoplanarPoint(
+      isActive ? normal.clone().negate() : normal,
+      planePoint
+    );
+
+    const visualPlane = createCutFaceBackground(plane);
+
+    const index = sectionIndexRef.current++;
+    const marker = createSectionMarker(planePoint, index);
+
+    marker.userData = {
+      isClipHelper: true,
+      isMarker: true,
+      id: index
+    };
+
+    cutFaceGroupRef.current.add(visualPlane);
+    cutFaceGroupRef.current.add(marker);
+
+    const safeNormal =
+      normal.lengthSq() > 0
+        ? normal.clone().normalize()
+        : new THREE.Vector3(0, 0, 1);
+    planesDataRef.current.push({
+      id: index,
+      plane,
+      visual: visualPlane,
+      marker,
+      originalNormal: safeNormal,
+      mode: hoverMode,
+      isActive,
+      anchorPoint: planePoint.clone()
+    });
+
+    updateRendererPlanes();
+  },
+  [hoverMode, createCutFaceBackground, updateRendererPlanes]
+);
+
+//  ĐẢO CHIỀU CLIP
+  const flipPlaneDirection = useCallback(() => {
+    if (!selectedPlaneId) return;
+
+    // Tìm plane trong dữ liệu
+    const planeData = planesDataRef.current.find(p => p.id === selectedPlaneId);
+    if (!planeData) return;
+
+    const { plane, visual } = planeData;
+
+    // 1. Đảo ngược toán học (Normal * -1)
+    plane.negate();
+
+    // 2. Cập nhật Visual (Xoay 180 độ hoặc set lại hướng)
+    const forward = new THREE.Vector3(0, 0, 1);
+    visual.quaternion.setFromUnitVectors(forward, plane.normal);
+
+    // 3. Cập nhật Renderer
+    updateRendererPlanes();
+
+    console.log("🔄 Flipped Plane:", selectedPlaneId);
+  }, [selectedPlaneId, updateRendererPlanes]);
+
+  // XÓA CLIP
+  const deleteSelectedPlane = useCallback(() => {
+    if (!selectedPlaneId) return;
+
+    // 1. Tìm và xóa khỏi Scene
+    const planeData = planesDataRef.current.find(p => p.id === selectedPlaneId);
+    if (planeData) {
+        cutFaceGroupRef.current.remove(planeData.visual);
+        cutFaceGroupRef.current.remove(planeData.marker);
+    }
+
+    // 2. Xóa khỏi mảng dữ liệu
+    planesDataRef.current = planesDataRef.current.filter(p => p.id !== selectedPlaneId);
+
+    // 3. Reset State & UI
+    setSelectedPlaneId(null);
+    if (onClipDeselected) onClipDeselected();
+
+    // 4. Update Renderer
+    updateRendererPlanes();
+
+  }, [selectedPlaneId, updateRendererPlanes, onClipDeselected]);
+
+// CHỌN MARKER
+  useEffect(() => {
+    // Duyệt qua tất cả marker để đổi màu (Xanh = thường, Đỏ = đang chọn)
+    planesDataRef.current.forEach(data => {
+        const isSelected = data.id === selectedPlaneId;
+        const sprite = data.marker;
+        
+        // Hack màu bằng cách vẽ lại hoặc đổi color tint (đơn giản nhất là đổi color material)
+        if (isSelected) {
+            sprite.material.color.setHex(0xff0000);
+            sprite.scale.set(1.8, 1.8, 1); 
+        } else {
+            sprite.material.color.setHex(0xffffff); // Trắng (gốc)
+            sprite.scale.set(1.5, 1.5, 1);
+        }
+    });
+
+    if (selectedPlaneId && onClipSelected) {
+        onClipSelected({
+            onFlipClipDirection: flipPlaneDirection,
+            onDeleteClip: deleteSelectedPlane
+        });
+    } else if (!selectedPlaneId && onClipDeselected) {
+        // onClipDeselected(); // Cẩn thận loop, chỉ gọi khi click ra ngoài
+    }
+
+  }, [selectedPlaneId, flipPlaneDirection, deleteSelectedPlane, onClipSelected, onClipDeselected]);
+// =====================================================
+// CLICK EVENT
+// =====================================================
+  useEffect(() => {
+      if (clipMode === 'none') return;
+      if (!canvasRef.current || !sceneRef.current) return;
+      
+      const canvas = canvasRef.current;
+      const raycaster = new THREE.Raycaster();
+      const mouse = new THREE.Vector2();
+
+      const onClick = (e) => {
+          const rect = canvas.getBoundingClientRect();
+          mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+          mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+          raycaster.setFromCamera(mouse, sceneRef.current.getCamera());
+
+          // --- BƯỚC 1: KIỂM TRA CLICK VÀO MARKER TRƯỚC ---
+          // Raycast vào group chứa visual/marker
+          const helperHits = raycaster.intersectObjects(cutFaceGroupRef.current.children, true);
+          
+          const markerHit = helperHits.find(h => h.object.userData.isMarker);
+
+          if (markerHit) {
+            const id = markerHit.object.userData.id;
+            setSelectedPlaneId(id);
+            draggingPlaneRef.current = id;
+            lastMouseYRef.current = e.clientY;
+            return;
+          }
+
+          // --- BƯỚC 2: NẾU KHÔNG TRÚNG MARKER -> TẠO MỚI (Logic cũ) ---
+          
+          // Nếu đang chọn plane mà click ra ngoài -> Bỏ chọn
+          if (selectedPlaneId) {
+              setSelectedPlaneId(null);
+              if (onClipDeselected) onClipDeselected();
+          }
+
+          const meshes = models.map(m => m.mesh).filter(Boolean);
+          const hits = raycaster.intersectObjects(meshes, true);
+          const activePlanes = planesDataRef.current.map(d => d.plane);
+
+          const validHit = hits.find(hit => {
+            if (hit.object.userData.isClipHelper || hit.object.parent?.userData.isClipHelper) {
+              return false;
+            }
+
+            // 🔥 Faces: chỉ nhận mặt ngoài
+            if (hoverMode === 'faces') {
+              const worldNormal = hit.face.normal
+                .clone()
+                .applyQuaternion(hit.object.quaternion);
+
+              const viewDir = new THREE.Vector3()
+                .subVectors(sceneRef.current.getCamera().position, hit.point)
+                .normalize();
+
+              if (worldNormal.dot(viewDir) <= 0) return false;
+            }
+
+            const isClipped = activePlanes.some(
+              plane => plane.distanceToPoint(hit.point) < -0.001
+            );
+
+            return !isClipped;
+          });
+
+          if (validHit) {
+            const worldNormal = validHit.face.normal.clone();
+            worldNormal.applyQuaternion(validHit.object.quaternion);
+
+            createVerticalSectionAtPoint(
+              validHit.point,
+              hoverMode === 'faces' ? worldNormal : null
+            );
+          }
+      };
+
+      const onMouseMove = (e) => {
+        if (!draggingPlaneRef.current) return;
+
+        const planeData = planesDataRef.current.find(
+          p => p.id === draggingPlaneRef.current
+        );
+        if (!planeData) return;
+
+        const normal =
+          planeData.originalNormal?.lengthSq() > 0
+            ? planeData.originalNormal
+            : new THREE.Vector3(0, 0, 1);
+
+        // === 1️⃣ pixel → world scale (ổn định)
+        const SPEED = 0.04; // 👈 chỉnh cảm giác drag ở đây
+        const deltaPx = e.clientY - lastMouseYRef.current;
+        lastMouseYRef.current = e.clientY;
+
+        // === 2️⃣ dịch anchor theo normal
+        planeData.anchorPoint.add(
+          normal.clone().multiplyScalar(deltaPx * SPEED)
+        );
+
+        // === 3️⃣ update plane
+        planeData.plane.setFromNormalAndCoplanarPoint(
+          planeData.isActive
+            ? normal.clone().negate()
+            : normal,
+          planeData.anchorPoint
+        );
+
+        // === 4️⃣ faces: activate khi kéo vào
+        if (
+          planeData.mode === 'faces' &&
+          !planeData.isActive &&
+          deltaPx > 0
+        ) {
+          planeData.isActive = true;
+          planeData.plane.normal.copy(normal.clone().negate());
+        }
+
+        // === 5️⃣ update visual + marker
+        const p = planeData.plane.normal
+          .clone()
+          .multiplyScalar(-planeData.plane.constant);
+
+        planeData.visual.position.copy(p);
+        planeData.marker.position.copy(p);
+
+        updateRendererPlanes();
+      };
+
+
+      const onMouseUp = () => {
+        draggingPlaneRef.current = null;
+      };
+
+      canvas.addEventListener('click', onClick);
+      canvas.addEventListener('mousemove', onMouseMove);
+      window.addEventListener('mouseup', onMouseUp);
+      
+      return () => {
+        canvas.removeEventListener('click', onClick);
+        canvas.removeEventListener('mousemove', onMouseMove);
+        window.removeEventListener('mouseup', onMouseUp);
+      };
+
+  }, [clipMode, models, createVerticalSectionAtPoint, selectedPlaneId]); 
+
+// =====================================================
+// INIT GROUPS (SAFE CLEANUP)
+// =====================================================
+useEffect(() => {
+  if (!sceneRef.current) return;
+
+  const scene = sceneRef.current.scene;
+
+  const cutFaceGroup = cutFaceGroupRef.current;
+  const helperGroup = planeHelpersGroupRef.current;
+  const hoverGroup = hoverGroupRef.current;
+
+  scene.add(cutFaceGroup);
+  scene.add(helperGroup);
+  scene.add(hoverGroup);
+
+  return () => {
+    scene.remove(cutFaceGroup);
+    scene.remove(helperGroup);
+    scene.remove(hoverGroup);
+
+    cutFaceGroup.clear();
+    helperGroup.clear();
+    hoverGroup.clear();
+  };
+}, [models]);
 
   useEffect(() => {
     if (!ifcUrls?.length || !canvasRef.current) return;
@@ -497,9 +1074,6 @@ export default function IfcViewer({
       handleShowProperties();
     }
   }, [selectedItems]);
-
-
-
 
 
   // --- EFFECT: UPDATE OPACITY ---

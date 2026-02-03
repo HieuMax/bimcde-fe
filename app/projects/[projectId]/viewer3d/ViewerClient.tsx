@@ -1,9 +1,9 @@
 'use client';
 
 import { useSearchParams, useRouter, useParams } from 'next/navigation';
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import IfcViewer from '@/app/components/ifcs/IfcViewer';
-import { Box, Layers, ClipboardCheck, ChevronRight, ChevronLeft, Camera, FolderTree, Sheet, BadgeInfo, BookText } from 'lucide-react';
+import { Box, Layers, ClipboardCheck, ChevronRight, ChevronLeft, Camera, FolderTree, Sheet, BadgeInfo, BookText, AtomIcon } from 'lucide-react';
 import { Navbar } from '@/components/layout/navbar/Navbar';
 import { NewTodoDrawer } from '@/components/todos/NewTodoDrawer';
 import { viewService3D as viewService } from '@/services/view3d.service';
@@ -32,6 +32,11 @@ const areArraysEqual = (arr1: string[], arr2: string[]) => {
   const sorted2 = [...arr2].sort();
   return sorted1.every((value, index) => value === sorted2[index]);
 };
+
+export type ClipType = 'none' | 'plane' | 'vertical' | 'box'
+
+export type HoverMode = 'both' | 'lines' | 'faces'
+
 
 export default function ViewerClient() {
   const router = useRouter();
@@ -62,6 +67,17 @@ export default function ViewerClient() {
 
   const [todoToEdit, setTodoToEdit] = useState<any>(null);
   const [drawerMode, setDrawerMode] = useState<"create" | "view" | "edit">("create");
+
+    // state clip plane
+  const [clipMode, setClipMode] = useState<ClipType>('none');
+  const [hoverMode, setHoverMode] = useState<HoverMode>('both');
+  const [hasActiveVerticalClip, setHasActiveVerticalClip] = useState(false);
+
+  useEffect(() => {
+    if (clipMode === 'box') {
+      setHoverMode('both') // box không hover
+    }
+  }, [clipMode]);
 
   // --- STATES VIEW ---
   const [isViewDrawerOpen, setIsViewDrawerOpen] = useState(false);
@@ -117,9 +133,10 @@ export default function ViewerClient() {
     { icon: <Camera />, label: 'views' },
     { icon: <FolderTree />, label: 'organizer' },
     { icon: <Sheet />, label: 'data-table' },
-    { icon: <BookText />, label: 'topics' },
+    { icon: <AtomIcon />, label: 'topics' },
     { icon: <BadgeInfo />, label: 'clash-sets' },
   ];
+
 
   const handleRegisterActions = (actions: any) => {
     viewerActions.current = actions;
@@ -257,8 +274,6 @@ export default function ViewerClient() {
     }
   };
 
-
-
   const handleViewerLoaded = () => {
     if (pendingTodo) {
       console.log("New model loaded, processing pending todo...");
@@ -286,7 +301,6 @@ export default function ViewerClient() {
       }, 500);
     }
   };
-
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -394,6 +408,8 @@ export default function ViewerClient() {
       router.push(`/projects/${projectId}/viewer3d?urls=${encodeURIComponent(newUrlsParams)}`);
     }
   };
+  
+  const clearClipRef = useRef<null | (() => void)>(null);
 
   return (
     <div className="flex flex-col h-screen w-full overflow-hidden">
@@ -403,6 +419,26 @@ export default function ViewerClient() {
         onAddTodo={onAddTodo}
         modelOpacity={modelOpacity}
         onOpacityChange={setModelOpacity}
+        clipType={clipMode}
+        hoverMode={hoverMode}
+
+       onChangeClipType={(mode) => {
+        setClipMode(mode)
+
+        // reset hover khi thoát clip
+        if (mode === 'none') {
+            setHoverMode('both')
+          }
+        }}
+
+        onChangeHoverMode={setHoverMode}
+        hasActiveVerticalClip={hasActiveVerticalClip}
+        setHasActiveVerticalClip={setHasActiveVerticalClip}
+        onClearAllClips={() => {
+            if (clearClipRef.current) {
+                clearClipRef.current(); 
+            }
+        }}
       />
       {/* handle navbar and extend when click item can create todo related to it */}
       <div className="flex flex-1 relative overflow-hidden">
@@ -471,6 +507,17 @@ export default function ViewerClient() {
               modelOpacity={modelOpacity}
               onOpacityChange={setModelOpacity}
             // sidebarWidth={currentSidebarWidth}
+
+            // clip plane
+              clipMode={clipMode}
+              hoverMode={hoverMode}
+              onVerticalClipCreated={() => setHasActiveVerticalClip(true)}
+              // onClearVerticalClips={() => setHasActiveVerticalClip(false)}
+              onClearVerticalClips={(fn) => {
+                clearClipRef.current = fn;
+              }}
+              onClipSelected={() => {}}
+              onClipDeselected={() => {}}
             />
 
 
