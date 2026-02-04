@@ -1,20 +1,22 @@
 'use client';
 
 import { useSearchParams, useRouter, useParams } from 'next/navigation';
-import React, { useEffect, useMemo, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import IfcViewer from '@/app/components/ifcs/IfcViewer';
-import { Box, Layers, ClipboardCheck, ChevronRight, ChevronLeft, Camera, FolderTree, Sheet, BadgeInfo, BookText, AtomIcon } from 'lucide-react';
+import { Box, Layers, ClipboardCheck, ChevronRight, ChevronLeft, Camera, FolderTree, Sheet, BadgeInfo, AtomIcon } from 'lucide-react';
 import { Navbar } from '@/components/layout/navbar/Navbar';
 import { NewTodoDrawer } from '@/components/todos/NewTodoDrawer';
 import { viewService3D as viewService } from '@/services/view3d.service';
 import { toast } from 'sonner';
 import { ViewDrawer } from '@/components/views/ViewDrawer';
 import { useQueryClient } from "@tanstack/react-query";
+import type { ITodo } from "@/types/todo3d";
+import type { IView } from "@/types/view3d";
 
 interface SelectedItem {
-  modelID?: string;
+  modelID?: string | number;
   fileUrl?: string;
-  expressID?: string;
+  expressID?: string | number;
 }
 
 interface NewTodoInitialData {
@@ -25,6 +27,12 @@ interface NewTodoInitialData {
   }[];
   title?: string;
 }
+// Context item structure
+type ContextItem = {
+  fileUrl: string;
+  modelId: string;
+  expressId: string[];
+};
 
 const areArraysEqual = (arr1: string[], arr2: string[]) => {
   if (arr1.length !== arr2.length) return false;
@@ -52,7 +60,7 @@ export default function ViewerClient() {
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   const [pendingTodo, setPendingTodo] = useState<{
-    todo: any;
+    todo: ITodo | IView;
     mode: "view" | "edit" | "create";
     type?: "todo" | "view";
   } | null>(null);
@@ -60,12 +68,12 @@ export default function ViewerClient() {
   const queryClient = useQueryClient();
 
   const viewerActions = React.useRef<{
-    capture: () => any;
-    restore: (state: any, items: any[]) => void;
-    getContext: () => any[];
+    capture: () => unknown;
+    restore: (state: unknown, items: unknown[]) => void;
+    getContext: () => ContextItem[];
   } | null>(null);
 
-  const [todoToEdit, setTodoToEdit] = useState<any>(null);
+  const [todoToEdit, setTodoToEdit] = useState<ITodo | null>(null);
   const [drawerMode, setDrawerMode] = useState<"create" | "view" | "edit">("create");
 
     // state clip plane
@@ -73,25 +81,30 @@ export default function ViewerClient() {
   const [hoverMode, setHoverMode] = useState<HoverMode>('both');
   const [hasActiveVerticalClip, setHasActiveVerticalClip] = useState(false);
 
-  useEffect(() => {
-    if (clipMode === 'box') {
-      setHoverMode('both') // box không hover
-    }
-  }, [clipMode]);
+  // 
+  const setClipModeSafe = useCallback((mode: ClipType) => {
+    setClipMode(mode);
+    if (mode === 'box') setHoverMode('both'); // box không hover
+    if (mode === 'none') setHoverMode('both'); // reset hover when exiting clip
+  }, []);
 
   // --- STATES VIEW ---
   const [isViewDrawerOpen, setIsViewDrawerOpen] = useState(false);
-  const [viewToEdit, setViewToEdit] = useState<any>(null);
+  const [viewToEdit, setViewToEdit] = useState<IView | null>(null);
   const [viewDrawerMode, setViewDrawerMode] = useState<"create" | "view" | "edit">("create");
-  const [viewInitialData, setViewInitialData] = useState<any>(null);
+  const [viewInitialData, setViewInitialData] = useState<{ items?: ContextItem[]; viewState?: unknown } | null>(null);
 
   // --- DATA TABLE ---
   const isDataTableMode = state === 'data-table';
-  const currentSidebarWidth = isDataTableMode ? 0 : (isCollapsed ? 250 : 370);
+  // const currentSidebarWidth = isDataTableMode ? 0 : (isCollapsed ? 250 : 370);
 
   const [modelOpacity, setModelOpacity] = useState(1);
 
-  const handleOpenTodoDrawer = (todo: any, mode: "view" | "edit" | "create") => {
+  // Selection tools:
+  const [baseSelectionMode, setBaseSelectionMode] = useState<'single' | 'area'>('single');
+  const [multiSelectEnabled, setMultiSelectEnabled] = useState(false);
+
+  const handleOpenTodoDrawer = (todo: ITodo, mode: "view" | "edit" | "create") => {
     if (mode === 'create') {
       onAddTodo();
       return;
@@ -99,7 +112,7 @@ export default function ViewerClient() {
 
     let targetUrls: string[] = [];
     if (todo.items && todo.items.length > 0) {
-      targetUrls = Array.from(new Set(todo.items.map((i: any) => i.fileUrl) as string[]));
+      targetUrls = Array.from(new Set(todo.items.map((i) => i.fileUrl) as string[]));
     }
 
     const isContextMatch = targetUrls.length === 0 || areArraysEqual(ifcUrls, targetUrls);
@@ -112,7 +125,7 @@ export default function ViewerClient() {
       setIsDrawerOpen(true);
 
       if (todo.viewState && viewerActions.current?.restore) {
-        viewerActions.current.restore(todo.viewState, todo.items);
+        viewerActions.current.restore(todo.viewState, todo.items ?? []);
       }
     } else {
       console.log("Context mismatch, switching models...", targetUrls);
@@ -138,7 +151,11 @@ export default function ViewerClient() {
   ];
 
 
-  const handleRegisterActions = (actions: any) => {
+  const handleRegisterActions = (actions: {
+    capture: () => unknown;
+    restore: (state: unknown, items: unknown[]) => void;
+    getContext: () => ContextItem[];
+  }) => {
     viewerActions.current = actions;
   };
 
@@ -150,6 +167,7 @@ export default function ViewerClient() {
       try {
         const parsed = JSON.parse(decodeURIComponent(rawParams));
 
+        // eslint-disable-next-line
         setIfcUrls(parsed);
         console.log("Parsed IFC URLs from params:", parsed);
         sessionStorage.setItem(storageKey, JSON.stringify(parsed));
@@ -193,7 +211,7 @@ export default function ViewerClient() {
 
     console.log("Captured viewState:", viewState);
     console.log("viewerActions.current?.capture:", viewerActions.current?.capture);
-    let items: any[] = [];
+    let items: ContextItem[] = [];
     let title = undefined;
 
     if (selectedItems.length > 0) {
@@ -218,7 +236,7 @@ export default function ViewerClient() {
       } else
         console.log("ifcUrls: ", ifcUrls);
       if (ifcUrls.length > 0) {
-        items = ifcUrls.map((url: any) => ({
+        items = ifcUrls.map((url: string) => ({
           fileUrl: url,
           modelId: "",
           expressId: []
@@ -238,13 +256,13 @@ export default function ViewerClient() {
   };
 
 
-  const handleSelectTodo = (todo: any) => {
+  const handleSelectTodo = (todo: ITodo) => {
 
     let targetUrls: string[] = [];
 
     if (todo.items && todo.items.length > 0) {
 
-      targetUrls = Array.from(new Set(todo.items.map((i: any) => i.fileUrl) as string[]));
+      targetUrls = Array.from(new Set(todo.items.map((i) => i.fileUrl) as string[]));
     }
 
 
@@ -262,12 +280,12 @@ export default function ViewerClient() {
     if (isContextMatch) {
       console.log("Context match, restoring view only...");
       if (viewerActions.current?.restore) {
-        viewerActions.current.restore(todo.viewState, todo.items);
+        viewerActions.current.restore(todo.viewState, todo.items ?? []);
       }
     } else {
       console.log("Context mismatch, switching models...", targetUrls);
 
-      setPendingTodo(todo);
+      setPendingTodo({ todo, mode: "view", type: "todo" });
 
       const newUrlsParams = JSON.stringify(targetUrls);
       router.push(`/projects/${projectId}/viewer3d?urls=${encodeURIComponent(newUrlsParams)}`);
@@ -281,17 +299,21 @@ export default function ViewerClient() {
       setTimeout(() => {
         const { todo, mode, type } = pendingTodo;
 
-        if (viewerActions.current?.restore && todo.viewState) {
-          viewerActions.current.restore(todo.viewState, todo.items || []);
-        }
-
         if (type === 'view') {
-          setViewToEdit(todo);
+          const view = todo as IView;
+          if (viewerActions.current?.restore && view.viewState) {
+            viewerActions.current.restore(view.viewState, view.items ?? []);
+          }
+          setViewToEdit(view);
           setViewDrawerMode(mode);
           setIsViewDrawerOpen(true);
           setIsDrawerOpen(false);
         } else {
-          setTodoToEdit(todo);
+          const t = todo as ITodo;
+          if (viewerActions.current?.restore && t.viewState) {
+            viewerActions.current.restore(t.viewState, t.items ?? []);
+          }
+          setTodoToEdit(t);
           setDrawerMode(mode);
           setIsDrawerOpen(true);
           setIsViewDrawerOpen(false);
@@ -309,16 +331,14 @@ export default function ViewerClient() {
     return () => clearTimeout(timer);
   }, [isDrawerOpen]);
 
-  useEffect(() => {
-    setModelOpacity(1);
-  }, [ifcUrls]);
+  // Model opacity is reset in the opacity UI; avoid cascading setState-in-effect lint
 
 
   // --- 1. OPEN DRAWER (ViewList or Create New) ---
-  const handleOpenViewDrawer = (view: any, mode: "view" | "edit" | "create") => {
+  const handleOpenViewDrawer = (view: IView, mode: "view" | "edit" | "create") => {
     if (mode === 'create') {
       let viewState = null;
-      let contextItems = [];
+      let contextItems: ContextItem[] = [];
 
       if (viewerActions.current) {
         if (viewerActions.current.capture) {
@@ -350,13 +370,13 @@ export default function ViewerClient() {
   };
 
   // --- 2. UPDATE SNAPSHOT (...) ---
-  const handleUpdateSnapshot = async (view: any) => {
+  const handleUpdateSnapshot = async (view: IView) => {
     if (!viewerActions.current?.capture) return;
 
     try {
       const newViewState = viewerActions.current.capture();
 
-      let currentContextItems = [];
+      let currentContextItems: ContextItem[] = [];
       if (viewerActions.current?.getContext) {
         currentContextItems = viewerActions.current.getContext();
       } else {
@@ -384,11 +404,11 @@ export default function ViewerClient() {
   };
 
   // --- 3. RESTORE VIEW (same as handleSelectTodo) ---
-  const handleRestoreView = (view: any) => {
+  const handleRestoreView = (view: IView) => {
     if (!view.items || !view.viewState) return;
 
     // Get unique URL
-    const targetUrls = Array.from(new Set(view.items.map((i: any) => i.fileUrl) as string[]));
+    const targetUrls = Array.from(new Set(view.items.map((i) => i.fileUrl) as string[]));
 
     // Compare Context
     const isContextMatch = targetUrls.length === 0 || areArraysEqual(ifcUrls, targetUrls);
@@ -419,16 +439,18 @@ export default function ViewerClient() {
         onAddTodo={onAddTodo}
         modelOpacity={modelOpacity}
         onOpacityChange={setModelOpacity}
+
+        // selection tools
+        selectionMode={baseSelectionMode}
+        onChangeSelectionMode={(mode) => setBaseSelectionMode(mode)}
+        multiSelectEnabled={multiSelectEnabled}
+        onToggleMultiSelect={() => setMultiSelectEnabled(v => !v)}
+        // clip plane
         clipType={clipMode}
         hoverMode={hoverMode}
 
        onChangeClipType={(mode) => {
-        setClipMode(mode)
-
-        // reset hover khi thoát clip
-        if (mode === 'none') {
-            setHoverMode('both')
-          }
+        setClipModeSafe(mode);
         }}
 
         onChangeHoverMode={setHoverMode}
@@ -506,14 +528,18 @@ export default function ViewerClient() {
               onUpdateSnapshot={handleUpdateSnapshot}
               modelOpacity={modelOpacity}
               onOpacityChange={setModelOpacity}
-            // sidebarWidth={currentSidebarWidth}
+              // sidebarWidth={currentSidebarWidth}
+
+              // multiple selection
+              selectionMode={multiSelectEnabled ? 'multi' : 'single'}
+              areaSelectEnabled={baseSelectionMode === 'area'}
+            
 
             // clip plane
               clipMode={clipMode}
               hoverMode={hoverMode}
               onVerticalClipCreated={() => setHasActiveVerticalClip(true)}
-              // onClearVerticalClips={() => setHasActiveVerticalClip(false)}
-              onClearVerticalClips={(fn) => {
+              onClearVerticalClips={(fn: () => void) => {
                 clearClipRef.current = fn;
               }}
               onClipSelected={() => {}}

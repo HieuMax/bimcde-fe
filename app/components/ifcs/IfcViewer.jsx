@@ -16,7 +16,12 @@ import {
   ChevronRight,
   Info,
   EllipsisVertical,
-  Menu, Search, Check
+  Menu, Search, Check,
+  Paperclip,
+  Expand,
+  SquareScissors,
+  Shrink,
+  SquaresSubtract
 } from 'lucide-react';
 import './ifc.css';
 import LoadingBar from '../LoadingBar';
@@ -27,6 +32,8 @@ import { Topics } from '@/components/_3d/topics/Topics';
 import { ClashSets } from '@/components/_3d/clash_sets/ClashSets';
 import { Organizer } from '@/components/_3d/organizer/Organizer';
 import { PropertiesDrawer } from './PropertiesDrawer';
+import { AttachFileDialog } from '@/components/todos/AttachFileDialog';
+import { fa } from 'zod/v4/locales';
 
 export default function IfcViewer({
   ifcUrls,
@@ -43,6 +50,8 @@ export default function IfcViewer({
   onUpdateSnapshot,
   modelOpacity,
   onOpacityChange,
+  selectionMode = 'single',
+  areaSelectEnabled = false,
   clipMode,
   hoverMode,
   onVerticalClipCreated,
@@ -56,6 +65,18 @@ export default function IfcViewer({
   const sceneRef = useRef(null);
 
   const modelUrlMap = useRef({})
+
+  // Keep latest props for event listeners that are registered once
+  const selectionModeRef = useRef(selectionMode);
+  useEffect(() => {
+    selectionModeRef.current = selectionMode;
+  }, [selectionMode]);
+
+  // Area selection (drag rectangle) flag for one-time listeners
+  const areaSelectEnabledRef = useRef(areaSelectEnabled);
+  useEffect(() => {
+    areaSelectEnabledRef.current = areaSelectEnabled;
+  }, [areaSelectEnabled]);
 
   const [isLoading, setIsLoading] = useState(false);
   const [selectedModelIndex, setSelectedModelIndex] = useState(null);
@@ -83,13 +104,32 @@ export default function IfcViewer({
   const mouseDownPos = useRef({ x: 0, y: 0 });
   const isDragging = useRef(false);
 
+  // Sync selected items to parent (navbar) AFTER state updates
+  useEffect(() => {
+    if (!setSelectdItemsForNavbar) return;
+    const payload = (selectedItems || []).map(item => ({
+      ...item,
+      fileUrl: item.fileUrl || modelUrlMap.current[item.modelID],
+    }));
+    setSelectdItemsForNavbar(payload);
+  }, [selectedItems, setSelectdItemsForNavbar]);
+
   // Model list
   const [models, setModels] = useState([]);
+  const modelsRef = useRef(models);
+  useEffect(() => {
+    modelsRef.current = models;
+  }, [models]);
 
   const [hiddenLayers, setHiddenLayers] = useState(new Set());
 
   // DATA TABLE
   const isDataTable = state === 'data-table';
+
+  // Area selection rectangle overlay (canvas-local px)
+  const [selectionRect, setSelectionRect] = useState(null); // {x,y,w,h}
+  const selectionRectRef = useRef(null);
+  const areaDragRef = useRef({ active: false, startX: 0, startY: 0 });
 
 
   // 1. Hàm lấy trạng thái Clip hiện tại để lưu
@@ -363,7 +403,7 @@ const createVerticalSectionAtPoint = useCallback(
       normal.copy(faceNormal).normalize();
 
       // đặt plane ngoài bề mặt
-      const EPS = 0.02;
+      const EPS = 0;
       planePoint.add(normal.clone().multiplyScalar(EPS));
 
       isActive = false; // 🔥 chưa cắt, chờ drag
@@ -381,7 +421,7 @@ const createVerticalSectionAtPoint = useCallback(
     const visualPlane = createCutFaceBackground(plane);
 
     const index = sectionIndexRef.current++;
-    const marker = createSectionMarker(planePoint, index);
+    const marker = createSectionMarker(point, index);
 
     marker.userData = {
       isClipHelper: true,
@@ -460,17 +500,17 @@ const createVerticalSectionAtPoint = useCallback(
 
 // CHỌN MARKER
   useEffect(() => {
-    // Duyệt qua tất cả marker để đổi màu (Xanh = thường, Đỏ = đang chọn)
+
     planesDataRef.current.forEach(data => {
         const isSelected = data.id === selectedPlaneId;
         const sprite = data.marker;
         
-        // Hack màu bằng cách vẽ lại hoặc đổi color tint (đơn giản nhất là đổi color material)
+        
         if (isSelected) {
             sprite.material.color.setHex(0xff0000);
             sprite.scale.set(1.8, 1.8, 1); 
         } else {
-            sprite.material.color.setHex(0xffffff); // Trắng (gốc)
+            sprite.material.color.setHex(0xffffff); 
             sprite.scale.set(1.5, 1.5, 1);
         }
     });
@@ -481,7 +521,7 @@ const createVerticalSectionAtPoint = useCallback(
             onDeleteClip: deleteSelectedPlane
         });
     } else if (!selectedPlaneId && onClipDeselected) {
-        // onClipDeselected(); // Cẩn thận loop, chỉ gọi khi click ra ngoài
+        onClipDeselected(); // Cẩn thận loop, chỉ gọi khi click ra ngoài
     }
 
   }, [selectedPlaneId, flipPlaneDirection, deleteSelectedPlane, onClipSelected, onClipDeselected]);
@@ -489,147 +529,144 @@ const createVerticalSectionAtPoint = useCallback(
 // CLICK EVENT
 // =====================================================
   useEffect(() => {
-      if (clipMode === 'none') return;
-      if (!canvasRef.current || !sceneRef.current) return;
-      
-      const canvas = canvasRef.current;
-      const raycaster = new THREE.Raycaster();
-      const mouse = new THREE.Vector2();
+    if (clipMode === 'none') return;
+    if (!canvasRef.current || !sceneRef.current) return;
+    
+    const canvas = canvasRef.current;
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
 
-      const onClick = (e) => {
-          const rect = canvas.getBoundingClientRect();
-          mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-          mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-          raycaster.setFromCamera(mouse, sceneRef.current.getCamera());
+    const onClick = (e) => {
+        const rect = canvas.getBoundingClientRect();
+        mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+        raycaster.setFromCamera(mouse, sceneRef.current.getCamera());
 
-          // --- BƯỚC 1: KIỂM TRA CLICK VÀO MARKER TRƯỚC ---
-          // Raycast vào group chứa visual/marker
-          const helperHits = raycaster.intersectObjects(cutFaceGroupRef.current.children, true);
-          
-          const markerHit = helperHits.find(h => h.object.userData.isMarker);
+        // ---KIỂM TRA CLICK VÀO MARKER TRƯỚC ---
+        // Raycast vào group chứa visual/marker
+        const helperHits = raycaster.intersectObjects(cutFaceGroupRef.current.children, true);
+        
+        const markerHit = helperHits.find(h => h.object.userData.isMarker);
 
-          if (markerHit) {
-            const id = markerHit.object.userData.id;
-            setSelectedPlaneId(id);
-            draggingPlaneRef.current = id;
-            lastMouseYRef.current = e.clientY;
-            return;
-          }
-
-          // --- BƯỚC 2: NẾU KHÔNG TRÚNG MARKER -> TẠO MỚI (Logic cũ) ---
-          
-          // Nếu đang chọn plane mà click ra ngoài -> Bỏ chọn
-          if (selectedPlaneId) {
-              setSelectedPlaneId(null);
-              if (onClipDeselected) onClipDeselected();
-          }
-
-          const meshes = models.map(m => m.mesh).filter(Boolean);
-          const hits = raycaster.intersectObjects(meshes, true);
-          const activePlanes = planesDataRef.current.map(d => d.plane);
-
-          const validHit = hits.find(hit => {
-            if (hit.object.userData.isClipHelper || hit.object.parent?.userData.isClipHelper) {
-              return false;
-            }
-
-            // 🔥 Faces: chỉ nhận mặt ngoài
-            if (hoverMode === 'faces') {
-              const worldNormal = hit.face.normal
-                .clone()
-                .applyQuaternion(hit.object.quaternion);
-
-              const viewDir = new THREE.Vector3()
-                .subVectors(sceneRef.current.getCamera().position, hit.point)
-                .normalize();
-
-              if (worldNormal.dot(viewDir) <= 0) return false;
-            }
-
-            const isClipped = activePlanes.some(
-              plane => plane.distanceToPoint(hit.point) < -0.001
-            );
-
-            return !isClipped;
-          });
-
-          if (validHit) {
-            const worldNormal = validHit.face.normal.clone();
-            worldNormal.applyQuaternion(validHit.object.quaternion);
-
-            createVerticalSectionAtPoint(
-              validHit.point,
-              hoverMode === 'faces' ? worldNormal : null
-            );
-          }
-      };
-
-      const onMouseMove = (e) => {
-        if (!draggingPlaneRef.current) return;
-
-        const planeData = planesDataRef.current.find(
-          p => p.id === draggingPlaneRef.current
-        );
-        if (!planeData) return;
-
-        const normal =
-          planeData.originalNormal?.lengthSq() > 0
-            ? planeData.originalNormal
-            : new THREE.Vector3(0, 0, 1);
-
-        // === 1️⃣ pixel → world scale (ổn định)
-        const SPEED = 0.04; // 👈 chỉnh cảm giác drag ở đây
-        const deltaPx = e.clientY - lastMouseYRef.current;
-        lastMouseYRef.current = e.clientY;
-
-        // === 2️⃣ dịch anchor theo normal
-        planeData.anchorPoint.add(
-          normal.clone().multiplyScalar(deltaPx * SPEED)
-        );
-
-        // === 3️⃣ update plane
-        planeData.plane.setFromNormalAndCoplanarPoint(
-          planeData.isActive
-            ? normal.clone().negate()
-            : normal,
-          planeData.anchorPoint
-        );
-
-        // === 4️⃣ faces: activate khi kéo vào
-        if (
-          planeData.mode === 'faces' &&
-          !planeData.isActive &&
-          deltaPx > 0
-        ) {
-          planeData.isActive = true;
-          planeData.plane.normal.copy(normal.clone().negate());
+        if (markerHit) {
+          const id = markerHit.object.userData.id;
+          setSelectedPlaneId(id);
+          draggingPlaneRef.current = id;
+          lastMouseYRef.current = e.clientY;
+          return;
+        }
+        // --- XỬ LÝ TẠO MẶT CẮT MỚI ---          
+        if (selectedPlaneId) {
+            setSelectedPlaneId(null);
+            if (onClipDeselected) onClipDeselected();
         }
 
-        // === 5️⃣ update visual + marker
-        const p = planeData.plane.normal
-          .clone()
-          .multiplyScalar(-planeData.plane.constant);
+        const meshes = modelsRef.current.map(m => m.mesh).filter(Boolean);
+        const hits = raycaster.intersectObjects(meshes, true);
+        const activePlanes = planesDataRef.current.map(d => d.plane);
 
-        planeData.visual.position.copy(p);
-        planeData.marker.position.copy(p);
+        const validHit = hits.find(hit => {
+          if (hit.object.userData.isClipHelper || hit.object.parent?.userData.isClipHelper) {
+            return false;
+          }
 
-        updateRendererPlanes();
-      };
+          // 🔥 Faces: 
+          if (hoverMode === 'faces') {
+            const worldNormal = hit.face.normal
+              .clone()
+              .applyQuaternion(hit.object.quaternion);
+
+            const viewDir = new THREE.Vector3()
+              .subVectors(sceneRef.current.getCamera().position, hit.point)
+              .normalize();
+
+            if (worldNormal.dot(viewDir) <= 0) return false;
+          }
+
+          const isClipped = activePlanes.some(
+            plane => plane.distanceToPoint(hit.point) < -0.001
+          );
+
+          return !isClipped;
+        });
+
+        if (validHit) {
+          const worldNormal = validHit.face.normal.clone();
+          worldNormal.applyQuaternion(validHit.object.quaternion);
+
+          createVerticalSectionAtPoint(
+            validHit.point,
+            hoverMode === 'faces' ? worldNormal : null
+          );
+        }
+    };
+
+    const onMouseMove = (e) => {
+      if (!draggingPlaneRef.current) return;
+
+      const planeData = planesDataRef.current.find(
+        p => p.id === draggingPlaneRef.current
+      );
+      if (!planeData) return;
+
+      const normal =
+        planeData.originalNormal?.lengthSq() > 0
+          ? planeData.originalNormal
+          : new THREE.Vector3(0, 0, 1);
+
+      // ===
+      const SPEED = 0.04; 
+      const deltaPx = e.clientY - lastMouseYRef.current;
+      lastMouseYRef.current = e.clientY;
+
+      // === 
+      planeData.anchorPoint.add(
+        normal.clone().multiplyScalar(deltaPx * SPEED)
+      );
+
+      // === update plane
+      planeData.plane.setFromNormalAndCoplanarPoint(
+        planeData.isActive
+          ? normal.clone().negate()
+          : normal,
+        planeData.anchorPoint
+      );
+
+      // === faces: activate khi kéo vào
+      if (
+        planeData.mode === 'faces' &&
+        !planeData.isActive &&
+        deltaPx > 0
+      ) {
+        planeData.isActive = true;
+        planeData.plane.normal.copy(normal.clone().negate());
+      }
+
+      // ===  update visual + marker
+      const p = planeData.plane.normal
+        .clone()
+        .multiplyScalar(-planeData.plane.constant);
+
+      planeData.visual.position.copy(p);
+      planeData.marker.position.copy(p);
+
+      updateRendererPlanes();
+    };
 
 
-      const onMouseUp = () => {
-        draggingPlaneRef.current = null;
-      };
+    const onMouseUp = () => {
+      draggingPlaneRef.current = null;
+    };
 
-      canvas.addEventListener('click', onClick);
-      canvas.addEventListener('mousemove', onMouseMove);
-      window.addEventListener('mouseup', onMouseUp);
-      
-      return () => {
-        canvas.removeEventListener('click', onClick);
-        canvas.removeEventListener('mousemove', onMouseMove);
-        window.removeEventListener('mouseup', onMouseUp);
-      };
+    canvas.addEventListener('click', onClick);
+    canvas.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    
+    return () => {
+      canvas.removeEventListener('click', onClick);
+      canvas.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
 
   }, [clipMode, models, createVerticalSectionAtPoint, selectedPlaneId]); 
 
@@ -672,6 +709,124 @@ useEffect(() => {
         const scene = new ThreeScene(canvasRef.current);
         sceneRef.current = scene;
         loaderRef.current = new IfcManager(scene.scene, []);
+//
+        // --- AREA SELECTION handlers (registered once, driven by refs) ---
+        const getCanvasLocal = (ev) => {
+          const rect = canvas.getBoundingClientRect();
+          return { x: ev.clientX - rect.left, y: ev.clientY - rect.top, rect };
+        };
+
+        const onAreaMouseDown = (ev) => { // start drag
+          if (!areaSelectEnabledRef.current) return;
+          if (ev.button !== 0) return;
+          const { x, y } = getCanvasLocal(ev);
+          areaDragRef.current.active = true;
+          areaDragRef.current.startX = x;
+          areaDragRef.current.startY = y;
+          const r0 = { x, y, w: 0, h: 0 };
+          selectionRectRef.current = r0;
+          setSelectionRect(r0);
+          ev.preventDefault();
+          ev.stopPropagation();
+        };
+
+        const onAreaMouseMove = (ev) => { // update drag
+          if (!areaDragRef.current.active) return;
+          const { x, y } = getCanvasLocal(ev);
+          const sx = areaDragRef.current.startX;
+          const sy = areaDragRef.current.startY;
+          const left = Math.min(sx, x);
+          const top = Math.min(sy, y);
+          const w = Math.abs(x - sx);
+          const h = Math.abs(y - sy);
+          const r = { x: left, y: top, w, h };
+          selectionRectRef.current = r;
+          setSelectionRect(r);
+          ev.preventDefault();
+          ev.stopPropagation();
+        };
+
+        const onAreaMouseUp = () => { // end drag + pick
+          if (!areaDragRef.current.active) return;
+          areaDragRef.current.active = false;
+
+          const rectData = selectionRectRef.current;
+          setSelectionRect(null);
+          selectionRectRef.current = null;
+
+          if (!rectData || rectData.w < 5 || rectData.h < 5) return;
+          if (!sceneRef.current || !loaderRef.current) return;
+
+          const bounds = canvas.getBoundingClientRect();
+          const raycaster = new THREE.Raycaster();
+          const mouse = new THREE.Vector2();
+
+          // sample grid density based on rectangle size (good tradeoff vs perf)
+          const stepPx = 35;
+          const nx = Math.max(3, Math.min(24, Math.floor(rectData.w / stepPx)));
+          const ny = Math.max(3, Math.min(24, Math.floor(rectData.h / stepPx)));
+
+          const meshes = models.map(m => m.mesh).filter(Boolean);
+          const foundMap = new Map();
+
+          for (let ix = 0; ix < nx; ix++) { // across 
+            for (let iy = 0; iy < ny; iy++) { 
+              const px = rectData.x + (rectData.w * (ix + 0.5)) / nx;
+              const py = rectData.y + (rectData.h * (iy + 0.5)) / ny;
+
+              mouse.x = (px / bounds.width) * 2 - 1;
+              mouse.y = -(py / bounds.height) * 2 + 1;
+
+              raycaster.setFromCamera(mouse, sceneRef.current.getCamera());
+              const hits = raycaster.intersectObjects(meshes, true);
+              if (!hits.length) continue;
+
+              const hit = hits.find(h => !h.object?.userData?.isClipHelper && !h.object?.parent?.userData?.isClipHelper);
+              if (!hit) continue;
+
+              const faceIndex = hit.faceIndex;
+              const geometry = hit.object.geometry;
+              const expressID = loaderRef.current.ifcLoader.ifcManager.getExpressId(geometry, faceIndex);
+              const modelID = hit.object.modelID;
+              if (modelID == null || expressID == null) continue;
+
+              const key = `${modelID}:${expressID}`;
+              if (!foundMap.has(key)) {
+                foundMap.set(key, {
+                  modelID,
+                  expressID,
+                  fileUrl: modelUrlMap.current[modelID],
+                });
+              }
+            }
+          }
+
+          const picked = Array.from(foundMap.values());
+          if (picked.length === 0) return;
+          
+          // Merge picked with existing selection based on mode
+          const multi = selectionModeRef.current === 'multi'; 
+          setSelectedItems(prev => {
+            const prevArr = Array.isArray(prev) ? prev : [];
+            const base = multi ? prevArr : [];
+            const merged = [...base];
+
+            const seen = new Set(base.map(i => `${i.modelID}:${i.expressID}`));
+            picked.forEach(p => {
+              const k = `${p.modelID}:${p.expressID}`;
+              if (!seen.has(k)) {
+                merged.push(p);
+                seen.add(k);
+              }
+            });
+
+            if (loaderRef.current?.highlightItems) {
+              void loaderRef.current.highlightItems(merged);
+            }
+
+            return merged;
+          });
+        };
 
         canvas.addEventListener('mousedown', (e) => {
           mouseDownPos.current = { x: e.clientX, y: e.clientY };
@@ -687,23 +842,84 @@ useEffect(() => {
           }
         });
 
+        // Capture events early so camera controls don't swallow drag selection
+        canvas.addEventListener('mousedown', onAreaMouseDown, true);
+        canvas.addEventListener('mousemove', onAreaMouseMove, true);
+        window.addEventListener('mouseup', onAreaMouseUp, true);
+
         /** ONLY PICK IF NOT DRAGGING */
         canvas.addEventListener('mouseup', (event) => {
-          if (!isDragging.current) {
+          if (areaSelectEnabledRef.current) return; // area mode uses its own mouseup logic
+          
+          if (!isDragging.current) { // click without drag(US119)
+            // 1. Thực hiện Raycaster 
+            const rect = canvas.getBoundingClientRect();
+            const mouse = new THREE.Vector2(
+                ((event.clientX - rect.left) / rect.width) * 2 - 1,
+                -((event.clientY - rect.top) / rect.height) * 2 + 1
+            );
+            
+            const raycaster = new THREE.Raycaster();
+            raycaster.setFromCamera(mouse, scene.getCamera());
+            
+            // Lấy danh sách mesh từ models
+            const meshes = modelsRef.current.map(m => m.mesh).filter(Boolean);
+            const intersects = raycaster.intersectObjects(meshes, true);
+
+            // Lọc bỏ các object không phải model 
+            const validHit = intersects.find(h => !h.object.userData.isClipHelper);
             const result = loaderRef.current.pick(event, scene.getCamera(), scene.getRenderer());
 
-            if (result) {
+              if (result) {
               const sourceUrl = modelUrlMap.current[result.modelID]
-              const enrichedItem = { ...result, fileUrl: sourceUrl }
-              if (setSelectdItemsForNavbar) {
-                setSelectdItemsForNavbar([enrichedItem]);
+                // Lấy dữ liệu face nếu có
+              let faceData = null;
+              if (validHit && validHit.face) {
+                  
+                  const normal = validHit.face.normal.clone().applyQuaternion(validHit.object.quaternion).normalize();
+                  
+                  const point = validHit.point.clone();
+
+                  faceData = {
+                      normal: normal,
+                      point: point,
+                      faceIndex: validHit.faceIndex,
+                      mesh: validHit.object,
+                      distance: validHit.distance
+                  };
               }
-              setSelectedItems([result]);
+              const enrichedItem = { ...result, fileUrl: sourceUrl, faceData: faceData };
+
+              // Handle selection modes (US123)
+              if (selectionModeRef.current === 'multi') {
+                // Multi-selection: toggle without needing Ctrl
+                setSelectedItems(prev => {
+                  const isAlreadySelected = prev.some(item => 
+                    item.modelID === result.modelID && item.expressID === result.expressID
+                  );
+                  
+                  const newSelected = isAlreadySelected
+                    ? prev.filter(item => !(item.modelID === result.modelID && item.expressID === result.expressID))
+                    : [...prev, enrichedItem];
+                  
+                  // Keep 3D highlight in sync with multi-selection
+                  if (loaderRef.current?.highlightItems) {
+                    if (newSelected.length > 0) {
+                      void loaderRef.current.highlightItems(newSelected);
+                    } else {
+                      loaderRef.current.removeHighlight?.();
+                    }
+                  }
+
+                  return newSelected;
+                });
+              } else {
+                // Single selection
+                setSelectedItems([enrichedItem]);
+              }
             } else {
-              setSelectedItems([]);
-              if (setSelectdItemsForNavbar) {
-                setSelectdItemsForNavbar([]);
-              }
+              // Click on empty space
+              // setSelectedItems([]);
             }
           }
         });
@@ -1075,6 +1291,165 @@ useEffect(() => {
     }
   }, [selectedItems]);
 
+// TÍNH TOÁN BOUND CỦA FACE DỰA TRÊN MẶT PHẲNG VÀ NORMAL
+  function computeFacePolygonBounds(mesh, hitFaceIndex, hitNormal) {
+  const geom = mesh.geometry;
+  const pos = geom.attributes.position;
+  const index = geom.index;
+
+  const thresholdNormal = 0.01;
+  const thresholdPlane = 0.002;
+
+  const faceNormal = hitNormal.clone().normalize();
+  const facePoint = new THREE.Vector3()
+    .fromBufferAttribute(pos, index.getX(hitFaceIndex * 3));
+
+  const vertices = [];
+
+  for (let i = 0; i < index.count; i += 3) {
+    const a = index.getX(i);
+    const b = index.getX(i + 1);
+    const c = index.getX(i + 2);
+
+    const vA = new THREE.Vector3().fromBufferAttribute(pos, a);
+    const vB = new THREE.Vector3().fromBufferAttribute(pos, b);
+    const vC = new THREE.Vector3().fromBufferAttribute(pos, c);
+
+    // Normal triangle
+    const triNormal = new THREE.Vector3()
+      .crossVectors(
+        vB.clone().sub(vA),
+        vC.clone().sub(vA)
+      )
+      .normalize();
+
+    if (triNormal.dot(faceNormal) < 1 - thresholdNormal) continue;
+
+    // Check plane distance
+    if (
+      Math.abs(faceNormal.dot(vA.clone().sub(facePoint))) > thresholdPlane
+    ) continue;
+
+    vertices.push(vA, vB, vC);
+  }
+
+  // World transform
+  vertices.forEach(v => v.applyMatrix4(mesh.matrixWorld));
+
+  return new THREE.Box3().setFromPoints(vertices);
+}
+  // ZOOM TO SECTION (UC119)
+  const handleZoomToSection = async () => {
+    if (selectedItems.length === 0) return;
+
+    const item = selectedItems[0];
+
+    // CASE 1: Zoom vào Face cụ thể 
+      if (item.faceData) {
+        const { faceIndex, mesh, normal } = item.faceData;
+
+        const camera = sceneRef.current.camera;
+        const controls = sceneRef.current.controls;
+
+        // 1. Compute REAL face bounds
+        const faceBBox = computeFacePolygonBounds(
+          mesh,
+          faceIndex,
+          normal
+        );
+
+        const center = faceBBox.getCenter(new THREE.Vector3());
+        const size = faceBBox.getSize(new THREE.Vector3());
+
+        // 2. View direction hiện tại
+        const viewDir = new THREE.Vector3()
+          .subVectors(camera.position, controls.target)
+          .normalize();
+
+        // 3. Fit theo FOV
+        const maxDim = Math.max(size.x, size.y, size.z);
+        const fov = camera.fov * Math.PI / 180;
+        const distance = (maxDim / 2) / Math.tan(fov / 2);
+
+        const finalDistance = distance * 1.15;
+
+        const newCameraPosition = center.clone().add(
+          viewDir.clone().multiplyScalar(finalDistance)
+        );
+
+        animateCamera(
+          camera.position.clone(),
+          newCameraPosition,
+          controls.target.clone(),
+          center
+        );
+
+        return;
+      }
+
+    // CASE 2: Zoom vào toàn bộ vật thể 
+    const modelID = item.modelID;
+    const expressID = item.expressID;
+
+    const subset = loaderRef.current.ifcLoader.ifcManager.createSubset({
+      modelID,
+      ids: [expressID],
+      applyBVH: true,
+      removePrevious: false,
+      customID: "zoom-subset"
+    });
+    
+    sceneRef.current.scene.add(subset);
+    const bbox = new THREE.Box3().setFromObject(subset);
+
+    const center = new THREE.Vector3();
+    bbox.getCenter(center);
+
+    const size = new THREE.Vector3();
+    bbox.getSize(size);
+    const maxDim = Math.max(size.x, size.y, size.z);
+
+    sceneRef.current.controls.target.copy(center);
+
+    const fov = sceneRef.current.camera.fov * (Math.PI / 180);
+    const cameraDistance = Math.abs(maxDim / Math.sin(fov / 2)) * 0.8; // factor to avoid clipping
+
+    const currentDirection = new THREE.Vector3().subVectors(sceneRef.current.camera.position, center).normalize();
+    const cameraPosition = center.clone().add(currentDirection.multiplyScalar(cameraDistance));
+
+    animateCamera(sceneRef.current.camera.position.clone(), cameraPosition, sceneRef.current.controls.target.clone(), center);
+
+    sceneRef.current.scene.remove(subset);
+    subset.geometry.dispose();
+};
+
+  const animateCamera = (startPosition, endPosition, startTarget, endTarget) => {
+    const duration = 1000; // 1 giây
+    const startTime = Date.now();
+
+    const animate = () => {
+      const elapsed = Date.now() - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+
+      // Ease in out
+      const easeProgress = progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+
+      // Interpolate position
+      sceneRef.current.camera.position.lerpVectors(startPosition, endPosition, easeProgress);
+
+      // Interpolate target
+      sceneRef.current.controls.target.lerpVectors(startTarget, endTarget, easeProgress);
+
+      sceneRef.current.controls.update();
+
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      }
+    };
+
+    animate();
+  };
+
 
   // --- EFFECT: UPDATE OPACITY ---
   useEffect(() => {
@@ -1386,7 +1761,8 @@ useEffect(() => {
 
                                   setHiddenLayers((prev) => {
                                     const next = new Set(prev);
-                                    next.has(key) ? next.delete(key) : next.add(key);
+                                    if (next.has(key)) next.delete(key);
+                                    else next.add(key);
                                     return next;
                                   });
                                 }}
@@ -1619,6 +1995,22 @@ useEffect(() => {
             }}
           />
 
+          {/* Area selection rectangle overlay */}
+          {selectionRect && (
+            <div
+              className="absolute z-50 pointer-events-none"
+              style={{
+                left: selectionRect.x,
+                top: selectionRect.y,
+                width: selectionRect.w,
+                height: selectionRect.h,
+                border: '2px solid #2563eb',
+                background: 'rgba(37, 99, 235, 0.12)',
+                borderRadius: 6,
+              }}
+            />
+          )}
+
           {/* Selected Item Information */}
           {selectedItems.length > 0 && (
             <div
@@ -1650,6 +2042,39 @@ useEffect(() => {
                 <Info />
               </button>
 
+              {/* attachments */}
+              <button
+                className="hover:text-blue-400 transition"
+                title="Attachments"
+              >
+                <Paperclip />
+              </button> 
+
+              {/* Zoom to section */}
+              <button
+                className="hover:text-blue-400 transition"
+                title="Zoom to section"
+                onClick={handleZoomToSection}
+              >
+                <Shrink />
+              </button>
+
+              {/* Clip box */}
+              <button
+                className="hover:text-blue-400 transition"
+                title="Clip box"
+              >
+                <SquareScissors />
+              </button>
+              
+              {/*Show selected object*/}
+              <button
+                className="hover:text-blue-400 transition"
+                title="Show only selected object"
+              >
+                <SquaresSubtract />
+              </button>
+
               {/* Visibility */}
               {selectedItems.length > 0 && (
                 <button
@@ -1677,6 +2102,12 @@ useEffect(() => {
                   )}
                 </button>
               )}
+
+              <div className="w-px h-5 bg-white/20" />
+
+              <div className="text-sm">
+                <span className="font-semibold"></span> Change visibility <ChevronDown />
+              </div>
             </div>
           )}
         </div>
