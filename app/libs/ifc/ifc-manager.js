@@ -867,8 +867,9 @@ export class IfcManager {
       if (!subset || !subset.geometry) return {};
 
       // 1. Calculate Bounding Box
-      subset.geometry.computeBoundingBox();
-      const bbox = subset.geometry.boundingBox;
+      // subset.geometry.computeBoundingBox();
+      // const bbox = subset.geometry.boundingBox;
+
       const size = new THREE.Vector3();
       bbox.getSize(size);
 

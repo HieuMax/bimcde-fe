@@ -30,6 +30,14 @@ export interface IView {
         modelOpacity?: number;
     };
 
+    clipping?: {
+        enabled: boolean;
+        planes: {
+            normal: { x: number, y: number, z: number };
+            constant: number;
+        }[];
+    };
+    
     createdAt: string;
     updatedAt: string;
 }

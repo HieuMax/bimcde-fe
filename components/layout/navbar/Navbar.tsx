@@ -182,7 +182,7 @@ export function Navbar({ onBack, onRefresh, onAction, onAddTodo,
         Exclude<MeasureType, null>,
         { icon: LucideIcon; label: string }
         > = {
-        perpendicular: {
+        'perpendicular': {
             icon: RulerDimensionLine,
             label: 'Perpendicular measure',
         },
@@ -190,11 +190,11 @@ export function Navbar({ onBack, onRefresh, onAction, onAddTodo,
             icon: Crosshair,
             label: 'Single point',
         },
-        angle: {
+        'angle': {
             icon: TriangleRight,
             label: 'Angle measure',
         },
-        slope: {
+        'slope': {
             icon: Axis3D,
             label: 'Slope measure',
         },
@@ -315,7 +315,7 @@ export function Navbar({ onBack, onRefresh, onAction, onAddTodo,
                                 {/* perpendicular measurement */}
                                 {clipMode==='none' && !isMeasureActive &&(
                                     <>
-                                            <DropdownMenu>
+                                        <DropdownMenu>
                                             <Tooltip>
                                                 <TooltipTrigger asChild>
                                                 <DropdownMenuTrigger asChild>
