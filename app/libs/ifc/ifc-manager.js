@@ -4,6 +4,7 @@ import { acceleratedRaycast, computeBoundsTree, disposeBoundsTree } from 'three-
 import { IFCSPACE, IFCOPENINGELEMENT } from 'web-ifc';
 
 import * as THREE from 'three';
+import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 const yieldToMain = () => new Promise(resolve => setTimeout(resolve, 0));
 
@@ -15,8 +16,123 @@ export class IfcManager {
     this.ifcLoader.ifcManager.setWasmPath('/wasm/');
 
     this.setupLoader();
+
+    // 
+    
+    // Tạo material cho việc highlight mặt phẳng (giống Trimble thường là màu xanh lơ, hơi trong suốt)
+    this.highlightMaterial = new THREE.MeshBasicMaterial({
+      color: 0x00aaff, // Màu xanh dương nhạt
+      depthTest: false,
+      transparent: true,
+      opacity: 0.3,     // Độ trong suốt
+      side: THREE.DoubleSide
+    });
+
+    // Material cho đường viền (Lines)
+    this.lineMaterial = new THREE.LineBasicMaterial({ 
+        color: 0x000000, // Màu đen
+        depthTest: false,
+        linewidth: 2     // Lưu ý: một số trình duyệt giới hạn linewidth là 1
+    });
+
+    this.highlightModel = null; // Lưu trữ mesh highlight hiện tại
+    this.highlightLines = null; // Lưu trữ lines highlight hiện tại
   }
 
+  cast(event, threeCanvas) {
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+
+    // Tính toán tọa độ chuột chuẩn hóa (-1 đến +1)
+    const bounds = threeCanvas.getBoundingClientRect();
+    const x1 = event.clientX - bounds.left;
+    const y1 = event.clientY - bounds.top;
+    const x2 = bounds.right - bounds.left;
+    this.scene.renderer.setSize(x2, bounds.bottom - bounds.top, false); // Đảm bảo size khớp
+    
+    mouse.x = (x1 / x2) * 2 - 1;
+    mouse.y = -(y1 / (bounds.bottom - bounds.top)) * 2 + 1;
+
+    raycaster.setFromCamera(mouse, this.scene.camera);
+    
+    // Chỉ raycast vào các model IFC
+    return raycaster.intersectObjects(this.ifcModels)[0]; 
+  }
+  
+  async highlight(event, threeCanvas) {
+    const found = this.cast(event, threeCanvas);
+    
+    if (!found) {
+      this.clearHighlight();
+      return;
+    }
+
+    const index = found.faceIndex;
+    const geometry = found.object.geometry;
+    const id = this.ifcLoader.ifcManager.getExpressId(geometry, index);
+    const modelID = found.object.modelID;
+
+    if (this.currentHighlightId === id) return;
+    this.currentHighlightId = id;      const subset = this.ifcLoader.ifcManager.createSubset({
+      // ... các tham số cũ giữ nguyên
+      modelID: modelID,
+      ids: [id],
+      material: this.highlightMaterial,
+      scene: this.scene.scene,
+      removePrevious: true,
+      customID: 'highlight-face'
+    });
+
+    // 2. Xử lý hình học để tạo Lines "sạch" (Trimble Style)
+    // Clone geometry ra để không ảnh hưởng đến cái subset gốc
+    let lineGeometry = subset.geometry.clone();
+
+    // --- BƯỚC QUAN TRỌNG NHẤT: HÀN CÁC ĐỈNH LẠI ---
+    // Lệnh này sẽ nối các tam giác rời rạc thành một bề mặt liền mạch
+    // Nếu không có bước này, thresholdAngle sẽ vô tác dụng với các file IFC rời rạc.
+    lineGeometry = BufferGeometryUtils.mergeVertices(lineGeometry);
+
+    // Tính toán lại pháp tuyến để đảm bảo góc giữa các mặt chính xác
+    lineGeometry.computeVertexNormals();
+
+    // 3. Tạo EdgesGeometry với góc ngưỡng
+    const thresholdAngle = 40 * (Math.PI / 180); // Tăng lên 40 độ cho chắc chắn
+    const edgesGeometry = new THREE.EdgesGeometry(lineGeometry, thresholdAngle);
+
+    // Xóa lines cũ
+    if (this.highlightLines) {
+        this.scene.scene.remove(this.highlightLines);
+        this.highlightLines.geometry.dispose(); // Nhớ dispose để tránh leak mem
+    }
+
+    this.highlightLines = new THREE.LineSegments(edgesGeometry, this.lineMaterial);
+
+    // Copy transform từ subset
+    this.highlightLines.position.copy(subset.position);
+    this.highlightLines.rotation.copy(subset.rotation);
+    this.highlightLines.scale.copy(subset.scale);
+
+    // Render settings
+    this.highlightLines.renderOrder = 999;
+    this.highlightLines.material.depthTest = false; 
+    this.highlightLines.material.depthWrite = false;
+
+    this.scene.scene.add(this.highlightLines);
+  }
+
+  clearHighlight() {
+    // Xóa subset highlight của ifc (dựa vào customID đã đặt ở trên)
+    this.ifcLoader.ifcManager.removeSubset(0, this.highlightMaterial, 'highlight-face'); 
+    
+    // Xóa đường lines
+    if (this.highlightLines) {
+      this.scene.scene.remove(this.highlightLines);
+      this.highlightLines.geometry.dispose();
+      this.highlightLines = null;
+    }
+    this.currentHighlightId = null;
+  }
+  
   async editSubset(type) {
     const ids = await this.ifcLoader.ifcManager.getAllItemsOfType(0, type, false);
     if (this.remove) this.ifcLoader.ifcManager.removeFromSubset(0, ids);

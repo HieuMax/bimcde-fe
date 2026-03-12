@@ -1,3 +1,10 @@
+export interface ViewOptions {
+  annotations: boolean
+  clipPlanes: boolean
+  grids: boolean
+  ifcTypes: boolean
+  objectAttachments: boolean
+}
 export interface IView {
     _id: string;
     title: string;
@@ -24,19 +31,29 @@ export interface IView {
             position: { x: number, y: number, z: number };
             target: { x: number, y: number, z: number };
         };
+        
         visibility: any[];
         selection: any[];
         thumbnail?: string; // Base64
         modelOpacity?: number;
+
+        clipping?: {
+            enabled: boolean;
+            mode: 'plane' | 'vertical' | 'box' | 'none'; 
+            planes: {
+                normal: { x: number, y: number, z: number };
+                constant: number;
+            }[];
+        };
+
+        measurements?: {
+            start: { x: number, y: number, z: number };
+            end: { x: number, y: number, z: number };
+            value: number; 
+        }[];
+        viewOptions?: ViewOptions
     };
 
-    clipping?: {
-        enabled: boolean;
-        planes: {
-            normal: { x: number, y: number, z: number };
-            constant: number;
-        }[];
-    };
     
     createdAt: string;
     updatedAt: string;

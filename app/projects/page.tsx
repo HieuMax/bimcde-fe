@@ -277,7 +277,9 @@ function NewProjectDialog({ onCreated }: { onCreated: () => void }) {
 // ========================
 function GridView({ projects }: { projects: Project[] }) {
   const router = useRouter();
-
+  const handleProjectClick = (id: any) => {
+    router.push(`/projects/${id}`);
+  };
   return (
     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
       {projects.map((p) => (

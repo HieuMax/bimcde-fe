@@ -18,7 +18,6 @@ import {
   EllipsisVertical,
   Menu, Search, Check,
   Paperclip,
-  Expand,
   SquareScissors,
   Shrink,
   SquaresSubtract
@@ -32,8 +31,7 @@ import { Topics } from '@/components/_3d/topics/Topics';
 import { ClashSets } from '@/components/_3d/clash_sets/ClashSets';
 import { Organizer } from '@/components/_3d/organizer/Organizer';
 import { PropertiesDrawer } from './PropertiesDrawer';
-import { AttachFileDialog } from '@/components/todos/AttachFileDialog';
-import { fa } from 'zod/v4/locales';
+
 
 export default function IfcViewer({
   ifcUrls,
@@ -54,12 +52,24 @@ export default function IfcViewer({
   areaSelectEnabled = false,
   clipMode,
   hoverMode,
-  onVerticalClipCreated,
   onClearVerticalClips,
   onClipSelected, 
-  onClipDeselected  ,
-  // onClearVerticalClips
+  onClipDeselected,
+  // measurement
+  measureType = null,
+  measureColor = '#D81B60',
+  isMeasureActive = false,
+  onClearMeasurements = null,
+  // visibility control
+  viewOptions = {
+    annotations: true,
+    clipPlanes: true,
+    grids: false,
+    ifcTypes: true,
+    objectAttachments: true,
+  },
 }) {
+  
   const canvasRef = useRef(null);
   const loaderRef = useRef(null);
   const sceneRef = useRef(null);
@@ -133,51 +143,54 @@ export default function IfcViewer({
 
 
   // 1. Hàm lấy trạng thái Clip hiện tại để lưu
-const getClippingState = () => {
-    // Lấy context từ viewer (tùy thuộc vào library bạn dùng, đây là ví dụ logic)
-    // Nếu dùng ifc.js components:
-    const clipper = viewerRef.current.clipper; 
+// const getClippingState = () => {
+//     // Lấy context từ viewer (tùy thuộc vào library bạn dùng, đây là ví dụ logic)
+//     // Nếu dùng ifc.js components:
+//     const clipper = viewerRef.current.clipper; 
     
-    if (!clipper || !clipper.active) {
-        return { enabled: false, planes: [] };
-    }
+//     if (!clipper || !clipper.active) {
+//         return { enabled: false, planes: [] };
+//     }
 
-    // Lấy danh sách các planes (Three.js Plane: normal & constant)
-    const planes = clipper.planes.map(p => ({
-        normal: { x: p.normal.x, y: p.normal.y, z: p.normal.z },
-        constant: p.constant
-    }));
+//     // Lấy danh sách các planes (Three.js Plane: normal & constant)
+//     const planes = clipper.planes.map(p => ({
+//         normal: { x: p.normal.x, y: p.normal.y, z: p.normal.z },
+//         constant: p.constant
+//     }));
 
-    return {
-        enabled: true,
-        planes: planes
-    };
-};
+//     return {
+//         enabled: true,
+//         planes: planes
+//     };
+// };
 
 // 2. Hàm khôi phục Clip từ data đã lưu
-const restoreClippingState = (clippingData) => {
-    const clipper = viewerRef.current.clipper;
+// const restoreClippingState = (clippingData) => {
+//     const clipper = viewerRef.current.clipper;
     
-    // Xóa hết clip cũ trước
-    clipper.deleteAllPlanes();
+//     // Xóa hết clip cũ trước
+//     clipper.deleteAllPlanes();
     
-    if (!clippingData || !clippingData.enabled || !clippingData.planes) {
-        return;
-    }
+//     if (!clippingData || !clippingData.enabled || !clippingData.planes) {
+//         return;
+//     }
 
-    // Tạo lại planes
-    clippingData.planes.forEach(pData => {
-        const normal = new THREE.Vector3(pData.normal.x, pData.normal.y, pData.normal.z);
-        // Gọi hàm tạo plane của viewer library
-        clipper.createPlane(normal, pData.constant); 
-    });
-};
+//     // Tạo lại planes
+//     clippingData.planes.forEach(pData => {
+//         const normal = new THREE.Vector3(pData.normal.x, pData.normal.y, pData.normal.z);
+//         // Gọi hàm tạo plane của viewer library
+//         clipper.createPlane(normal, pData.constant); 
+//     });
+// };
+
 // =====================================================
 // CLIP PLANE 
 // =====================================================
 const [selectedPlaneId, setSelectedPlaneId] = useState(null);
 // Hover
 const hoverGroupRef = useRef(new THREE.Group());
+// Cache adjacency and group maps per mesh to avoid recomputing on every hover
+// const meshAdjacencyCacheRef = useRef(new Map());
 // state từng mặt
 const sectionIndexRef = useRef(1); 
 
@@ -185,9 +198,22 @@ const sectionIndexRef = useRef(1);
 const planesDataRef = useRef([]);
 const planeHelpersGroupRef = useRef(new THREE.Group());
 const cutFaceGroupRef = useRef(new THREE.Group());
+const gridHelperRef = useRef(null);
 
 const draggingPlaneRef = useRef(null);
 const lastMouseYRef = useRef(0);
+
+// =====================================================
+// MEASUREMENT 
+// =====================================================
+const [measurementPoints, setMeasurementPoints] = useState([]); // Store clicked points
+const [measurements, setMeasurements] = useState([]); // Store calculated measurements
+const measurementGroupRef = useRef(new THREE.Group());
+const measurementModeRef = useRef(measureType);
+
+useEffect(() => {
+  measurementModeRef.current = measureType;
+}, [measureType]);
 
 // =====================================================
 // HELPERS
@@ -197,6 +223,167 @@ const getSceneBoundingBox = useCallback(() => {
   models.forEach(m => m.mesh && box.expandByObject(m.mesh));
   return box;
 }, [models]);
+
+// =====================================================
+// MEASUREMENT HELPERS - VẼ VÀ HIỂN THỊ MEASUREMENT
+// =====================================================
+const drawArrowHead = (position, direction, color) => {
+  const arrowLength = 0.6; 
+  const arrowWidth = 0.25; 
+
+  const geometry = new THREE.ConeGeometry(arrowWidth, arrowLength, 12);
+  const material = new THREE.MeshBasicMaterial({ 
+    color: new THREE.Color(color), 
+    depthTest: false,  // QUAN TRỌNG: Luôn hiển thị bất chấp vật cản
+    depthWrite: false  // QUAN TRỌNG
+  });
+  
+  const arrow = new THREE.Mesh(geometry, material);
+  arrow.position.copy(position);
+  
+  // Set renderOrder 
+  arrow.renderOrder = 999; 
+
+  const axis = new THREE.Vector3(0, 1, 0);
+  const quaternion = new THREE.Quaternion().setFromUnitVectors(axis, direction.clone().normalize());
+  arrow.setRotationFromQuaternion(quaternion);
+
+  arrow.translateY(-arrowLength / 2);
+
+  measurementGroupRef.current.add(arrow);
+  return arrow;
+};
+
+// 2. Helper: Vẽ cung tròn cho Angle
+const drawAngleArc = (center, p1, p3, color, radius = 1.5) => {
+  const v1 = new THREE.Vector3().subVectors(p1, center).normalize();
+  const v2 = new THREE.Vector3().subVectors(p3, center).normalize();
+
+  const segments = 24;
+  const points = [];
+  const angleRad = v1.angleTo(v2);
+  const normal = new THREE.Vector3().crossVectors(v1, v2).normalize();
+
+  for (let i = 0; i <= segments; i++) {
+    const theta = (i / segments) * angleRad;
+    const rotatedVec = v1.clone().applyAxisAngle(normal, theta).multiplyScalar(radius);
+    points.push(new THREE.Vector3().addVectors(center, rotatedVec));
+  }
+
+  const geometry = new THREE.BufferGeometry().setFromPoints(points);
+  const material = new THREE.LineBasicMaterial({ 
+    color: new THREE.Color(color), 
+    linewidth: 2,
+    depthTest: false, 
+    depthWrite: false
+  });
+  
+  const arc = new THREE.Line(geometry, material);
+  arc.renderOrder = 999;
+  
+  measurementGroupRef.current.add(arc);
+  
+  const midIndex = Math.floor(points.length / 2);
+  return points[midIndex];
+};
+
+// 3. Vẽ một điểm đo (Dấu chấm tròn)
+const drawMeasurementPoint = (point, color) => {
+  const geometry = new THREE.SphereGeometry(0.15, 12, 12);
+  const material = new THREE.MeshBasicMaterial({ 
+    color: new THREE.Color(color),
+    depthTest: false, 
+    depthWrite: false, 
+  });
+  const sphere = new THREE.Mesh(geometry, material);
+  sphere.position.copy(point);
+  sphere.renderOrder = 999; 
+  
+  measurementGroupRef.current.add(sphere);
+  return sphere;
+};
+
+// 4. Vẽ đường nối giữa hai điểm (Line)
+const drawMeasurementLine = (point1, point2, color) => {
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.BufferAttribute(
+    new Float32Array([point1.x, point1.y, point1.z, point2.x, point2.y, point2.z]),
+    3
+  ));
+  const material = new THREE.LineBasicMaterial({ 
+    color: new THREE.Color(color),
+    linewidth: 3,
+    depthTest: false, 
+    depthWrite: false, 
+  });
+  const line = new THREE.Line(geometry, material);
+  line.renderOrder = 999;
+  
+  measurementGroupRef.current.add(line);
+  return line;
+};
+
+// 5. Vẽ text label
+const createMeasurementLabel = (point, text, color) => {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256;
+  canvas.height = 128;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+  ctx.fillRect(20, 20, 216, 88);
+  
+  // Vẽ viền trùng khớp với box nền
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 3;
+  ctx.strokeRect(20, 20, 216, 88);
+
+  // Text
+  ctx.fillStyle = '#ffffff'; 
+  ctx.font = 'bold 32px Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, 128, 64); 
+
+  const texture = new THREE.CanvasTexture(canvas);
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    depthTest: false,
+    depthWrite: false, 
+    sizeAttenuation: true,
+  });
+
+  const label = new THREE.Sprite(material);
+  label.position.copy(point);
+  label.scale.set(3, 1.5, 1);
+  label.renderOrder = 1000; 
+  
+  measurementGroupRef.current.add(label);
+  return label;
+};
+
+// Clear tất cả measurement
+const clearMeasurements = useCallback(() => {
+  while (measurementGroupRef.current.children.length > 0) {
+    measurementGroupRef.current.remove(measurementGroupRef.current.children[0]);
+  }
+  setMeasurementPoints([]);
+  setMeasurements([]);
+}, []);
+
+// Register clear measurement callback
+useEffect(() => {
+  if (onClearMeasurements) {
+    onClearMeasurements(clearMeasurements);
+  }
+}, [clearMeasurements, onClearMeasurements]);
+
+// Clear measurements when measurement is deactivated
+// useEffect(() => {
+//   if (!isMeasureActive) {
+//     clearMeasurements();
+//   }
+// }, [isMeasureActive, clearMeasurements]);
 
 // MARKER ĐÁNH DẤU THỨ TỰ TỪNG CLIP
 const createSectionMarker = (point, index) => {
@@ -671,6 +858,629 @@ const createVerticalSectionAtPoint = useCallback(
   }, [clipMode, models, createVerticalSectionAtPoint, selectedPlaneId]); 
 
 // =====================================================
+// MEASUREMENT CLICK EVENT
+// =====================================================
+useEffect(() => {
+  if (!isMeasureActive || !measureType || !canvasRef.current || !sceneRef.current) return;
+
+  const canvas = canvasRef.current;
+  const raycaster = new THREE.Raycaster();
+  const mouse = new THREE.Vector2();
+
+  const onMeasurementClick = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+    raycaster.setFromCamera(mouse, sceneRef.current.getCamera());
+    const meshes = modelsRef.current.map(m => m.mesh).filter(Boolean);
+    const hits = raycaster.intersectObjects(meshes, true);
+
+    if (hits.length === 0) return;
+
+    const hitPoint = hits[0].point;
+
+  if (measureType === 'single-point') {
+      drawMeasurementPoint(hitPoint, measureColor);
+      const text = `X: ${hitPoint.x.toFixed(2)}\nY: ${hitPoint.y.toFixed(2)}\nZ: ${hitPoint.z.toFixed(2)}`;
+      // Nhích label lên một chút để không che điểm
+      const labelPos = hitPoint.clone().add(new THREE.Vector3(0, 0.5, 0));
+      createMeasurementLabel(labelPos, text, measureColor);
+
+      // Lưu measurement dạng 1 điểm (start = end)
+      setMeasurements(prev => [
+        ...prev,
+        {
+          start: { x: hitPoint.x, y: hitPoint.y, z: hitPoint.z },
+          end: { x: hitPoint.x, y: hitPoint.y, z: hitPoint.z },
+          value: 0
+        }
+      ]);
+      
+      setMeasurementPoints([]); // Reset ngay vì chỉ cần 1 điểm
+    }
+
+    // 2. PERPENDICULAR (Đo khoảng cách 2 đầu mũi tên)
+    else if (measureType === 'perpendicular') {
+      const newPoints = [...measurementPoints, hitPoint];
+      setMeasurementPoints(newPoints);
+      drawMeasurementPoint(hitPoint, measureColor); // Vẽ điểm tạm
+
+      if (newPoints.length === 2) {
+        const p1 = newPoints[0];
+        const p2 = newPoints[1];
+        const distance = p1.distanceTo(p2);
+        
+        setMeasurements(prev => [
+          ...prev,
+          {
+            start: { x: p1.x, y: p1.y, z: p1.z },
+            end: { x: p2.x, y: p2.y, z: p2.z },
+            value: distance
+          }
+        ]);
+
+        // Vẽ đường nối
+        drawMeasurementLine(p1, p2, measureColor);
+
+        // Vẽ 2 mũi tên hướng vào nhau hoặc hướng ra ngoài
+        // Ở đây vẽ hướng từ p1->p2 tại p1, và p2->p1 tại p2 (kiểu dimension line)
+        const dir1 = new THREE.Vector3().subVectors(p2, p1).normalize();
+        const dir2 = new THREE.Vector3().subVectors(p1, p2).normalize();
+        
+        // Đặt mũi tên tại 2 đầu mút
+        drawArrowHead(p2, dir1, measureColor); // Mũi tên tại đích
+        drawArrowHead(p1, dir2, measureColor); // Mũi tên tại nguồn (đảo chiều để tạo thế đối đầu)
+
+        // Label ở giữa
+        const midpoint = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
+        createMeasurementLabel(midpoint, `${distance.toFixed(2)} m`, measureColor);
+
+        setMeasurementPoints([]); // Reset
+      }
+    }
+
+    // 3. SLOPE (Mũi tên 1 hướng) - Chuyển sang logic 2 điểm
+    else if (measureType === 'slope') {
+      const newPoints = [...measurementPoints, hitPoint];
+      setMeasurementPoints(newPoints);
+      drawMeasurementPoint(hitPoint, measureColor);
+
+      if (newPoints.length === 2) {
+        const p1 = newPoints[0]; // Điểm gốc
+        const p2 = newPoints[1]; // Điểm ngọn
+        
+        drawMeasurementLine(p1, p2, measureColor);
+        
+        // Chỉ vẽ 1 mũi tên tại p2 hướng từ p1 tới
+        const direction = new THREE.Vector3().subVectors(p2, p1).normalize();
+        drawArrowHead(p2, direction, measureColor);
+
+        // Tính toán thông tin slope (ví dụ: độ dài hoặc độ dốc deltaY)
+        const distance = p1.distanceTo(p2);
+
+        // Lưu measurement dạng slope (2 điểm + độ dài)
+        setMeasurements(prev => [
+          ...prev,
+          {
+            start: { x: p1.x, y: p1.y, z: p1.z },
+            end: { x: p2.x, y: p2.y, z: p2.z },
+            value: distance
+          }
+        ]);
+
+        createMeasurementLabel(p2, `L: ${distance.toFixed(2)}`, measureColor);
+
+        setMeasurementPoints([]);
+      }
+    }
+
+    // 4. ANGLE (Góc vuông/bất kỳ - 3 điểm)
+    else if (measureType === 'angle') {
+      const newPoints = [...measurementPoints, hitPoint];
+      setMeasurementPoints(newPoints);
+      drawMeasurementPoint(hitPoint, measureColor);
+
+      if (newPoints.length === 3) {
+        const p1 = newPoints[0];
+        const p2 = newPoints[1]; // Đỉnh góc
+        const p3 = newPoints[2];
+
+        // Vẽ 2 cạnh của góc
+        drawMeasurementLine(p2, p1, measureColor);
+        drawMeasurementLine(p2, p3, measureColor);
+
+        // Tính góc
+        const v1 = new THREE.Vector3().subVectors(p1, p2).normalize();
+        const v2 = new THREE.Vector3().subVectors(p3, p2).normalize();
+        const angleRad = v1.angleTo(v2);
+        const angleDeg = angleRad * (180 / Math.PI);
+
+        setMeasurements(prev => [
+          ...prev,
+          {
+            start: { x: p1.x, y: p1.y, z: p1.z },
+            end: { x: p3.x, y: p3.y, z: p3.z },
+            value: angleDeg
+          }
+        ]);
+
+        // VẼ CUNG TRÒN & LẤY VỊ TRÍ LABEL
+        // Bán kính cung tròn tự động điều chỉnh theo độ dài cạnh ngắn nhất để không bị quá to
+        const minLen = Math.min(p1.distanceTo(p2), p3.distanceTo(p2));
+        const arcRadius = Math.min(1.5, minLen * 0.4); 
+        
+        const labelPos = drawAngleArc(p2, p1, p3, measureColor, arcRadius);
+
+        createMeasurementLabel(labelPos, `${angleDeg.toFixed(1)}°`, measureColor);
+
+        setMeasurementPoints([]);
+      }
+    }
+  };
+
+  canvas.addEventListener('click', onMeasurementClick);
+
+  return () => {
+    canvas.removeEventListener('click', onMeasurementClick);
+  };
+}, [isMeasureActive, measureType, measureColor, measurementPoints]);
+
+// =====================================================
+// HOVER TRACE LOGGER (debug): log whether hovered object is Line or Mesh
+// Throttled with requestAnimationFrame and only logs when hovered object changes
+// =====================================================
+// Hover visual helpers
+const clearHoverVisual = useCallback(() => {
+  const g = hoverGroupRef.current;
+  while (g.children.length) g.remove(g.children[0]);
+}, []);
+
+const createHoverLabel = useCallback((position, text, color = '#ffcc00') => {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256; canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  // Rounded tooltip background
+  const w = canvas.width, h = canvas.height;
+  const r = 12;
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = 'rgba(34,34,34,0.9)';
+  ctx.beginPath();
+  ctx.moveTo(r, 0);
+  ctx.arcTo(w, 0, w, h, r);
+  ctx.arcTo(w, h, 0, h, r);
+  ctx.arcTo(0, h, 0, 0, r);
+  ctx.arcTo(0, 0, w, 0, r);
+  ctx.closePath();
+  ctx.fill();
+
+  // border
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // text
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 20px Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(text, w / 2, h / 2);
+
+  const tex = new THREE.CanvasTexture(canvas);
+  // tex.encoding = THREE.sRGBEncoding;
+  const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false, depthWrite: false });
+  const sprite = new THREE.Sprite(mat);
+  sprite.position.copy(position);
+  sprite.scale.set(1.2, 0.3, 1);
+  sprite.renderOrder = 9999;
+  hoverGroupRef.current.add(sprite);
+  return sprite;
+}, []);
+
+const createRingSprite = useCallback((position, color = '#ffffff') => {
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,size,size);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.arc(size/2, size/2, size*0.36, 0, Math.PI*2);
+  ctx.stroke();
+  const tex = new THREE.CanvasTexture(canvas);
+  const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false, depthWrite: false, transparent: true });
+  const sprite = new THREE.Sprite(mat);
+  sprite.position.copy(position);
+  sprite.scale.set(1.6, 1.6, 1);
+  sprite.renderOrder = 9999;
+  hoverGroupRef.current.add(sprite);
+  return sprite;
+}, []);
+
+const createDiamondSprite = useCallback((position, color = '#ffffff') => {
+  const size = 64;
+  const canvas = document.createElement('canvas');
+  canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0,0,size,size);
+  ctx.fillStyle = color;
+  // draw rotated square (diamond)
+  ctx.translate(size/2, size/2);
+  ctx.rotate(Math.PI/4);
+  ctx.fillRect(-size*0.12, -size*0.12, size*0.24, size*0.24);
+  const tex = new THREE.CanvasTexture(canvas);
+  const mat = new THREE.SpriteMaterial({ map: tex, depthTest: false, depthWrite: false, transparent: true });
+  const sprite = new THREE.Sprite(mat);
+  sprite.position.copy(position);
+  sprite.scale.set(0.28, 0.28, 1);
+  sprite.renderOrder = 10000;
+  hoverGroupRef.current.add(sprite);
+  return sprite;
+}, []);
+
+const highlightFaceFromIntersect = useCallback((hit, color = 0xffcc00) => {
+  try {
+    clearHoverVisual();
+    const obj = hit.object;
+    const geom = obj.geometry;
+    if (!geom || !hit.face) return;
+
+    const posAttr = geom.attributes.position;
+    const a = hit.face.a, b = hit.face.b, c = hit.face.c;
+    const vA = new THREE.Vector3().fromBufferAttribute(posAttr, a).applyMatrix4(obj.matrixWorld);
+    const vB = new THREE.Vector3().fromBufferAttribute(posAttr, b).applyMatrix4(obj.matrixWorld);
+    const vC = new THREE.Vector3().fromBufferAttribute(posAttr, c).applyMatrix4(obj.matrixWorld);
+
+    // translucent face patch
+    const faceGeom = new THREE.BufferGeometry();
+    const vertices = new Float32Array([
+      vA.x, vA.y, vA.z,
+      vB.x, vB.y, vB.z,
+      vC.x, vC.y, vC.z
+    ]);
+    faceGeom.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+    faceGeom.setIndex([0,1,2]);
+    faceGeom.computeVertexNormals();
+
+    const mat = new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, transparent: true, opacity: 0.45, depthTest: false, depthWrite: false });
+    const faceMesh = new THREE.Mesh(faceGeom, mat);
+    faceMesh.renderOrder = 9998;
+    hoverGroupRef.current.add(faceMesh);
+
+    // Try to extract region boundary by flood-filling coplanar triangles
+    try {
+      const indexAttr = geom.index;
+      const pos = posAttr;
+      const idxArray = indexAttr ? indexAttr.array : null;
+      const triCount = idxArray ? idxArray.length / 3 : Math.floor(pos.count / 3);
+
+      // Build triangle normals and edge map
+      const triNormals = new Array(triCount);
+      const edgeMap = new Map(); // key -> array of tri indices
+
+      const getVertex = (i, out) => out.fromBufferAttribute(pos, i);
+
+      for (let ti = 0; ti < triCount; ti++) {
+        const ia = idxArray ? idxArray[3 * ti] : 3 * ti;
+        const ib = idxArray ? idxArray[3 * ti + 1] : 3 * ti + 1;
+        const ic = idxArray ? idxArray[3 * ti + 2] : 3 * ti + 2;
+        const A = new THREE.Vector3().fromBufferAttribute(pos, ia);
+        const B = new THREE.Vector3().fromBufferAttribute(pos, ib);
+        const C = new THREE.Vector3().fromBufferAttribute(pos, ic);
+        const n = new THREE.Vector3().subVectors(B, A).cross(new THREE.Vector3().subVectors(C, A)).normalize();
+        triNormals[ti] = n;
+
+        const edges = [[ia, ib], [ib, ic], [ic, ia]];
+        edges.forEach(e => {
+          const k0 = Math.min(e[0], e[1]);
+          const k1 = Math.max(e[0], e[1]);
+          const key = `${k0}_${k1}`;
+          if (!edgeMap.has(key)) edgeMap.set(key, []);
+          edgeMap.get(key).push(ti);
+        });
+      }
+
+      // find start triangle index
+      let startTri = null;
+      if (typeof hit.faceIndex === 'number') startTri = hit.faceIndex;
+      else {
+        // fallback: find triangle matching a,b,c
+        const aIdx = a, bIdx = b, cIdx = c;
+        for (let ti = 0; ti < triCount; ti++) {
+          const ia = idxArray ? idxArray[3 * ti] : 3 * ti;
+          const ib = idxArray ? idxArray[3 * ti + 1] : 3 * ti + 1;
+          const ic = idxArray ? idxArray[3 * ti + 2] : 3 * ti + 2;
+          if ((ia === aIdx && ib === bIdx && ic === cIdx) || (ia === bIdx && ib === cIdx && ic === aIdx) || (ia === cIdx && ib === aIdx && ic === bIdx)) {
+            startTri = ti; break;
+          }
+        }
+      }
+
+      if (startTri !== null) {
+        const stack = [startTri];
+        const visited = new Set();
+        const boundaryEdges = new Set();
+        const coplanarDotThreshold = 0.995; // ~5 degrees
+
+        while (stack.length) {
+          const ti = stack.pop();
+          if (visited.has(ti)) continue;
+          visited.add(ti);
+
+          const ia = idxArray ? idxArray[3 * ti] : 3 * ti;
+          const ib = idxArray ? idxArray[3 * ti + 1] : 3 * ti + 1;
+          const ic = idxArray ? idxArray[3 * ti + 2] : 3 * ti + 2;
+          const edges = [[ia, ib], [ib, ic], [ic, ia]];
+
+          for (const e of edges) {
+            const k0 = Math.min(e[0], e[1]);
+            const k1 = Math.max(e[0], e[1]);
+            const key = `${k0}_${k1}`;
+            const tris = edgeMap.get(key) || [];
+            if (tris.length === 1) {
+              boundaryEdges.add(key + `:${e[0]}_${e[1]}`);
+            } else {
+              // find neighbor
+              const neighbor = tris.find(tn => tn !== ti);
+              if (neighbor == null) {
+                boundaryEdges.add(key + `:${e[0]}_${e[1]}`);
+              } else {
+                const dot = triNormals[ti].dot(triNormals[neighbor]);
+                if (dot >= coplanarDotThreshold) {
+                  if (!visited.has(neighbor)) stack.push(neighbor);
+                } else {
+                  boundaryEdges.add(key + `:${e[0]}_${e[1]}`);
+                }
+              }
+            }
+          }
+        }
+
+        // build edge vertices in world space
+        const edgePositions = [];
+        boundaryEdges.forEach(k => {
+          // k format 'min_max:origA_origB'
+          const parts = k.split(':');
+          const ab = parts[1].split('_');
+          const ia = parseInt(ab[0], 10);
+          const ib = parseInt(ab[1], 10);
+          const vAi = new THREE.Vector3().fromBufferAttribute(posAttr, ia).applyMatrix4(obj.matrixWorld);
+          const vBi = new THREE.Vector3().fromBufferAttribute(posAttr, ib).applyMatrix4(obj.matrixWorld);
+          edgePositions.push(vAi.x, vAi.y, vAi.z, vBi.x, vBi.y, vBi.z);
+        });
+
+        if (edgePositions.length > 0) {
+          const boundaryGeom = new THREE.BufferGeometry();
+          boundaryGeom.setAttribute('position', new THREE.BufferAttribute(new Float32Array(edgePositions), 3));
+          const outlineMat = new THREE.LineBasicMaterial({ color: 0xff8a00, linewidth: 3, depthTest: false, depthWrite: false });
+          const outline = new THREE.LineSegments(boundaryGeom, outlineMat);
+          outline.renderOrder = 10000;
+          hoverGroupRef.current.add(outline);
+        }
+      }
+    } catch (err) {
+      // fallback: simple triangle outline already added
+      console.warn('face boundary extraction failed', err);
+    }
+
+    // ring and diamond markers
+    createRingSprite(hit.point.clone().add(new THREE.Vector3(0, 0.02, 0)), '#ffffff');
+    createDiamondSprite(hit.point.clone().add(new THREE.Vector3(0, 0.02, 0)), '#1e293b');
+
+    // label
+    createHoverLabel(hit.point.clone().add(new THREE.Vector3(0, 0.06, 0)), 'Face', '#ff8a00');
+  } catch (err) {
+    console.warn('highlightFaceFromIntersect failed', err);
+  }
+}, [createHoverLabel, clearHoverVisual, createRingSprite, createDiamondSprite]);
+
+const highlightLineFromIntersect = useCallback((hit, color = 0x00bfff) => {
+  try {
+    clearHoverVisual();
+    const obj = hit.object;
+    const geom = obj.geometry;
+    if (!geom || !geom.attributes || !geom.attributes.position) return;
+
+    const posAttr = geom.attributes.position;
+
+    // If this is mesh geometry (triangles), try to find seam edges between groups
+    const idx = geom.index ? geom.index.array : null;
+    const triCount = idx ? idx.length / 3 : Math.floor(posAttr.count / 3);
+
+    const makeWorld = (vi) => new THREE.Vector3().fromBufferAttribute(posAttr, vi).applyMatrix4(obj.matrixWorld);
+
+    let chosenEdge = null;
+
+    if (triCount > 0 && typeof hit.faceIndex === 'number') {
+      // build edge->triangle adjacency
+      const edgeMap = new Map();
+      for (let ti = 0; ti < triCount; ti++) {
+        const ia = idx ? idx[3 * ti] : 3 * ti;
+        const ib = idx ? idx[3 * ti + 1] : 3 * ti + 1;
+        const ic = idx ? idx[3 * ti + 2] : 3 * ti + 2;
+        const edges = [[ia, ib], [ib, ic], [ic, ia]];
+        for (const e of edges) {
+          const k0 = Math.min(e[0], e[1]);
+          const k1 = Math.max(e[0], e[1]);
+          const key = `${k0}_${k1}`;
+          if (!edgeMap.has(key)) edgeMap.set(key, []);
+          edgeMap.get(key).push(ti);
+        }
+      }
+
+      // helper: get group index for triangle
+      const groups = geom.groups || [];
+      const getGroupIndexForTri = (triIdx) => {
+        const startIdx = triIdx * 3;
+        for (let gi = 0; gi < groups.length; gi++) {
+          const g = groups[gi];
+          if (startIdx >= g.start && startIdx < g.start + g.count) return gi;
+        }
+        return -1;
+      };
+
+      const hitTri = hit.faceIndex;
+      const ia = idx ? idx[3 * hitTri] : 3 * hitTri;
+      const ib = idx ? idx[3 * hitTri + 1] : 3 * hitTri + 1;
+      const ic = idx ? idx[3 * hitTri + 2] : 3 * hitTri + 2;
+      const triEdges = [[ia, ib], [ib, ic], [ic, ia]];
+
+      const hitGroup = getGroupIndexForTri(hitTri);
+
+      // find an edge whose adjacent triangle belongs to a different group (seam)
+      for (const e of triEdges) {
+        const k0 = Math.min(e[0], e[1]);
+        const k1 = Math.max(e[0], e[1]);
+        const key = `${k0}_${k1}`;
+        const tris = edgeMap.get(key) || [];
+        for (const t of tris) {
+          if (t === hitTri) continue;
+          const otherGroup = getGroupIndexForTri(t);
+          if (otherGroup !== hitGroup) {
+            chosenEdge = { a: makeWorld(e[0]), b: makeWorld(e[1]) };
+            break;
+          }
+        }
+        if (chosenEdge) break;
+      }
+    }
+
+    // Fallback: nearest segment logic (previous behavior)
+    if (!chosenEdge) {
+      const count = posAttr.count;
+      let bestDist = Infinity;
+      let bestSeg = null;
+      const p0 = new THREE.Vector3();
+      const p1 = new THREE.Vector3();
+      const aWorld = new THREE.Vector3();
+      const bWorld = new THREE.Vector3();
+      const tmpLine = new THREE.Line3();
+      // thay đổi lại mỗi 2 vertex để tạo thành 1 segment, thay vì mỗi 3 vertex tạo thành 1 triangle như trước, để phù hợp với cả Line và Mesh
+      for (let i = 0; i < count; i += 2) {
+        p0.fromBufferAttribute(posAttr, i);
+        if (i + 1 >= count) break;
+        p1.fromBufferAttribute(posAttr, i + 1);
+        aWorld.copy(p0).applyMatrix4(obj.matrixWorld);
+        bWorld.copy(p1).applyMatrix4(obj.matrixWorld);
+        tmpLine.start.copy(aWorld);
+        tmpLine.end.copy(bWorld);
+        const closest = tmpLine.closestPointToPoint(hit.point, true, new THREE.Vector3());
+        const dist = closest.distanceTo(hit.point);
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestSeg = { a: aWorld.clone(), b: bWorld.clone() };
+        }
+      }
+      if (!bestSeg) {
+        createDiamondSprite(hit.point, '#00bfff');
+        createHoverLabel(hit.point.clone().add(new THREE.Vector3(0, 0.05, 0)), 'LINE', '#ffffff');
+        return;
+      }
+      chosenEdge = bestSeg;
+    }
+
+    const segGeom = new THREE.BufferGeometry();
+    const arr = new Float32Array([chosenEdge.a.x, chosenEdge.a.y, chosenEdge.a.z, chosenEdge.b.x, chosenEdge.b.y, chosenEdge.b.z]);
+    segGeom.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+    const mat = new THREE.LineBasicMaterial({ color, linewidth: 4, depthTest: false, depthWrite: false });
+    const line = new THREE.Line(segGeom, mat);
+    line.renderOrder = 10001;
+    hoverGroupRef.current.add(line);
+
+    createDiamondSprite(hit.point.clone().add(new THREE.Vector3(0, 0.02, 0)), '#00bfff');
+    createHoverLabel(hit.point.clone().add(new THREE.Vector3(0, 0.06, 0)), 'LINE', '#00bfff');
+  } catch (err) {
+    console.warn('highlightLineFromIntersect failed', err);
+  }
+}, [createHoverLabel, clearHoverVisual, createDiamondSprite]);
+
+useEffect(() => {
+  if (!canvasRef.current || !sceneRef.current) return;
+
+  const canvas = canvasRef.current;
+  const raycaster = new THREE.Raycaster();
+  const mouse = new THREE.Vector2();
+  const prevHitRef = { id: null, type: null };
+  let rafId = null;
+
+  const onMouseMove = (e) => {
+    if (rafId) return; // already scheduled
+    rafId = requestAnimationFrame(() => {
+      rafId = null;
+      const rect = canvas.getBoundingClientRect();
+      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(mouse, sceneRef.current.getCamera());
+
+      // Prepare target lists
+      const meshes = modelsRef.current.map(m => m.mesh).filter(Boolean);
+      const lines = [];
+      sceneRef.current.scene.traverse(obj => {
+        if (!obj) return;
+        if (obj.type === 'Line' || obj.type === 'LineSegments' || obj.isLine) lines.push(obj);
+      });
+
+      // Check lines first
+      const lineHits = lines.length ? raycaster.intersectObjects(lines, true) : [];
+      if (lineHits && lineHits.length > 0) {
+        const hit = lineHits[0];
+        const id = hit.object.id;
+        if (prevHitRef.id !== id || prevHitRef.type !== 'line') {
+          prevHitRef.id = id; prevHitRef.type = 'line';
+          console.log('[hover] LINE hit', {
+            object: hit.object,
+            point: hit.point,
+            userData: hit.object.userData
+          });
+          try {
+            highlightLineFromIntersect(hit, 0x00bfff);
+          } catch (err) {
+            console.warn('hover highlight line failed', err);
+          }
+        }
+        return;
+      }
+
+      // Then faces/meshes
+      const meshHits = meshes.length ? raycaster.intersectObjects(meshes, true) : [];
+      if (meshHits && meshHits.length > 0) {
+        const hit = meshHits[0];
+        const id = hit.object.id;
+        if (prevHitRef.id !== id || prevHitRef.type !== 'mesh') {
+          prevHitRef.id = id; prevHitRef.type = 'mesh';
+          console.log('[hover] MESH/FACE hit', {
+            object: hit.object,
+            face: hit.face,
+            point: hit.point,
+            userData: hit.object.userData
+          });
+          try {
+            highlightFaceFromIntersect(hit, 0xffcc00);
+          } catch (err) {
+            console.warn('hover highlight face failed', err);
+          }
+        }
+        return;
+      }
+
+      // Nothing hit
+      if (prevHitRef.id !== null) {
+        prevHitRef.id = null; prevHitRef.type = null;
+        clearHoverVisual();
+        console.log('[hover] nothing under cursor');
+      }
+    });
+  };
+
+  canvas.addEventListener('mousemove', onMouseMove);
+  return () => {
+    canvas.removeEventListener('mousemove', onMouseMove);
+    if (rafId) cancelAnimationFrame(rafId);
+  };
+}, [models, hoverMode, highlightFaceFromIntersect, highlightLineFromIntersect, clearHoverVisual]);
+
+// =====================================================
 // INIT GROUPS (SAFE CLEANUP)
 // =====================================================
 useEffect(() => {
@@ -681,21 +1491,62 @@ useEffect(() => {
   const cutFaceGroup = cutFaceGroupRef.current;
   const helperGroup = planeHelpersGroupRef.current;
   const hoverGroup = hoverGroupRef.current;
+  const measurementGroup = measurementGroupRef.current;
 
   scene.add(cutFaceGroup);
   scene.add(helperGroup);
   scene.add(hoverGroup);
+  scene.add(measurementGroup);
 
   return () => {
     scene.remove(cutFaceGroup);
     scene.remove(helperGroup);
     scene.remove(hoverGroup);
+    scene.remove(measurementGroup);
 
     cutFaceGroup.clear();
     helperGroup.clear();
     hoverGroup.clear();
+    measurementGroup.clear();
   };
 }, [models]);
+
+  // =====================================================
+  // VISIBILITY CONTROL (ANNOTATIONS, CLIP PLANES, GRIDS)
+  // =====================================================
+  useEffect(() => {
+    if (!sceneRef.current) return;
+
+    // Annotations: hover + measurement helpers
+    if (hoverGroupRef.current) {
+      hoverGroupRef.current.visible = !!viewOptions?.annotations;
+    }
+    if (measurementGroupRef.current) {
+      measurementGroupRef.current.visible = !!viewOptions?.annotations;
+    }
+
+    // Clip planes helpers (visual only – clipping effect stays)
+    if (cutFaceGroupRef.current) {
+      cutFaceGroupRef.current.visible = !!viewOptions?.clipPlanes;
+    }
+    if (planeHelpersGroupRef.current) {
+      planeHelpersGroupRef.current.visible = !!viewOptions?.clipPlanes;
+    }
+
+    // Grid helper
+    // const scene = sceneRef.current.scene;
+    // if (viewOptions?.grids) {
+    //   if (!gridHelperRef.current) {
+    //     const grid = new THREE.GridHelper(100, 100, 0xcccccc, 0xe5e7eb);
+    //     grid.userData.isGridHelper = true;
+    //     gridHelperRef.current = grid;
+    //     scene.add(grid);
+    //   }
+    //   gridHelperRef.current.visible = true;
+    // } else if (gridHelperRef.current) {
+    //   gridHelperRef.current.visible = false;
+    // }
+  }, [viewOptions]);
 
   useEffect(() => {
     if (!ifcUrls?.length || !canvasRef.current) return;
@@ -709,7 +1560,7 @@ useEffect(() => {
         const scene = new ThreeScene(canvasRef.current);
         sceneRef.current = scene;
         loaderRef.current = new IfcManager(scene.scene, []);
-//
+
         // --- AREA SELECTION handlers (registered once, driven by refs) ---
         const getCanvasLocal = (ev) => {
           const rect = canvas.getBoundingClientRect();
@@ -1032,32 +1883,110 @@ useEffect(() => {
 
   const isLayerVisible = (modelID, typeId) => !hiddenLayers.has(layerKey(modelID, typeId));
 
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    // Kiểm tra xem loader và canvas đã sẵn sàng chưa
+    if (!canvas || !loaderRef.current || !sceneRef.current) return;
 
-  // Related to camera state
+    const onHover = (e) => {
+      if (isDragging.current) return;
+      if (areaDragRef.current && areaDragRef.current.active) return;
+      
+      loaderRef.current.highlight(e, canvas);
+    };
+
+    // Gắn sự kiện native trực tiếp vào canvas
+    canvas.addEventListener('mousemove', onHover);
+
+    return () => {
+      canvas.removeEventListener('mousemove', onHover);
+    };
+  }, []); 
+
+  // Related to camera/state snapshot used for views & todos
+  // Delegate to getSnapshot so we ALWAYS include camera + visibility + selection
+  // + clipping planes + measurements in the saved viewState.
   const captureCurrentState = () => {
     if (!sceneRef.current || !loaderRef.current) return null;
-
-    const cameraState = sceneRef.current.getCameraState();
-
-    const hiddenState = loaderRef.current.getVisibilityState();
-
-    const selectionState = selectedItems.map(item => ({
-      modelID: item.modelID,
-      expressID: item.expressID,
-      fileUrl: item.fileUrl
-    }));
-
-    const thumbnail = sceneRef.current.getScreenshot();
-
-    return {
-      camera: cameraState,
-      visibility: hiddenState,
-      selection: selectionState,
-      thumbnail: thumbnail,
-      modelOpacity: modelOpacity
-    };
+    return getSnapshot ? getSnapshot() : null;
   };
 
+  const restoreClippingState = (clipping) => {
+    clearAllClippingPlanes();
+
+    if (!clipping?.enabled || !clipping.planes) return;
+
+    clipping.planes.forEach(p => {
+      const normal = new THREE.Vector3(p.normal.x, p.normal.y, p.normal.z);
+      const plane = new THREE.Plane(normal, p.constant);
+
+      const index = sectionIndexRef.current++;
+
+      const visual = createCutFaceBackground(plane);
+      const marker = createSectionMarker(
+        normal.clone().multiplyScalar(-p.constant),
+        index
+      );
+
+      cutFaceGroupRef.current.add(visual);
+      cutFaceGroupRef.current.add(marker);
+
+      planesDataRef.current.push({
+        id: index,
+        plane,
+        visual,
+        marker,
+        originalNormal: normal,
+        mode: clipping.mode,
+        isActive: true,
+        anchorPoint: normal.clone().multiplyScalar(-p.constant)
+      });
+    });
+
+    updateRendererPlanes();
+  };
+
+  const restoreMeasurements = (measurementData) => {
+    clearMeasurements();
+
+    if (!measurementData || !measurementData.length) return;
+
+    const rebuilt = [];
+
+    measurementData.forEach(m => {
+      const p1 = new THREE.Vector3(m.start.x, m.start.y, m.start.z);
+      const p2 = new THREE.Vector3(m.end.x, m.end.y, m.end.z);
+
+      // Nhận diện single-point (start=end, value=0) để hiển thị lại tọa độ XYZ
+      const isSinglePoint =
+        m.value === 0 &&
+        Math.abs(p1.x - p2.x) < 1e-6 &&
+        Math.abs(p1.y - p2.y) < 1e-6 &&
+        Math.abs(p1.z - p2.z) < 1e-6;
+
+      if (isSinglePoint) {
+        drawMeasurementPoint(p1, measureColor);
+        const labelPos = p1.clone().add(new THREE.Vector3(0, 0.5, 0));
+        const text = `X: ${p1.x.toFixed(2)}\nY: ${p1.y.toFixed(2)}\nZ: ${p1.z.toFixed(2)}`;
+        createMeasurementLabel(labelPos, text, measureColor);
+      } else {
+        // Đo khoảng cách / góc: vẽ 2 điểm + line và hiện lại value đã lưu
+        drawMeasurementPoint(p1, measureColor);
+        drawMeasurementPoint(p2, measureColor);
+        drawMeasurementLine(p1, p2, measureColor);
+
+        const midpoint = new THREE.Vector3()
+          .addVectors(p1, p2)
+          .multiplyScalar(0.5);
+
+        createMeasurementLabel(midpoint, `${m.value}`, measureColor);
+      }
+
+      rebuilt.push(m);
+    });
+
+    setMeasurements(rebuilt);
+  };
   // === RESTORE STATE ===
   const restoreState = async (viewState, todoItems = []) => {
     if (!viewState || !sceneRef.current || !loaderRef.current) return;
@@ -1065,6 +1994,21 @@ useEffect(() => {
     if (onOpacityChange) {
       const savedOpacity = viewState.modelOpacity !== undefined ? viewState.modelOpacity : 1;
       onOpacityChange(savedOpacity);
+    }
+
+    // ---------------------------------------------------------
+    // 0. RESTORE CLIPPING & MEASUREMENTS
+    // ---------------------------------------------------------
+    if (viewState.clipping) {
+      restoreClippingState(viewState.clipping);
+    } else {
+      clearAllClippingPlanes && clearAllClippingPlanes();
+    }
+
+    if (viewState.measurements) {
+      restoreMeasurements(viewState.measurements);
+    } else {
+      clearMeasurements && clearMeasurements();
     }
 
     // ---------------------------------------------------------
@@ -1227,42 +2171,88 @@ useEffect(() => {
     };
   }, []);
 
-  const getSnapshot = () => {
-    if (!loaderRef.current || !sceneRef.current) return null;
-
-    const camera = sceneRef.current.getCameraState();
-
-    const rawVisibility = loaderRef.current.getVisibilityState();
-
-    // Map ModelID -> FileUrl
-    const safeVisibility = rawVisibility.map(item => {
-      const url = modelUrlMap.current[item.modelID];
-      if (url) {
-        return {
-          fileUrl: url,
-          ids: item.ids
-        };
-      }
-      return null;
-    }).filter(item => item !== null);
-
-    const rawSelection = selectedItems;
-    const safeSelection = rawSelection.map(item => ({
-      fileUrl: item.fileUrl || modelUrlMap.current[item.modelID],
-      expressID: item.expressID,
-      modelID: ""
-    }));
-
-    const thumbnail = sceneRef.current.getScreenshot();
+  const getClippingState = () => {
+    if (!planesDataRef.current || planesDataRef.current.length === 0) {
+      return {
+        enabled: false,
+        mode: clipMode,
+        planes: []
+      };
+    }
 
     return {
-      camera,
-      visibility: safeVisibility,
-      selection: safeSelection,
-      thumbnail,
-      modelOpacity: modelOpacity
+      enabled: true,
+      mode: clipMode,
+      planes: planesDataRef.current.map(p => ({
+        normal: {
+          x: p.plane.normal.x,
+          y: p.plane.normal.y,
+          z: p.plane.normal.z
+        },
+        constant: p.plane.constant
+      }))
     };
   };
+
+   const getSnapshot = () => {
+     if (!loaderRef.current || !sceneRef.current) return null;
+
+     const rawCamera = sceneRef.current.getCameraState();
+
+     // Chuẩn hóa camera về JSON đúng schema viewState trong view3d.ts
+     // camera: { position: {x,y,z}, target: {x,y,z} }
+     const camera = rawCamera
+       ? {
+           position: Array.isArray(rawCamera.position)
+             ? { x: rawCamera.position[0], y: rawCamera.position[1], z: rawCamera.position[2] }
+             : {
+                 x: rawCamera.position?.x ?? 0,
+                 y: rawCamera.position?.y ?? 0,
+                 z: rawCamera.position?.z ?? 0,
+               },
+           target: Array.isArray(rawCamera.target)
+             ? { x: rawCamera.target[0], y: rawCamera.target[1], z: rawCamera.target[2] }
+             : {
+                 x: rawCamera.target?.x ?? 0,
+                 y: rawCamera.target?.y ?? 0,
+                 z: rawCamera.target?.z ?? 0,
+               },
+         }
+       : null;
+
+     const rawVisibility = loaderRef.current.getVisibilityState();
+
+     // Map ModelID -> FileUrl
+     const safeVisibility = rawVisibility.map(item => {
+       const url = modelUrlMap.current[item.modelID];
+       if (url) {
+         return {
+           fileUrl: url,
+           ids: item.ids
+         };
+       }
+       return null;
+     }).filter(item => item !== null);
+
+     const rawSelection = selectedItems;
+     const safeSelection = rawSelection.map(item => ({
+       fileUrl: item.fileUrl || modelUrlMap.current[item.modelID],
+       expressID: item.expressID,
+       modelID: ""
+     }));
+
+     const thumbnail = sceneRef.current.getScreenshot();
+
+     return {
+       camera,
+       visibility: safeVisibility,
+       selection: safeSelection,
+       thumbnail,
+       modelOpacity: modelOpacity,
+       clipping: getClippingState(),
+       measurements: measurements
+     };
+   };
 
   const handleShowProperties = async () => {
     if (selectedItems.length === 0) {
@@ -1992,6 +2982,7 @@ useEffect(() => {
               width: '100%',
               height: '100%',
               display: 'block',
+              outline: 'none',
             }}
           />
 
@@ -2043,12 +3034,14 @@ useEffect(() => {
               </button>
 
               {/* attachments */}
-              <button
-                className="hover:text-blue-400 transition"
-                title="Attachments"
-              >
-                <Paperclip />
-              </button> 
+              {viewOptions?.objectAttachments !== false && (
+                <button
+                  className="hover:text-blue-400 transition"
+                  title="Attachments"
+                >
+                  <Paperclip />
+                </button>
+              )}
 
               {/* Zoom to section */}
               <button

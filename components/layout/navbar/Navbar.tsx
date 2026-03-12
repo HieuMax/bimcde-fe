@@ -8,18 +8,14 @@ import {
     MessageCircleDashed,
     CameraIcon,
     SquareScissors,
-    Rotate3D,
     Box,
     ClipboardCheck,
     MoreVertical,
-    Camera,
     Settings,
     Fullscreen,
     Eye,
-    Lock,
     Download,
     LucideIcon,
-    Ruler,
     Grid3x3,
     RotateCcw,
     ChevronDown,
@@ -30,7 +26,6 @@ import {
     ScissorsLineDashed,
     Scissors,
     RulerDimensionLine,
-    TrendingUp,
     TriangleRight,
     Plus,
     SquareArrowOutDownLeft,
@@ -46,8 +41,10 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,DropdownMenuCheckboxItem } from '@/components/ui/dropdown-menu';
 import { useState } from 'react';
+
+import { IView } from '@/types/view3d';
 
 type ActiveHeader = 'main' | 'clip' | 'measure'
 
@@ -63,7 +60,13 @@ type MeasureType =
   | 'angle'
   | 'slope'
   | null
-
+export interface ViewOptions {
+    annotations: boolean;
+    clipPlanes: boolean;
+    grids: boolean;
+    ifcTypes: boolean;
+    objectAttachments: boolean;
+}
 interface NavbarProps {
     onBack?: () => void;
     onRefresh?: () => void;
@@ -71,6 +74,8 @@ interface NavbarProps {
     onAddTodo?: () => void;
     modelOpacity?: number;
     onOpacityChange?: (value: number) => void;
+
+    onOpenViewDrawer?: (view: IView | null, mode: "create" | "edit" | "view") => void;
     // SELECTION MODE
     selectionMode?: SelectionMode;
     onChangeSelectionMode?: (mode: SelectionMode) => void;
@@ -88,7 +93,19 @@ interface NavbarProps {
     hasActiveVerticalClip?: boolean;
     setHasActiveVerticalClip?: (v: boolean) => void
     onClearAllClips?: () => void;
+    // MEASUREMENT MODE
+    measureType?: MeasureType;
+    onMeasureTypeChange?: (type: MeasureType) => void;
+    measureColor?: string;
+    onMeasureColorChange?: (color: string) => void;
+    isMeasureActive?: boolean;
+    onMeasureActiveChange?: (active: boolean) => void;
+    onClearAllMeasurements?: () => void;
+
+    viewOptions?: ViewOptions;
+    onToggleViewOption?: (key: keyof ViewOptions) => void;
 }
+
 
 // Helper component to render a button with a tooltip to avoid code repetition
 interface NavButtonProps {
@@ -106,9 +123,7 @@ function NavIconButton({ icon: Icon, label, onClick, className, active }: NavBut
             <TooltipTrigger asChild>
                 <Button
                     variant="ghost"
-                    size="sm"
-                    // className={`h-8 w-8 p-0 hover:bg-accent ${className || ''}`}
-                    
+                    size="sm"                    
                     onClick={onClick}
                     className={`
                         h-8 w-8 p-0
@@ -132,6 +147,7 @@ function NavIconButton({ icon: Icon, label, onClick, className, active }: NavBut
 export function Navbar({ onBack, onRefresh, onAction, onAddTodo,
     modelOpacity = 1,
     onOpacityChange,
+    onOpenViewDrawer,
     selectionMode = 'single',
     onChangeSelectionMode,
     multiSelectEnabled = false,
@@ -140,11 +156,20 @@ export function Navbar({ onBack, onRefresh, onAction, onAddTodo,
     onChangeClipType,
     hasActiveVerticalClip = false,
     onFlipClipDirection,
-    onDeleteClip,
     hoverMode,
     onChangeHoverMode,
     setHasActiveVerticalClip,
-    onClearAllClips
+    onClearAllClips,
+    // MEASUREMENT
+    measureType: externalMeasureType = null,
+    onMeasureTypeChange,
+    measureColor: externalMeasureColor = '#D81B60',
+    onMeasureColorChange,
+    isMeasureActive: externalIsMeasureActive = false,
+    onMeasureActiveChange,
+    onClearAllMeasurements,
+    viewOptions,
+    onToggleViewOption,
 }: NavbarProps) {
 
     const clipIconMap: Record<ClipType, LucideIcon> = {
@@ -157,25 +182,41 @@ export function Navbar({ onBack, onRefresh, onAction, onAddTodo,
     const ClipIcon = clipIconMap[clipMode]
 
     const [activeActions, setActiveActions] = useState<Set<string>>(new Set())
-    const toggleAction = (id: string) => {
-    setActiveActions(prev => {
-        const next = new Set(prev)
-        if (next.has(id)) {
-        next.delete(id)
-        } else {
-        next.add(id)
-        }
-        return next
-    })
+        const toggleAction = (id: string) => {
+        setActiveActions(prev => {
+            const next = new Set(prev)
+            if (next.has(id)) {
+            next.delete(id)
+            } else {
+            next.add(id)
+            }
+            return next
+        })
     }
+    
+    const [currentView, setCurrentView] = useState("axon");
+    // const [viewOptions, setViewOptions] = useState({
+    //     annotations: true,
+    //     clipPlanes: true,
+    //     grids: false,
+    //     ifcTypes: false,
+    //     objectAttachments: false,
+    //     })
+
+//     const toggleOption = (key: keyof typeof viewOptions) => {
+    //     setViewOptions(prev => ({
+    //         ...prev,
+    //         [key]: !prev[key],
+    //     }))
+    // }
+
 
 // measure 
     const isActive = (id: string) => activeActions.has(id)
 
-    const isMeasureActive = isActive('measure')
-
-    const [measureType, setMeasureType] = useState<MeasureType>(null)
-    const [measureColor, setMeasureColor] = useState('#D81B60'); 
+    const isMeasureActive = externalIsMeasureActive !== undefined ? externalIsMeasureActive : isActive('measure')
+    const measureType = externalMeasureType
+    const measureColor = externalMeasureColor 
 
     // Map measure types to icons and labels
     const measureMap: Record<
@@ -348,8 +389,8 @@ export function Navbar({ onBack, onRefresh, onAction, onAddTodo,
                                                     key={type}
                                                     className={measureType === type ? 'bg-accent' : ''}
                                                     onClick={() => {
-                                                        setMeasureType(type)
-                                                        setActiveActions(new Set(['measure']))
+                                                        onMeasureTypeChange?.(type)
+                                                        onMeasureActiveChange?.(true)
                                                     }}
                                                     >
                                                     <Icon className="mr-2 h-4 w-4" />
@@ -363,13 +404,9 @@ export function Navbar({ onBack, onRefresh, onAction, onAddTodo,
                                                 <DropdownMenuItem
                                                 className="text-destructive"
                                                 onClick={() => {
-                                                    setMeasureType(null)
-                                                    setActiveActions(prev => {
-                                                    const next = new Set(prev)
-                                                    next.delete('measure')
-                                                    return next
-                                                    })
-                                                    // clear measurement logic
+                                                    onMeasureTypeChange?.(null)
+                                                    onMeasureActiveChange?.(false)
+                                                    onClearAllMeasurements?.()
                                                 }}
                                                 >
                                                 <Trash className="mr-2 h-4 w-4" />
@@ -448,7 +485,17 @@ export function Navbar({ onBack, onRefresh, onAction, onAddTodo,
                                 </DropdownMenu>
 
                                 {/*  */}
-                                <NavIconButton icon={CameraIcon} label="Add view" />
+                                {/* <NavIconButton icon={CameraIcon} label="Add view" /> */}
+                                <NavIconButton 
+                                    icon={CameraIcon} 
+                                    label="Create View" 
+                                    onClick={() => {
+                                        // Gọi hàm mở Drawer ở chế độ 'create'
+                                        if (onOpenViewDrawer) {
+                                            onOpenViewDrawer(null, "create");
+                                        }
+                                    }}
+                                />
                                 <NavIconButton icon={ClipboardCheck} label="Add todo" onClick={onAddTodo} />
 
                                 {/* Divider */}
@@ -510,11 +557,7 @@ export function Navbar({ onBack, onRefresh, onAction, onAddTodo,
                                     <Tooltip>
                                         <TooltipTrigger asChild>
                                             <DropdownMenuTrigger asChild>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-8 w-12"
-                                                >
+                                                <Button variant="ghost" size="icon" className="h-8 w-12">
                                                     <Eye />
                                                     <ChevronDown className="h-2 w-2 ml-0.5" />
                                                 </Button>
@@ -523,27 +566,46 @@ export function Navbar({ onBack, onRefresh, onAction, onAddTodo,
                                         <TooltipContent side="bottom">Visibility Controls</TooltipContent>
                                     </Tooltip>
 
-                                    <DropdownMenuContent align="start" className="w-40">
-                                        <DropdownMenuItem>
-                                            <RotateCcw className="mr-2 h-4 w-4" />
-                                            Annotations
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem>
-                                            <Eye className="mr-2 h-4 w-4" />
+                                    <DropdownMenuContent align="start" className="w-56">
+                                        {/* Annotations */}
+                                        <DropdownMenuCheckboxItem
+                                            checked={viewOptions?.annotations}
+                                            onCheckedChange={() => onToggleViewOption?.('annotations')}
+                                        >
+                                            Annotation
+                                        </DropdownMenuCheckboxItem>
+
+                                        {/* Clip planes */}
+                                        <DropdownMenuCheckboxItem
+                                            checked={viewOptions?.clipPlanes}
+                                            onCheckedChange={() => onToggleViewOption?.('clipPlanes')}
+                                        >
                                             Clip planes
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem>
-                                            <Grid3x3 className="mr-2 h-4 w-4" />
+                                        </DropdownMenuCheckboxItem>
+
+                                        {/* Grids */}
+                                        <DropdownMenuCheckboxItem
+                                            checked={viewOptions?.grids}
+                                            onCheckedChange={() => onToggleViewOption?.('grids')}
+                                        >
                                             Grids
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem>
-                                            <Grid3x3 className="mr-2 h-4 w-4 rotate-90" />
+                                        </DropdownMenuCheckboxItem>
+
+                                        {/* IFC element types */}
+                                        <DropdownMenuCheckboxItem
+                                            checked={viewOptions?.ifcTypes}
+                                            onCheckedChange={() => onToggleViewOption?.('ifcTypes')}
+                                        >
                                             IFC element types
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem>
-                                            <Grid3x3 className="mr-2 h-4 w-4 rotate-90" />
+                                        </DropdownMenuCheckboxItem>
+
+                                        {/* Object attachments */}
+                                        <DropdownMenuCheckboxItem
+                                            checked={viewOptions?.objectAttachments}
+                                            onCheckedChange={() => onToggleViewOption?.('objectAttachments')}
+                                        >
                                             Object attachments
-                                        </DropdownMenuItem>
+                                        </DropdownMenuCheckboxItem>
                                     </DropdownMenuContent>
                                 </DropdownMenu>
 
@@ -706,20 +768,24 @@ export function Navbar({ onBack, onRefresh, onAction, onAddTodo,
                                     <div className="w-px h-5 bg-slate-300 mx-1" />
                                     </>
                                 )}
-
                                 <Tooltip>
                                     <TooltipTrigger asChild>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8 text-slate-600 hover:bg-slate-200"
-                                    >
-                                        <CameraIcon className="h-4 w-4" />
-                                    </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-8 w-8 text-slate-600 hover:bg-slate-200"
+                                            onClick={() => {
+                                                // [THÊM MỚI] Gọi hàm mở Drawer tạo view
+                                                if (onOpenViewDrawer) {
+                                                    onOpenViewDrawer(null, "create");
+                                                }
+                                            }}
+                                        >
+                                            <CameraIcon className="h-4 w-4" />
+                                        </Button>
                                     </TooltipTrigger>
                                     <TooltipContent>Capture view</TooltipContent>
                                 </Tooltip>
-
                                 <Tooltip>
                                     <TooltipTrigger asChild>
                                     <Button
@@ -810,6 +876,7 @@ export function Navbar({ onBack, onRefresh, onAction, onAddTodo,
                                 </div>
                             </div>
                         )}
+                        
 
                         {/* CLIP MODE MEASURE */}
                         {isMeasureActive && (
@@ -834,7 +901,7 @@ export function Navbar({ onBack, onRefresh, onAction, onAddTodo,
                                             {(Object.keys(measureMap) as Array<Exclude<MeasureType, null>>).map(type => {
                                                 const Icon = measureMap[type].icon
                                                 return (
-                                                    <DropdownMenuItem key={type} onClick={() => setMeasureType(type)} className={measureType === type ? 'bg-accent' : ''}>
+                                                    <DropdownMenuItem key={type} onClick={() => onMeasureTypeChange?.(type)} className={measureType === type ? 'bg-accent' : ''}>
                                                         <Icon className="mr-2 h-4 w-4" /> {measureMap[type].label}
                                                     </DropdownMenuItem>
                                                 )
@@ -871,7 +938,7 @@ export function Navbar({ onBack, onRefresh, onAction, onAddTodo,
                                                 ].map((color) => (
                                                     <button 
                                                         key={color} 
-                                                        onClick={() => setMeasureColor(color)} // Cập nhật màu khi click
+                                                        onClick={() => onMeasureColorChange?.(color)}
                                                         className={`
                                                             w-7 h-7 rounded-full border border-slate-200 
                                                             hover:scale-110 transition-transform focus:outline-none 
@@ -940,18 +1007,27 @@ export function Navbar({ onBack, onRefresh, onAction, onAddTodo,
                                     {/* 4. Action Buttons */}
                                     <Tooltip>
                                         <TooltipTrigger asChild>
-                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-600 hover:bg-slate-200">
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-8 w-8 text-slate-600 hover:bg-slate-200"
+                                                onClick={() => {
+                                                    // [THÊM MỚI] Gọi hàm mở Drawer tạo view
+                                                    if (onOpenViewDrawer) {
+                                                        onOpenViewDrawer(null, "create");
+                                                    }
+                                                }}
+                                            >
                                                 <CameraIcon className="h-4 w-4" />
                                             </Button>
                                         </TooltipTrigger>
-                                        <TooltipContent>Add view</TooltipContent>
+                                        <TooltipContent>Capture view</TooltipContent>
                                     </Tooltip>
-
                                     <Tooltip>
                                         <TooltipTrigger asChild>
                                             <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-600 hover:bg-red-50 hover:text-red-600"
                                                 onClick={() => {
-                                                    
+                                                    onClearAllMeasurements?.()
                                                 }} 
                                             >
                                                 <Trash className="h-4 w-4" />
@@ -968,12 +1044,8 @@ export function Navbar({ onBack, onRefresh, onAction, onAddTodo,
                                         size="sm"
                                         className="h-8 px-3 text-xs font-bold text-blue-600 hover:bg-blue-50 uppercase tracking-wide"
                                         onClick={() => {
-                                            setActiveActions(prev => {
-                                                const next = new Set(prev)
-                                                next.delete('measure')
-                                                return next
-                                            })
-                                            setMeasureType(null)
+                                            onMeasureActiveChange?.(false)
+                                            // onMeasureTypeChange?.(null)
                                         }}
                                     >
                                         Done
