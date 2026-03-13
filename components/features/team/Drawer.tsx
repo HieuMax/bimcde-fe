@@ -21,7 +21,6 @@ import {
 import { EllipsisVertical, Plus, X } from "lucide-react";
 import Image from "next/image";
 import { useEffect, useState } from "react";
-import { Drawer } from "vaul";
 
 const listRole = [
   { id: "admin", name: "Admin" },
@@ -62,7 +61,7 @@ export default function TeamDrawer({
     try {
       const response = await post(
         `/projects/updateProjectMember/${data.projectId}`,
-        updatedData
+        updatedData,
       );
       if (response.success) {
         console.log("Role updated successfully");
@@ -133,7 +132,7 @@ export default function TeamDrawer({
       const userRemove = data.userId;
       const response = await post(
         `/projects/removeFromProject/${data.projectId}`,
-        { userRemove: userRemove }
+        { userRemove: userRemove },
       );
       if (response.success) {
         window.location.reload();
@@ -155,163 +154,188 @@ export default function TeamDrawer({
   const filterData = groupData.filter((gr: any) => {
     return !groupList.some((g) => g._id === gr._id);
   });
+
   return (
-    <Drawer.Root open={isOpen} onClose={onCLoseDrawer}>
-      <Drawer.Trigger>Open Drawer</Drawer.Trigger>
-      <Drawer.Portal>
-        <Drawer.Overlay className="fixed inset-0 bg-black/40" />
-        <Drawer.Content
-          className="right-0 top-0 bottom-0 fixed z-10 outline-none w-[310px] flex"
-          // The gap between the edge of the screen and the drawer is 8px in this case.
-        >
-          <div className="bg-zinc-50 h-full w-full grow overflow-y-auto  flex flex-col rounded-[16px]">
-            <div className="max-w-md mt-14">
-              <Drawer.Title className="font-medium mb-2 text-zinc-900">
-                <div className="flex items-center gap-2 justify-end border-b-2 border-b-gray-300 p-5">
-                  <Button className="bg-transparent shadow-none text-gray500 hover:bg-gray-200">
-                    <EllipsisVertical className="w-full h-full"></EllipsisVertical>
-                  </Button>
-                  <Button
-                    onClick={onCLoseDrawer}
-                    className="bg-transparent shadow-none text-gray500 hover:bg-gray-200">
-                    <X></X>
-                  </Button>
-                </div>
-              </Drawer.Title>
-            </div>
-            <div className="flex flex-col items-center bg-zinc-100 border-b-2 border-b-gray-300 py-3">
-              <Image
-                src="https://resources.connect.trimble.com/thumb/user.png"
-                alt="User image"
-                width={100}
-                height={100}
-              />
-              <h3 className="font-semibold text-lg">{data.fullName}</h3>
-              <span>
-                <a
-                  href={`mailto:${data.email}`}
-                  className="text-sm text-[#005f9e] hover:underline">
-                  {data.email}
-                </a>
-              </span>
-            </div>
-
-            <div className=" text-gray-500 p-4 border-b-2 border-b-gray-300 ">
-              <h3 className="font-medium text-base">Details</h3>
-              <div className="pt-4">
-                <span className="text-sm">Last accessed</span>
-                {data.lastAccessed ? (
-                  <p className="font-normal ">
-                    {data.lastAccessed
-                      ? new Date(data.lastAccessed).toLocaleString("en-US", {
-                          month: "short",
-                          day: "2-digit",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                          hour12: true,
-                        })
-                      : ""}
-                  </p>
-                ) : (
-                  <p className="font-semibold">Never</p>
-                )}
-              </div>
-              <div className="pt-4">Role</div>
-              <Select value={selectedRole} onValueChange={handleRoleChange}>
-                <SelectTrigger className="w-full border-b-2 border-b-blue-700 focus-visible:outline-none focus:ring-0">
-                  <SelectValue placeholder="Select Role" />
-                </SelectTrigger>
-                <SelectContent>
-                  {listRole.length > 0 ? (
-                    listRole.map((role) => (
-                      <SelectItem key={role.id} value={role.id}>
-                        {role.name}
-                      </SelectItem>
-                    ))
-                  ) : (
-                    <p>No roles available</p>
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-            {activeGroup && activeGroup._id == "all" && (
-              <div className="p-4">
-                <div className="flex items-center justify-between ">
-                  <h3 className="font-medium text-base text-gray-500">
-                    Groups
-                  </h3>
-                  <Button
-                    onClick={onAddToGroup}
-                    className="bg-transparent text-blue-700 shadow-none hover:bg-blue-100 hover:text-blue-800">
-                    {isAddToGroup ? (
-                      <span>Cancel</span>
-                    ) : (
-                      <span className="flex items-center gap-1">
-                        <Plus></Plus> Add to Group
+    <>
+      {isOpen && (
+        <div className=" flex flex-col bg-white nowrap h-full ml-auto  min-w-80 relative shadow">
+          <div className="flex border-b border-b-[#d0d0d7] nowrap p-4 items-center ">
+            <div className="items-center flex flex-1 overflow-hidden"></div>
+            <Button className="bg-transparent shadow-none text-gray-500 hover:bg-gray-200">
+              <EllipsisVertical className="w-full h-full"></EllipsisVertical>
+            </Button>
+            <Button
+              onClick={onCLoseDrawer}
+              className="bg-transparent shadow-none text-gray500 hover:bg-gray-200">
+              <X></X>
+            </Button>
+          </div>
+          <div className="overflow-y-auto flex flex-col nowrap h-full">
+            <div className="flex-1 pb-4">
+              <div className="block">
+                <div className="items-center bg-[#f9f9fb] bg-position-[50%]  nowrap bg-cover flex justify-center min-h-24 p-4">
+                  <div className="flex flex-col w-full items-center">
+                    <Image
+                      src="https://resources.connect.trimble.com/thumb/user.png"
+                      alt="User image"
+                      width={88}
+                      height={88}
+                    />
+                    <div className="mt-2 text-center">
+                      <h3 className="text-lg font-semibold">{data.fullName}</h3>
+                      <span>
+                        <a
+                          href={`mailto:${data.email}`}
+                          className="text-sm text-[#005f9e] hover:underline">
+                          {data.email}
+                        </a>
                       </span>
-                    )}
-                  </Button>
+                    </div>
+                  </div>
                 </div>
 
-                {isAddToGroup && (
-                  <div className="mt-4">
-                    <MultiSelect
-                      values={selectedGroup}
-                      onValuesChange={setSelectedGroup}>
-                      <MultiSelectTrigger className=" w-full h-11">
-                        <MultiSelectValue placeholder="Type to add" />
-                      </MultiSelectTrigger>
-                      <MultiSelectContent className="p-4">
-                        {filterData?.length > 0 ? (
-                          <MultiSelectGroup>
-                            {filterData?.map((gr: any) => (
-                              <MultiSelectItem key={gr._id} value={gr._id}>
-                                <span>{gr.name}</span>
-                              </MultiSelectItem>
-                            ))}
-                          </MultiSelectGroup>
-                        ) : (
-                          <p>No users available in this project</p>
-                        )}
-                      </MultiSelectContent>
-                    </MultiSelect>
-                    <Button
-                      onClick={handleAddToGroup}
-                      className="bg-[#005a92] hover:bg-[#004a79] text-white mt-2">
-                      Add
-                    </Button>
+                <div className="">
+                  <div className="flex items-center nowrap border-t border-t-[#d0d0d7] pl-4 pr-2">
+                    <h5 className=" my-2 overflow-hidden whitespace-nowrap text-ellipsis">
+                      Details
+                    </h5>
                   </div>
-                )}
+                  <div className=" pl-4 pr-2 flex flex-col flex-nowrap space-y-2">
+                    <div className="min-h-12 flex flex-col relative text-sm">
+                      <label className="flex flex-end flex-nowrap text-muted-foreground font-normal mb-0 min-h-6">
+                        Last accessed
+                      </label>
+                      {data.lastAccessed ? (
+                        <div className=" overflow-hidden text-ellipsis whitespace-nowrap">
+                          {data.lastAccessed
+                            ? new Date(data.lastAccessed).toLocaleString(
+                                "en-US",
+                                {
+                                  month: "short",
+                                  day: "2-digit",
+                                  year: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                  hour12: true,
+                                },
+                              )
+                            : ""}
+                        </div>
+                      ) : (
+                        <p className="font-semibold">Never</p>
+                      )}
+                    </div>
+                    <div className="min-h-12 flex flex-col relative text-sm">
+                      <label className="flex flex-end flex-nowrap text-muted-foreground font-normal mb-0 min-h-6">
+                        Role:
+                      </label>
+                      <Select
+                        value={selectedRole}
+                        onValueChange={handleRoleChange}>
+                        <SelectTrigger className="w-full border-b-1  focus-visible:outline-none focus:ring-0">
+                          <SelectValue placeholder="Select Role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {listRole.length > 0 ? (
+                            listRole.map((role) => (
+                              <SelectItem key={role.id} value={role.id}>
+                                {role.name}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <p>No roles available</p>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+                {activeGroup && activeGroup._id == "all" && (
+                  <div className="">
+                    <div className="flex nowrap justify-between items-center pl-4 pr-2 border-t border-t-[#d0d0d7] mt-2">
+                      <h5 className="overflow-hidden text-ellipsis whitespace-nowrap text-sm font-semibold">
+                        Groups
+                      </h5>
+                      <Button
+                        onClick={onAddToGroup}
+                        className="bg-transparent text-[#005f9e] shadow-none hover:bg-blue-100 hover:text-blue-800">
+                        {isAddToGroup ? (
+                          <span>Cancel</span>
+                        ) : (
+                          <span className="flex items-center gap-1">
+                            <Plus></Plus> Add to Group
+                          </span>
+                        )}
+                      </Button>
+                    </div>
 
-                {groupList?.length > 0 && (
-                  <div className="mt-4">
-                    {groupList.map((group) => (
-                      <div
-                        key={group._id}
-                        className="mb-1 flex items-center justify-between">
-                        {group.name}{" "}
+                    {isAddToGroup && (
+                      <div className="mt-4 pl-4 pr-2">
+                        <MultiSelect
+                          values={selectedGroup}
+                          onValuesChange={setSelectedGroup}>
+                          <MultiSelectTrigger className=" w-full h-11">
+                            <MultiSelectValue placeholder="Type to add" />
+                          </MultiSelectTrigger>
+                          <MultiSelectContent className="p-4">
+                            {filterData?.length > 0 ? (
+                              <MultiSelectGroup>
+                                {filterData?.map((gr: any) => (
+                                  <MultiSelectItem key={gr._id} value={gr._id}>
+                                    <span>{gr.name}</span>
+                                  </MultiSelectItem>
+                                ))}
+                              </MultiSelectGroup>
+                            ) : (
+                              <p>No users available in this project</p>
+                            )}
+                          </MultiSelectContent>
+                        </MultiSelect>
                         <Button
-                          onClick={() => onRemoveFromGroup(group._id)}
-                          className="bg-transparent text-gray-500 hover:bg-gray-100 hover:text-gray-500 shadow-none">
-                          <X></X>
+                          onClick={handleAddToGroup}
+                          size="sm"
+                          className="bg-[#005f9e] hover:bg-[#004a79]  text-white mt-2">
+                          Add
                         </Button>
                       </div>
-                    ))}
+                    )}
+
+                    {groupList?.length > 0 && (
+                      <div className="mt-4 pl-4 pr-2">
+                        {groupList.map((group) => (
+                          <div
+                            key={group._id}
+                            className="flex items-center justify-between border-none nowrap min-h-10 w-full">
+                            <div className="overflow-hidden text-ellipsis text-sm">
+                              {group.name}
+                            </div>
+                            <Button
+                              onClick={() => onRemoveFromGroup(group._id)}
+                              className="bg-transparent text-gray-500 hover:bg-gray-100 hover:text-gray-500 shadow-none">
+                              <X></X>
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
-            )}
-            <div className="mt-auto p-4">
-              <Button
-                onClick={onRemoveFromProject}
-                className="w-full bg-red-500 text-white hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 rounded-md py-2">
-                Remove from Project
-              </Button>
             </div>
           </div>
-        </Drawer.Content>
-      </Drawer.Portal>
-    </Drawer.Root>
+          <div className="bg-white border-t border-t-[#d0d0d7] w-full">
+            <div className="p-2">
+              <div className="w-full">
+                <Button
+                  onClick={onRemoveFromProject}
+                  className="w-full bg-transparent text-red-700 shadow-none hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 ">
+                  Remove from Project
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }

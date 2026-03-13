@@ -70,7 +70,6 @@ export default function RegisterForm() {
       values.phone || "",
       values.password
     );
-    console.log("Register response:", response);
     if (response.success) {
       router.push("/login");
     }
