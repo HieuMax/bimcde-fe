@@ -17,11 +17,16 @@ function loadWasmIfc(request: NextRequest) {
     const file = url.pathname.replace('/_next/static/chunks/wasm/', '');
     url.pathname = `/wasm/${file}`;
     return NextResponse.rewrite(url);
+  } else if (url.pathname.startsWith('/ROOT/node_modules/web-ifc-three/node_modules/web-ifc/')) {
+    const file = url.pathname.replace('/ROOT/node_modules/web-ifc-three/node_modules/web-ifc/', '');
+    url.pathname = `${file}`;
+    return NextResponse.rewrite(url);
   }
 }
 
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico).*)",
-    '/_next/static/chunks/wasm/:path*'
+    '/_next/static/chunks/wasm/:path*',
+    '/ROOT/node_modules/web-ifc-three/node_modules/web-ifc/wasm/:path*',
   ],
 };

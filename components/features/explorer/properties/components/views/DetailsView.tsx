@@ -72,12 +72,12 @@ export default function DetailsView({
       if (!fileExt) return;
 
       const IFC_FILES = ["ifc"];
-      const DOC_FILES = ["docs", "pdf", "png", "jpg"];
+      const DOC_FILES = ["docs", "pdf", "png", "jpg", "webp"];
 
       // IFC → 3D Viewer
       if (IFC_FILES.includes(fileExt)) {
         router.push(
-          `/viewer?urls=${encodeURIComponent(JSON.stringify([item.location]))}`
+          `/projects/${projectId}/viewer3d?urls=${encodeURIComponent(JSON.stringify([item.location]))}`
         );
         return;
       }
@@ -123,6 +123,7 @@ export default function DetailsView({
           <Separator />
           <ToolbarSection
             item={item}
+            projectId={projectId}
             onDownload={onDownload}
             onOpenMove={onOpenMove}
             onDelete={onDelete}

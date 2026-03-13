@@ -63,7 +63,7 @@ function DraggableRow({
 
     // Folder → mở folder
     if (!isFile) {
-      router.push(`/projects/${projectId}/explorer/${item._id}`);
+      router.push(`/projects/${projectId}/data?folderId=${item._id}`);
       return;
     }
 
@@ -71,12 +71,12 @@ function DraggableRow({
     if (!fileExt) return;
 
     const IFC_FILES = ["ifc"];
-    const DOC_FILES = ["docs", "pdf", "png", "jpg"];
+    const DOC_FILES = ["docs", "pdf", "png", "jpg", "webp"];
 
     // IFC → 3D Viewer
     if (IFC_FILES.includes(fileExt)) {
       router.push(
-        `/viewer?urls=${encodeURIComponent(JSON.stringify([item.location]))}`
+        `/projects/${projectId}/viewer3d?urls=${encodeURIComponent(JSON.stringify([item.location]))}`
       );
       return;
     }

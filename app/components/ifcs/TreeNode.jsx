@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 
-export function TreeNode({ idx, node, onSelect, modelId, selectedTreePath, setSelectedTreePath }) {
+export function TreeNode({ idx, node, onSelect, modelId, selectedTreePaths, setSelectedTreePaths }) {
   const [open, setOpen] = useState(false);
 
   const hasChildren = node.children && node.children.length > 0;
@@ -18,7 +18,7 @@ export function TreeNode({ idx, node, onSelect, modelId, selectedTreePath, setSe
   };
   // const isActive = selectedTreePath === node.expressID;
   const isActive =
-    selectedTreePath?.modelIndex === modelId && selectedTreePath?.expressID === node.expressID;
+    selectedTreePaths.some(path => path.modelIndex === modelId && path.expressID === node.expressID);
 
   const marginLeft = idx ? idx * 15 + 20 : 20;
 
@@ -37,7 +37,22 @@ export function TreeNode({ idx, node, onSelect, modelId, selectedTreePath, setSe
         onClick={(e) => {
           e.stopPropagation();
           clickItem();
-          setSelectedTreePath({ modelIndex: modelId, expressID: node.expressID });
+          console.log('Clicked item:', { modelId, expressID: node.expressID });
+          const path = { modelIndex: modelId, expressID: node.expressID };
+          if (e.ctrlKey) {
+            // Toggle selection
+            setSelectedTreePaths(prev => {
+              const exists = prev.some(p => p.modelIndex === modelId && p.expressID === node.expressID);
+              if (exists) {
+                return prev.filter(p => !(p.modelIndex === modelId && p.expressID === node.expressID));
+              } else {
+                return [...prev, path];
+              }
+            });
+          } else {
+            // Single selection
+            setSelectedTreePaths([path]);
+          }
         }}
         className={isActive ? 'tree-active' : ''}
         style={{
@@ -95,8 +110,8 @@ export function TreeNode({ idx, node, onSelect, modelId, selectedTreePath, setSe
                 node={child}
                 onSelect={onSelect}
                 modelId={modelId}
-                selectedTreePath={selectedTreePath}
-                setSelectedTreePath={setSelectedTreePath}
+                selectedTreePaths={selectedTreePaths}
+                setSelectedTreePaths={setSelectedTreePaths}
               />
             ))}
         </div>
