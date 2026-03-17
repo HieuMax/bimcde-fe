@@ -8,7 +8,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
-import { EllipsisVertical, Paperclip } from "lucide-react";
+import { EllipsisVertical, File, Paperclip, X } from "lucide-react";
 import { useState } from "react";
 import {
   AlertDialog,
@@ -20,43 +20,125 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useAuth } from "@/app/context/authContext";
+import { useApi } from "@/app/hooks/useApi";
+import { AttachmentDialog } from "../drawer/attachmentDialog";
 
 interface commentProps {
-  data: any[];
-  onCommentChange?: (data: any) => void;
-  onDeleteComment?: (data: any) => void;
+  listCommentData: any[];
+  todoData: any;
+
+  onCommentChange: (changed: boolean) => void;
 }
-export default function CommentComponent({
-  data,
+export default function ListCommentComponent({
+  listCommentData,
+  todoData,
   onCommentChange,
-  onDeleteComment,
 }: commentProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [value, setValue] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
+  const [openAttachment, setOpenAttachment] = useState(false);
+  const { post, delete: deleteApi } = useApi();
+  const { user } = useAuth();
 
+  //#region LOGIC
+  //#region Attachment
+  const onToggleAttachment = () => {
+    setOpenAttachment((prev) => !prev);
+  };
+
+  const handleSubmitAttachment = (newFiles: any[]) => {
+    const index = listCommentData.findIndex((c) => c._id === editingId);
+    if (index === -1) return;
+
+    listCommentData[index].attachments = [
+      ...(listCommentData[index].attachments || []),
+      ...newFiles,
+    ];
+  };
+
+  const handleRemoveAttachment = (commentIndex: number, indexFile: number) => {
+    if (commentIndex === -1) return;
+
+    const attachments = listCommentData[commentIndex].attachments || [];
+
+    attachments.splice(indexFile, 1);
+
+    listCommentData[commentIndex].attachments = [...attachments];
+    const comment = listCommentData[commentIndex];
+    handleUpdateComment(comment);
+  };
+  //#endregion
+
+  //#region COMMENT
   const onEditComment = (id: string) => {
     setEditingId(id);
   };
 
-  const onValueChange = () => {
+  const onSubmitComment = () => {
     if (!editingId) return;
 
-    const dataItem = data.find((item: any) => item._id === editingId);
+    const dataItem = listCommentData.find(
+      (item: any) => item._id === editingId,
+    );
     if (!dataItem) return;
 
     const updateData = { ...dataItem, description: value };
 
-    onCommentChange?.(updateData);
+    handleUpdateComment(updateData);
     setEditingId(null);
   };
 
   const handleConfirmDelete = () => {
-    if (deleteTarget && onDeleteComment) {
-      onDeleteComment(deleteTarget);
+    if (deleteTarget) {
+      handleDeleteComment(deleteTarget);
     }
     setDeleteTarget(null);
   };
+  //#endregion
+
+  //#region API
+  const handleUpdateComment = async (data: any) => {
+    const userAction = {
+      userId: user?._id || "",
+      fullName: user?.fullName || "",
+      email: user?.email || "",
+      role: user?.role || "",
+    };
+    const updateData = {
+      moodifiedOn: new Date(),
+      description: data.description,
+      attachments: data.attachments,
+      modifiedBy: userAction,
+    };
+    try {
+      const response = await post(
+        `/todo/comment/update/${data._id}`,
+        updateData,
+      );
+      if (response.success) {
+        onCommentChange(true);
+      }
+    } catch (error) {
+      console.error("Error updating comment:", error);
+    }
+  };
+
+  const handleDeleteComment = async (comment: any) => {
+    try {
+      const response = await deleteApi(`/todo/comment/delete/${comment._id}`);
+      if (response?.success) {
+        onCommentChange(true);
+      } else {
+        console.error("Failed to delete comment:", response?.error);
+      }
+    } catch (error) {
+      console.error("Error deleting comment:", error);
+    }
+  };
+
+  //#endregion
 
   return (
     <>
@@ -66,7 +148,7 @@ export default function CommentComponent({
             Comments
           </h5>
         </div>
-        {data.map((data: any, index: number) => (
+        {listCommentData.map((data: any, index: number) => (
           <div
             key={data._id ?? index}
             className="px-0 py-4 border-b border-b-[#d0d0d7]">
@@ -78,7 +160,6 @@ export default function CommentComponent({
                       <AvatarImage
                         src="https://github.com/shadcn.png"
                         alt="@shadcn"
-                        className="grayscale"
                       />
                       <AvatarFallback>#</AvatarFallback>
                     </Avatar>
@@ -123,6 +204,7 @@ export default function CommentComponent({
                   <p className="whitespace-nowrap text-inherit break-words ">
                     {data.description}
                   </p>
+
                   {editingId === data._id && (
                     <>
                       <Textarea
@@ -131,7 +213,9 @@ export default function CommentComponent({
                         defaultValue={data.description}
                         onChange={(e) => setValue(e.target.value)}></Textarea>
                       <div className="flex items-center justify-between mt-3">
-                        <Button className="text-gray-500 bg-transparent hover:bg-gray-200 px-3 py-2 rounded-md shadow-none">
+                        <Button
+                          onClick={onToggleAttachment}
+                          className="text-gray-500 bg-transparent hover:bg-gray-200 px-3 py-2 rounded-md shadow-none">
                           <Paperclip></Paperclip>
                         </Button>
 
@@ -146,7 +230,7 @@ export default function CommentComponent({
                           </Button>
 
                           <Button
-                            onClick={onValueChange}
+                            onClick={onSubmitComment}
                             size="sm"
                             className="bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 px-5 text-white">
                             Save
@@ -155,13 +239,26 @@ export default function CommentComponent({
                       </div>
                     </>
                   )}
+                  {data.attachments?.map((file: any, fileIndex: number) => (
+                    <div
+                      key={`${file._id}-${fileIndex}`}
+                      className="flex items-center nowrap text-xs min-h-10 gap-2 cursor-pointer">
+                      <File></File>
+                      <span className="overflow-hidden text-ellipsis whitespace-nowrap w-full">
+                        {file.name}
+                      </span>
+                      <X
+                        onClick={() =>
+                          handleRemoveAttachment(index, fileIndex)
+                        }></X>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>
           </div>
         ))}
       </div>
-
       <AlertDialog
         open={!!deleteTarget}
         onOpenChange={(open) => {
@@ -185,6 +282,12 @@ export default function CommentComponent({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <AttachmentDialog
+        open={openAttachment}
+        onOpenChange={setOpenAttachment}
+        userId={user?._id || ""}
+        projectId={todoData.projectId}
+        onAttach={handleSubmitAttachment}></AttachmentDialog>
     </>
   );
 }

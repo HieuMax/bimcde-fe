@@ -2,15 +2,11 @@
 
 import { useApi } from "@/app/hooks/useApi";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 
 import {
   ArrowLeft,
   EllipsisVertical,
   File,
-  List,
-  MessageSquarePlus,
-  Paperclip,
   Pencil,
   Plus,
   X,
@@ -25,11 +21,19 @@ import {
   AlertDialogDescription,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import AttachmentDialog from "./attachmentDialog";
+import { AttachmentDialog } from "./attachmentDialog";
 import TodoDetails from "./todoDetails";
 import EditTodoDrawer from "./editTodoDrawer";
 import { useAuth } from "@/app/context/authContext";
-import CommentComponent from "../comment/comment";
+import ListCommentComponent from "../comment/listComment";
+import CommentFormComponent from "../comment/commentForm";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const status = [
   { name: "New", value: "new" },
@@ -64,16 +68,16 @@ export default function TodoDrawer({
 }) {
   const [isEdit, setIsEdit] = useState<boolean>(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isRemoveAttachmentDialogOpen, setIsRemoveAttachmentDialogOpen] =
+    useState(false);
+  const [AttachmentDelete, setAttachmentDelete] = useState<any | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const { post, get, delete: deleteApi } = useApi();
   const { user } = useAuth();
 
-  const [isCommenting, setIsCommenting] = useState(false);
   const [isAttachment, setIsAttachment] = useState(false);
-  const [attachments, setAttachments] = useState<File[]>([]);
-  const [ListComment, setListComments] = useState<any[]>([]);
-
-  const [comment, setComment] = useState("");
+  const [ListCommentData, setListCommentData] = useState<any[]>([]);
+  const [ListAttachment, setListAttachments] = useState<any[]>([]);
 
   const [formData, setFormData] = useState({
     name: "",
@@ -98,6 +102,7 @@ export default function TodoDrawer({
         if (!isOpen) return;
         await InitialData();
         await getAllComment();
+        await getAllAttachment();
       };
 
       fetchData();
@@ -224,7 +229,6 @@ export default function TodoDrawer({
 
   const handleCloseDrawer = () => {
     setIsEdit(false);
-    setIsCommenting(false);
     onClose();
   };
 
@@ -251,10 +255,6 @@ export default function TodoDrawer({
     setIsAttachment((prev) => !prev);
   };
 
-  const handleAddAttachments = (files: File[]) => {
-    setAttachments((prev) => [...prev, ...files]);
-  };
-
   const onDeleteTodo = () => {
     setIsDeleteDialogOpen(true);
   };
@@ -266,84 +266,75 @@ export default function TodoDrawer({
       const response = await get(`/todo/comment/getComment/${data._id}`);
       if (response.success) {
         const listComment = response.result;
-        setListComments(listComment);
+        setListCommentData(listComment);
       }
     } catch (error) {
       console.error("Error fetching comments:", error);
     }
   };
 
-  const handleAddComment = async () => {
-    if (!comment.trim()) return;
+  const onLoadComment = () => {
+    getAllComment();
+  };
 
-    const userCreateBy = {
-      userId: user?._id || "",
-      fullName: user?.fullName || "",
-      email: user?.email || "",
-      role: user?.role || "",
-    };
-    const newComment = {
+  //#endregion
+
+  //#region ATTACHMENT FUNCTION
+  const getAllAttachment = async () => {
+    try {
+      const response = await get(`/todo/attachment/${data._id}`);
+      if (response) {
+        const listAttachment = response;
+        setListAttachments(listAttachment);
+      }
+    } catch (error) {
+      console.error("Error fetching attachments:", error);
+    }
+  };
+
+  const handleAddAttachments = async (newFiles: any[]) => {
+    const files = newFiles.map((file) => ({
+      ...file,
       todoId: data._id,
-      description: comment.trim(),
-      createdBy: userCreateBy,
-      modifiedBy: userCreateBy,
-    };
+    }));
     try {
-      const response = await post(`/todo/comment/createComment/${data._id}`, {
-        ...newComment,
-      });
+      const response = await post(`/todo/attachment/add`, files);
 
-      if (response.success) {
-        getAllComment();
+      if (response) {
+        getAllAttachment();
       } else {
-        alert("Failed to add comment.");
+        alert("Failed to add attachment.");
       }
     } catch (error) {
-      console.error("Error adding comment:", error);
-      alert("An error occurred while adding comment.");
+      console.error("Error adding attachment:", error);
+      alert("An error occurred while adding attachment.");
     } finally {
-      setComment("");
-      setIsCommenting(false);
     }
   };
 
-  const onCommentChange = async (data: any) => {
-    console.log(data);
+  const onRemoveAttachment = (file: any) => {
+    setAttachmentDelete(file);
+    setIsRemoveAttachmentDialogOpen(true);
+  };
 
-    const userAction = {
-      userId: user?._id || "",
-      fullName: user?.fullName || "",
-      email: user?.email || "",
-      role: user?.role || "",
-    };
-    const updateData = {
-      moodifiedOn: new Date(),
-      description: data.description,
-      modifiedBy: userAction,
-    };
+  const handleDeleteAttachment = async () => {
+    setIsDeleting(true);
     try {
-      const response = await post(
-        `/todo/comment/update/${data._id}`,
-        updateData,
+      const response = await deleteApi(
+        `/todo/attachment/delete/${AttachmentDelete._id}`,
       );
-      if (response.success) {
-        getAllComment();
-      }
-    } catch (error) {
-      console.error("Error updating comment:", error);
-    }
-  };
 
-  const onDeleteComment = async (comment: any) => {
-    try {
-      const response = await deleteApi(`/todo/comment/delete/${comment._id}`);
-      if (response?.success) {
-        getAllComment();
+      if (response) {
+        setIsDeleteDialogOpen(false);
+        getAllAttachment();
       } else {
-        console.error("Failed to delete comment:", response?.error);
+        alert("Failed to delete attachment. Please try again.");
       }
     } catch (error) {
-      console.error("Error deleting comment:", error);
+      console.error("Error deleting attachment:", error);
+      alert("An error occurred while deleting the attachment.");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -420,25 +411,51 @@ export default function TodoDrawer({
                     </div>
                   </div>
                   <div className="flex flex-col flex-nowrap pb-2">
-                    <div className="flex items-center nowrap text-xs min-h-10 gap-2 cursor-pointer">
-                      <File></File>
-                      <span className="overflow-hidden text-ellipsis whitespace-nowrap w-full">
-                        123
-                      </span>
-                      <EllipsisVertical></EllipsisVertical>
-                    </div>
-                  </div>
+                    {ListAttachment.length === 0 && (
+                      <div className="text-sm text-muted-foreground italic px-2">
+                        No files attached.
+                      </div>
+                    )}
+                    {ListAttachment.map((file, index) => (
+                      <div
+                        key={file._id}
+                        className="flex items-center nowrap text-xs min-h-10 gap-2 cursor-pointer">
+                        <File></File>
+                        <span className="overflow-hidden text-ellipsis whitespace-nowrap w-full">
+                          {file.name}
+                        </span>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              className="focus-visible:ring-0">
+                              <EllipsisVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent>
+                            <DropdownMenuSeparator />
 
-                  <p className="text-sm font-normal text-muted-foreground">
-                    This ToDo doesn't have any attachments.
-                  </p>
+                            <DropdownMenuItem className="cursor-pointer">
+                              View
+                            </DropdownMenuItem>
+
+                            <DropdownMenuItem
+                              className="cursor-pointer"
+                              onClick={() => onRemoveAttachment(file)}>
+                              Remove
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
-                {ListComment.length > 0 && (
-                  <CommentComponent
-                    data={ListComment}
-                    onCommentChange={onCommentChange}
-                    onDeleteComment={onDeleteComment}
+                {ListCommentData.length > 0 && (
+                  <ListCommentComponent
+                    listCommentData={ListCommentData}
+                    todoData={data}
+                    onCommentChange={onLoadComment}
                   />
                 )}
               </>
@@ -472,55 +489,11 @@ export default function TodoDrawer({
                 {isSaving ? "Saving..." : "Save"}
               </Button>
             </div>
-          ) : !isCommenting ? (
-            // ADD COMMENT BUTTON
-            <div
-              onClick={() => setIsCommenting(true)}
-              className="mt-auto border-t border-gray-300 flex cursor-pointer nowrap items-center max-h-16 p-4 hover:bg-gray-200">
-              <MessageSquarePlus
-                width={40}
-                color="#00437b"
-                className="text-blue-500"
-              />
-              <span className="text-sm text-gray-500 italic">
-                Add a comment…
-              </span>
-            </div>
           ) : (
-            // COMMENT INPUT UI
-            <div className="mt-auto border-t border-gray-300 px-3 py-3">
-              <Textarea
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                placeholder="Add a comment..."
-                className="w-full resize-none border border-gray-300 rounded-md p-2 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                rows={3}
-              />
-
-              <div className="flex items-center justify-between mt-3">
-                <Button className="text-gray-500 bg-transparent hover:bg-gray-200 px-3 py-2 rounded-md shadow-none">
-                  <Paperclip></Paperclip>
-                </Button>
-
-                <div className="flex gap-3">
-                  <Button
-                    onClick={() => {
-                      setIsCommenting(false);
-                      setComment("");
-                    }}
-                    className="bg-transparent text-gray-600 shadow-none hover:bg-gray-200 px-4">
-                    Cancel
-                  </Button>
-
-                  <Button
-                    onClick={handleAddComment}
-                    disabled={!comment.trim()}
-                    className="bg-blue-500 hover:bg-blue-600 disabled:bg-blue-300 px-5 text-white">
-                    Comment
-                  </Button>
-                </div>
-              </div>
-            </div>
+            <CommentFormComponent
+              data={data}
+              todoData={data}
+              onDataChange={onLoadComment}></CommentFormComponent>
           )}
         </div>
       )}
@@ -546,10 +519,33 @@ export default function TodoDrawer({
         </AlertDialogContent>
       </AlertDialog>
 
+      <AlertDialog
+        open={isRemoveAttachmentDialogOpen}
+        onOpenChange={setIsRemoveAttachmentDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogTitle>Remove Attachment</AlertDialogTitle>
+          <AlertDialogDescription>
+            Are you sure you want to remove the selected attachment(s)? This
+            cannot be undone.
+          </AlertDialogDescription>
+          <div className="flex gap-2 justify-end mt-4">
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteAttachment}
+              disabled={isDeleting}
+              className="bg-red-600 hover:bg-red-700 disabled:bg-red-400">
+              {isDeleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AttachmentDialog
-        isOpen={isAttachment}
-        onClose={onToggleAttachment}
-        onAddAttachments={handleAddAttachments}></AttachmentDialog>
+        open={isAttachment}
+        onOpenChange={setIsAttachment}
+        userId={user?._id || ""}
+        projectId={data.projectId}
+        onAttach={handleAddAttachments}></AttachmentDialog>
     </>
   );
 }

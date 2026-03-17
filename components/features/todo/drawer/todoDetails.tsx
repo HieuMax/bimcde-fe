@@ -72,7 +72,16 @@ export default function TodoDetails({
               <label className="flex flex-end flex-nowrap text-muted-foreground font-normal mb-0 min-h-6">
                 Due date:
               </label>
-              <div className="">{data.dueDate || "--"}</div>
+              <div className="">
+                {" "}
+                {data.dueDate
+                  ? new Intl.DateTimeFormat("en-US", {
+                      month: "short",
+                      day: "2-digit",
+                      year: "numeric",
+                    }).format(new Date(data.dueDate))
+                  : "--"}
+              </div>
             </div>
 
             <div className="min-h-12 flex flex-col relative text-sm">
