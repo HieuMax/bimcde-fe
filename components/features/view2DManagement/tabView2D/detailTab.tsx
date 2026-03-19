@@ -1,9 +1,17 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { View2DItem } from '@/types/view2d';
-import { IFile } from '@/types/explorer'
-import { Paperclip, Pencil, X } from 'lucide-react'
+import { IFile } from '@/types/explorer';
+import { Paperclip, Pencil, X, Tag as TagIcon, Loader2, ArrowLeft } from 'lucide-react';
+import { useComments } from '../../explorer/hooks/useComments';
+import CommentList  from '../../explorer/properties/components/comments/CommentList';
+import CommentInput from '../../explorer/properties/components/comments/CommentInput';
+
+// Nhúng Hook useTags và Service API
+import { useTags } from '@/components/features/explorer/hooks/useTags';
+import { explorerService } from '@/services/explorer.service';
 
 type Props = {
   file: IFile | null;
@@ -11,7 +19,7 @@ type Props = {
 };
 
 function formatFileSize(bytes?: number): string {
-  if (bytes === undefined || bytes === null) return '--';
+  if (bytes === undefined || bytes === null) return '--'; 
   if (bytes === 0) return '0 Bytes';
 
   const k = 1024;
@@ -27,18 +35,45 @@ function formatDate(date?: string) {
 }
 
 export default function FileDetailTab({ file }: Props) {
+  const router = useRouter();
 
   const [mode, setMode] = useState<'view' | 'edit'>('view');
+  const [loading, setLoading] = useState(false); // Thêm state loading khi Save
 
-  const [name, setName] = useState(file?.name ?? '');
-  const [tags, setTags] = useState('');
-  
-  const [isCommenting, setIsCommenting] = useState(false);
-  const [comment, setComment] = useState('');
+  // State gom nhóm cho form edit
+  const [editForm, setEditForm] = useState({
+    name: '',
+    tags: [] as string[]
+  });
 
+  const {
+    comments,
+    totalComments,
+    isLoading: isCommentsLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    commentInput,
+    setCommentInput,
+    addComment,
+    isAdding: isAddingComment,
+    updateComment,
+    deleteComment,
+    currentUserId,
+  } = useComments(file?._id || "", "file");
+
+  // Fetch tags của project chứa file này
+  const { tags: availableTags, isLoading: isTagsLoading } = useTags(file?.projectId || "");
+
+  // Đồng bộ dữ liệu file vào state edit khi file thay đổi hoặc đổi mode
   useEffect(() => {
-    console.log('DETAIL FILE', file?.location);
-  }, [file]);
+    if (file) {
+      setEditForm({
+        name: file.name || '',
+        tags: file.tags?.map((t: any) => typeof t === 'string' ? t : t._id) || []
+      });
+    }
+  }, [file, mode]);
   
   if (!file) {
     return (
@@ -48,65 +83,147 @@ export default function FileDetailTab({ file }: Props) {
     );
   }
 
+  // ===== HÀM XỬ LÝ LƯU (GỌI API) =====
+  const handleSaveDetails = async () => {
+    if (!editForm.name.trim()) {
+       alert("Title is required");
+       return;
+    }
+    
+    setLoading(true);
+    try {
+      // 1. Lấy userId từ localStorage
+      let userObj: any = null;
+      try {
+        const userStr = localStorage.getItem('user');
+        if (userStr) userObj = JSON.parse(userStr);
+      } catch (e) {}
+      const userId = userObj?._id || userObj?.id || currentUserId || "";
+
+      // 2. Gọi API Đổi tên (Nếu có thay đổi)
+      if (editForm.name.trim() !== file.name) {
+        await explorerService.renameFile(file._id, editForm.name.trim(), userId);
+      }
+
+      // 3. Gọi API Cập nhật Tags
+      await explorerService.assignTags([file._id], editForm.tags);
+
+      // 4. Mẹo cập nhật UI tạm thời để thấy ngay mà không cần tải lại trang
+      file.name = editForm.name.trim();
+      file.tags = editForm.tags.map(tagId => {
+         const found = availableTags?.find((at: any) => at._id === tagId);
+         return found || tagId; // Trả về object tag nếu tìm thấy, hoặc ID string
+      });
+
+      // Tắt mode edit
+      setMode('view');
+    } catch (error) {
+      console.error("Lỗi khi lưu thông tin file:", error);
+      alert("Đã xảy ra lỗi khi lưu. Vui lòng thử lại!");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   /* ================= EDIT MODE ================= */
   if (mode === 'edit') {
     return (
-      <div className="flex flex-col h-full">
+      <div className="flex flex-col h-full bg-white">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b">
           <button
-            className="text-sm text-gray-600"
+            className="text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
             onClick={() => setMode('view')}
           >
-            ← Edit
+            <ArrowLeft size={18}/> Edit File
           </button>
 
           <button
-            className="text-xl text-gray-500"
+            className="text-gray-400 hover:text-gray-700 transition-colors p-1"
             onClick={() => setMode('view')}
           >
-            ×
+            <X size={18}/>
           </button>
         </div>
 
         {/* Body */}
-        <div className="flex-1 p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto p-4 space-y-5 custom-scrollbar">
           <div>
-            <div className="text-xs text-gray-500 mb-1">Name</div>
+            <div className="text-xs font-medium text-gray-500 mb-1">Name</div>
             <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full border px-2 py-1 text-sm rounded"
+              value={editForm.name}
+              onChange={(e) => setEditForm({...editForm, name: e.target.value})}
+              className="w-full border border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none px-3 py-2 text-sm rounded transition-all"
+              disabled={loading}
+              autoFocus
             />
           </div>
 
+          {/* ===== CHỌN TAGS ===== */}
           <div>
-            <div className="text-xs text-gray-500 mb-1">Tags</div>
-            <input
-              value={tags}
-              onChange={(e) => setTags(e.target.value)}
-              placeholder="Begin typing to search..."
-              className="w-full border px-2 py-1 text-sm rounded"
-            />
+            <label className="text-xs font-medium text-gray-500 mb-1 flex items-center gap-1.5">
+              <TagIcon size={14} /> Tags
+            </label>
+            
+            <div className="p-3 border border-gray-200 rounded-md bg-gray-50 flex flex-wrap gap-2 min-h-[60px]">
+              {isTagsLoading ? (
+                <div className="text-xs text-gray-400 flex items-center gap-2">
+                  <Loader2 size={12} className="animate-spin" /> Loading tags...
+                </div>
+              ) : availableTags?.length === 0 ? (
+                <div className="text-xs text-gray-400 italic">No tags available in this project.</div>
+              ) : (
+                availableTags?.map((tag: any) => {
+                  const isSelected = editForm.tags.includes(tag._id);
+                  return (
+                    <button
+                      key={tag._id}
+                      type="button"
+                      disabled={loading}
+                      onClick={() => {
+                        if (isSelected) {
+                          setEditForm({ ...editForm, tags: editForm.tags.filter(t => t !== tag._id) });
+                        } else {
+                          setEditForm({ ...editForm, tags: [...editForm.tags, tag._id] });
+                        }
+                      }}
+                      className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full border transition-all disabled:opacity-50"
+                      style={{
+                        backgroundColor: isSelected ? (tag.color || '#3b82f6') : 'white',
+                        color: isSelected ? 'white' : '#4b5563',
+                        borderColor: isSelected ? (tag.color || '#3b82f6') : '#d1d5db',
+                      }}
+                    >
+                      <div 
+                        className="w-2 h-2 rounded-full" 
+                        style={{ backgroundColor: isSelected ? 'white' : (tag.color || '#000') }}
+                      />
+                      {tag.name}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+            <div className="text-[11px] text-gray-400 mt-1">Click to select/unselect tags</div>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="border-t px-4 py-3 flex justify-end gap-2">
+        <div className="border-t px-4 py-3 flex justify-end gap-3 bg-gray-50">
           <button
-            className="px-4 py-1 text-sm border rounded"
+            className="px-4 py-1.5 text-sm font-medium text-gray-600 hover:text-gray-800 transition-colors disabled:opacity-50"
+            disabled={loading}
             onClick={() => setMode('view')}
           >
             Cancel
           </button>
 
           <button
-            className="px-4 py-1 text-sm bg-blue-600 text-white rounded"
-            onClick={() => {
-              console.log('SAVE', { name, tags });
-              setMode('view');
-            }}
+            className="px-5 py-1.5 text-sm font-medium bg-[#005a9e] text-white rounded hover:bg-[#004578] transition-colors flex items-center gap-2 disabled:opacity-70"
+            disabled={loading}
+            onClick={handleSaveDetails}
           >
+            {loading && <Loader2 size={14} className="animate-spin" />}
             Save
           </button>
         </div>
@@ -116,30 +233,57 @@ export default function FileDetailTab({ file }: Props) {
 
   /* ================= VIEW MODE ================= */
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full bg-white">
       {/* Header */}
-      <div className="flex items-start justify-between px-4 py-3">
-        <div className="text-sm font-bold uppercase tracking-wider">
+      <div className="flex items-start justify-between px-4 py-3 border-b">
+        <div className="text-sm font-bold uppercase tracking-wider text-gray-800 break-all pr-4">
           {file.name}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1 shrink-0">
           <button
-            className=" text-sm"
+            className="p-1.5 text-gray-400 hover:text-[#005a9e] hover:bg-blue-50 rounded transition-all"
             onClick={() => setMode('edit')}
+            title="Edit File Details"
           >
-            <Pencil size={18}/>
+            <Pencil size={16}/>
           </button>
 
-          <button className="text-xl text-gray-500">
+          <button className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition-all">
             <X size={18}/>
           </button>
         </div>
       </div>
 
       {/* Details */}
-      <div className="p-4 text-sm space-y-4 border-b">
-        <h3 className="text-sm font-semibold">Details</h3>
+      <div className="p-4 text-sm space-y-4 border-b bg-slate-50">
+        <h3 className="text-sm font-semibold text-gray-800">Details</h3>
+
+        {/* HIỂN THỊ TAGS DẠNG BADGE */}
+        {file.tags && file.tags.length > 0 && (
+          <div>
+             <div className="text-[11px] text-gray-500 uppercase tracking-tight mb-1">Tags</div>
+             <div className="flex flex-wrap gap-1.5">
+               {file.tags.map((t: any) => {
+                  const tagId = typeof t === 'string' ? t : t._id;
+                  const foundTag = availableTags?.find((at: any) => at._id === tagId);
+                  const tagName = foundTag?.name || (typeof t === 'string' ? t : t.name) || 'Unknown Tag';
+                  const tagColor = foundTag?.color || '#9ca3af';
+
+                  return (
+                    <span 
+                      key={tagId} 
+                      className="px-2 py-0.5 text-[10px] font-semibold rounded text-white shadow-sm flex items-center gap-1"
+                      style={{ backgroundColor: tagColor }}
+                    >
+                      <TagIcon size={10} />
+                      {tagName}
+                    </span>
+                  );
+               })}
+             </div>
+          </div>
+        )}
 
         <DetailRow
           label="Version"
@@ -155,7 +299,8 @@ export default function FileDetailTab({ file }: Props) {
         <DetailRow
           label="Location"
           value={file.location || file.projectName || "Project Root"}          
-          valueClass="text-blue-600 font-medium"
+          valueClass="text-blue-600 font-medium cursor-pointer hover:underline"
+          onValueClick={() => router.push('/projects')}
         />
 
         <DetailRow
@@ -165,7 +310,7 @@ export default function FileDetailTab({ file }: Props) {
               ? `${formatDate(file.createdAt)} by ${
                   typeof file.createdBy === 'string'
                     ? file.createdBy
-                    : file.createdBy?? 'Unknown'
+                    : file.createdBy ?? 'Unknown'
                 }`
               : '--'
           }
@@ -186,62 +331,32 @@ export default function FileDetailTab({ file }: Props) {
 
       </div>
 
-
       {/* ===== COMMENTS ===== */}
-      <div className="flex-1 flex flex-col">
-        <div className="flex-1 px-4 py-3" />
+      <div className="flex-1 flex flex-col relative min-h-0 bg-white">
 
-        <div className="border-t p-3">
-          {!isCommenting ? (
-            <button
-              className="text-sm text-gray-500 hover:text-gray-700"
-              onClick={() => setIsCommenting(true)}
-            >
-              Add a comment...
-            </button>
-          ) : (
-            <>
-              <textarea
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                placeholder="Add a comment..."
-                className="w-full border rounded px-3 py-2 text-sm resize-none"
-                rows={3}
-                autoFocus
-              />
+        {/* Danh sách Comment */}
+        <div className="flex-1 overflow-y-auto pb-16 custom-scrollbar">
+            <CommentList
+                comments={comments}
+                totalComments={totalComments}
+                isLoading={isCommentsLoading}
+                hasNextPage={hasNextPage}
+                isFetchingNextPage={isFetchingNextPage}
+                fetchNextPage={fetchNextPage}
+                currentUserId={currentUserId}
+                onUpdate={updateComment}
+                onDelete={deleteComment}
+            />
+        </div>
 
-              <div className="flex items-center justify-between mt-2">
-                <button className="text-xl text-gray-500">
-                <Paperclip size={18}/>
-
-                </button>
-
-                <div className="flex gap-2">
-                  <button
-                    className="px-4 py-1 text-sm border rounded"
-                    onClick={() => {
-                      setComment('');
-                      setIsCommenting(false);
-                    }}
-                  >
-                    Cancel
-                  </button>
-
-                  <button
-                    className="px-4 py-1 text-sm bg-blue-600 text-white rounded"
-                    disabled={!comment.trim()}
-                    onClick={() => {
-                      console.log('COMMENT', comment);
-                      setComment('');
-                      setIsCommenting(false);
-                    }}
-                  >
-                    Comment
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
+        {/* Khung nhập Comment cố định dưới đáy */}
+        <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-10 shrink-0">
+            <CommentInput
+                value={commentInput}
+                onChange={setCommentInput}
+                onSend={addComment}
+                isSending={isAddingComment}
+            />
         </div>
       </div>
 
@@ -256,25 +371,29 @@ function DetailRow({
   value,
   actionLabel,
   valueClass,
+  onValueClick
 }: {
   label: string;
   value?: string;
   actionLabel?: string;
   valueClass?: string;
+  onValueClick?: () => void;
 }) {
   return (
     <div>
-      <div className="text-xs text-gray-500 mb-0.5">
+      <div className="text-[11px] font-medium text-gray-400 uppercase tracking-tight mb-0.5">
         {label}
       </div>
 
       <div className="flex items-center justify-between gap-2">
-        <div className={`text-sm ${valueClass || ''}`}>
+        <div className={`text-sm text-gray-700 font-medium ${valueClass || ''}`}
+        onClick={onValueClick}
+        >
           {value || '--'}
         </div>
 
         {actionLabel && (
-          <button className="text-sm text-blue-600 hover:underline">
+          <button className="text-xs text-blue-600 hover:underline">
             {actionLabel}
           </button>
         )}

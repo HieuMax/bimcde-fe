@@ -40,7 +40,7 @@ export interface IFileVersion {
   createdAt: string;
 }
 
-export type FileType = "PDF" | "IMAGE"; // Từ view.ts
+export type FileType = "PDF" | "IMAGE" | "WORD"; // Từ view.ts
 
 export interface IFile {
   _id: string;
@@ -73,7 +73,7 @@ export interface IFile {
   description?: string; 
   lastAccessed?: string; 
 
-  permission?: "VIEW" | "DOWNLOAD";
+  permission?: "VIEW" | "DOWNLOAD" ;
 }
 
 // Merge PageItem
@@ -83,7 +83,7 @@ export interface PageItem {
   pageNumber?: number;
   fileId: string;
   imageSrc?: string;
-  source?: "pdf" | "file" | "view";
+  source?: "pdf" | "file" | "view" | "word" | "image";
   thumbnail?: string;
 }
 
@@ -151,12 +151,11 @@ export interface IExplorerResponse {
   files: IFile[];
 }
 
-// Merge FileDetailResponse (nếu cần, nhưng giờ IFile đã bao quát)
 export interface FileDetailResponse {
   _id: string;
   name: string;
   projectId: string;
-  versions: IFileVersion[]; // Sửa để dùng IFileVersion thống nhất
+  versions: IFileVersion[];
   currentVersion: number;
   createdAt?: string;
 }

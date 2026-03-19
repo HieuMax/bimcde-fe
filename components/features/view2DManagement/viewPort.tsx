@@ -4,9 +4,10 @@ import dynamic from 'next/dynamic';
 import { useMemo, useEffect, useState } from 'react';
 import ImageViewer from './imageViewer';
 import { IFile } from '@/types/explorer';
+// import WordViewerClient from './WordViewer';
 
 const PdfViewerClient = dynamic(() => import('./PdfViewer'), { ssr: false });
-
+const WordViewerClient = dynamic(() => import('./WordViewer'), { ssr: false });
 export default function FileViewport({
   file,
   currentSrc,
@@ -17,7 +18,9 @@ export default function FileViewport({
   onRotatePage,
   onPrev,
   onNext,
-  onRendered
+  onRendered,
+  onWordLoadSuccess,
+  onWordThumbnailGenerated
 }: {
   file: IFile | null;
   currentSrc: string | null;
@@ -29,7 +32,8 @@ export default function FileViewport({
   onPrev: () => void;
   onNext: () => void;
   onRendered?: () => void;
-
+  onWordLoadSuccess?: (total: number) => void;
+  onWordThumbnailGenerated?: (index: number, src: string) => void;
 }) {
   const [isViewLoading, setIsViewLoading] = useState(false);
 
@@ -37,6 +41,10 @@ export default function FileViewport({
     if (!file) return { type: null, url: null };
     if (file.fileType === 'PDF') {
       return { type: 'PDF', url: file.fileUrl };
+    }
+
+    if (file.fileType === 'WORD'){
+      return { type: 'WORD', url: file.fileUrl};
     }
     return { type: 'IMAGE', url: currentSrc || file.fileUrl };
   }, [file, currentSrc]);
@@ -71,6 +79,19 @@ export default function FileViewport({
         />
       )}
 
+      {type === 'WORD' && (
+         <WordViewerClient
+           src={url}
+           zoom={zoom}
+           onZoom={onZoom}
+           pageIndex={pageIndex}
+          onLoadSuccess={onWordLoadSuccess}
+          onPageThumbnailGenerated={onWordThumbnailGenerated}
+           onPrev={onPrev}
+           onNext={onNext}
+         />
+      )}
+      
       {type === 'IMAGE' && (
         <ImageViewer
           src={url}

@@ -25,7 +25,7 @@ export const view2DService = {
     viewId: string,
     payload: Partial<View2DItem>
   ) => {
-    const res = await api.patch(`${BASE_URL}/${viewId}`, payload);
+    const res = await api.put(`${BASE_URL}/${viewId}`, payload);
     return res as View2DItem;
   },
 

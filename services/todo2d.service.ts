@@ -35,7 +35,7 @@ export const todo2DService = {
     todoId: string,
     payload: Partial<TodoItem>
   ) => {
-    const res = await api.patch(`${BASE_URL}/${todoId}`, payload);
+    const res = await api.put(`${BASE_URL}/${todoId}`, payload);
     return res as TodoItem;
   },
 };

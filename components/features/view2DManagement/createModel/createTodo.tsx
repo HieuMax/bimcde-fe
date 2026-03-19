@@ -2,16 +2,21 @@
 
 import { useState, useEffect } from "react";
 import { TodoItem } from "@/types/explorer";
+import { RecipientSelector } from "../../release/RecipientSelector";
+import { useTags } from "@/components/features/explorer/hooks/useTags";
+import { TagIcon, Loader2 } from "lucide-react";
 
 export default function CreateTodoPanel({
+  projectId, // 👈 THÊM PROP NÀY ĐỂ TRUYỀN VÀO RECIPIENT SELECTOR
   onClose,
   onSave,
 }: {
+  projectId: string;
   onClose: () => void;
   onSave: (data: Partial<TodoItem>) => void;
 }) {
   const [currentUser, setCurrentUser] = useState<string | null>(null);
-
+  const { tags: availableTags, isLoading: isTagsLoading } = useTags(projectId);
   /* ===== CURRENT USER ===== */
   useEffect(() => {
     try {
@@ -41,12 +46,11 @@ export default function CreateTodoPanel({
 
   const [tagInput, setTagInput] = useState("");
 
-  /* Sync assignee + createdBy */
+  /* Sync createdBy */
   useEffect(() => {
     if (currentUser) {
       setFormData((prev) => ({
         ...prev,
-        assignee: currentUser,
         createdBy: currentUser,
       }));
     }
@@ -196,72 +200,68 @@ export default function CreateTodoPanel({
           />
         </div>
 
-        {/* Assignee */}
+        {/* ===== ASSIGNEE ===== */}
         <div>
           <label className="block mb-1 text-sm text-gray-600">
             Assignee
           </label>
-          <input
-            className="w-full h-9 border border-gray-300 px-2 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-            placeholder="Please enter users, groups"
-            value={formData.assignee}
-            onChange={(e) =>
+          <RecipientSelector
+            projectId={projectId}
+            onChange={(selectedIds, selectedOptions) => {
               setFormData({
                 ...formData,
-                assignee: e.target.value,
-              })
-            }
+                assignee: selectedOptions.length > 0 ? selectedOptions[0].label : "",
+              });
+            }}
           />
         </div>
 
         {/* Tags */}
         <div>
-          <label className="block mb-1 text-sm text-gray-600">
-            Tags
+          <label className="block text-sm text-gray-600 mb-1 flex items-center gap-1.5">
+            <TagIcon size={14} /> Tags
           </label>
-          <input
-            className="w-full h-9 border border-gray-300 px-2 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-            placeholder="Add tags"
-            value={tagInput}
-            onChange={(e) => setTagInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && tagInput.trim()) {
-                e.preventDefault();
-                setFormData((prev) => ({
-                  ...prev,
-                  tags: [...(prev.tags || []), tagInput.trim()],
-                }));
-                setTagInput("");
-              }
-            }}
-          />
-
-          {formData.tags && formData.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1 mt-2">
-              {formData.tags.map((tag, idx) => (
-                <span
-                  key={idx}
-                  className="bg-gray-100 text-gray-700 px-2 py-0.5 rounded text-xs border border-gray-200 flex items-center gap-1"
-                >
-                  {tag}
+          
+          <div className="p-3 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500 flex flex-wrap gap-2 min-h-[60px] bg-gray-50/50">
+            {isTagsLoading ? (
+              <div className="text-xs text-gray-400 flex items-center gap-2">
+                <Loader2 size={12} className="animate-spin" /> Loading tags...
+              </div>
+            ) : availableTags?.length === 0 ? (
+              <div className="text-xs text-gray-400 italic">No tags available in this project.</div>
+            ) : (
+              availableTags?.map((tag: any) => {
+                const isSelected = formData.tags?.includes(tag._id);
+                return (
                   <button
+                    key={tag._id}
                     type="button"
-                    onClick={() =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        tags: prev.tags?.filter(
-                          (_, i) => i !== idx
-                        ),
-                      }))
-                    }
-                    className="hover:text-red-500"
+                    onClick={() => {
+                      const currentTags = formData.tags || [];
+                      if (isSelected) {
+                        setFormData({ ...formData, tags: currentTags.filter(t => t !== tag._id) });
+                      } else {
+                        setFormData({ ...formData, tags: [...currentTags, tag._id] });
+                      }
+                    }}
+                    className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full border transition-all"
+                    style={{
+                      backgroundColor: isSelected ? (tag.color || '#3b82f6') : 'white',
+                      color: isSelected ? 'white' : '#4b5563',
+                      borderColor: isSelected ? (tag.color || '#3b82f6') : '#d1d5db',
+                    }}
                   >
-                    ×
+                    <div 
+                      className="w-2 h-2 rounded-full" 
+                      style={{ backgroundColor: isSelected ? 'white' : (tag.color || '#000') }}
+                    />
+                    {tag.name}
                   </button>
-                </span>
-              ))}
-            </div>
-          )}
+                );
+              })
+            )}
+          </div>
+          <div className="text-[11px] text-gray-400 mt-1">Click to select/unselect tags</div>
         </div>
 
         {/* Created by */}

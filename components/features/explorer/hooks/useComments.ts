@@ -10,7 +10,7 @@ import { toast } from "sonner";
 import { commentService } from "@/services/comment.service";
 import { useAuth } from "@/app/context/authContext";
 
-export function useComments(targetId: string, targetType: "file" | "folder" | "release") {
+export function useComments(targetId: string, targetType: "file" | "folder" | "release" | "view" | "topic" | "todo") {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   if (!user) {
@@ -25,6 +25,7 @@ export function useComments(targetId: string, targetType: "file" | "folder" | "r
       queryFn: ({ pageParam = 0 }) =>
         commentService.getComments(targetId, pageParam, 6),
       initialPageParam: 0,
+      enabled: !!targetId,
       getNextPageParam: (lastPage, allPages) => {
         const nextOffset = allPages.flatMap((p) => p.comments).length;
         return lastPage.hasMore ? nextOffset : undefined;

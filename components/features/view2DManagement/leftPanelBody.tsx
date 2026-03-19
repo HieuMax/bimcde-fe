@@ -33,7 +33,7 @@ type LeftPanelBodyProps = {
   onCreateTodo: () => void;
   onDeleteView?: (id: string) => void;
   onDeleteTodo?: (id: string) => void;
-  
+  onEditView?: (view: ViewItem) => void;
 };
 
 export default function LeftPanelBody(props: LeftPanelBodyProps) {
@@ -47,7 +47,7 @@ export default function LeftPanelBody(props: LeftPanelBodyProps) {
     onCreateTodo,
     onDeleteView,
     onDeleteTodo,
-    
+    onEditView
   } = props;
 
   return (
@@ -80,7 +80,7 @@ export default function LeftPanelBody(props: LeftPanelBodyProps) {
             onSelectView={onSelectView}
             onCreateView={onCreateView}
             onDeleteView={onDeleteView}
-            
+            onEditView={onEditView}
           />
         )}
 

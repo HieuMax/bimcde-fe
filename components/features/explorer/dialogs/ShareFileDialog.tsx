@@ -97,6 +97,12 @@ export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
       // 1. Validate
       if (isFolder) throw new Error("Không hỗ trợ chia sẻ thư mục.");
       
+      const finalRecipients = recipients.map(r => r.email);
+      const pendingEmail = emailInput.trim()
+
+      if (pendingEmail && isValidEmail(pendingEmail) && !finalRecipients.includes(pendingEmail)){
+        finalRecipients.push(pendingEmail)
+      } 
       // Nếu chọn chế độ "Specific" -> Bắt buộc phải có ít nhất 1 email
       if (shareType === "SPECIFIC" && recipients.length === 0) {
         throw new Error("Chế độ 'Người cụ thể' yêu cầu phải nhập ít nhất một email.");
@@ -108,7 +114,8 @@ export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
         fileId: file?._id,
         projectId,
         type: shareType,
-        recipients: recipients.map(r => r.email), 
+        // recipients: recipients.map(r => r.email), 
+        recipients: finalRecipients,
         note,
         expiresAt: expiresAt ? new Date(expiresAt) : null,
         accessLevel,

@@ -47,11 +47,8 @@ import { useState } from 'react';
 import { IView } from '@/types/view3d';
 
 type ActiveHeader = 'main' | 'clip' | 'measure'
-
 export type ClipType = 'none' | 'plane' | 'vertical' | 'box'
-
 export type ClipHoverMode = 'both'| 'lines' | 'faces'
-
 export type SelectionMode = 'single' | 'area'
 
 type MeasureType =

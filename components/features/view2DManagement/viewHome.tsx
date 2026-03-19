@@ -18,13 +18,8 @@ import html2canvas from "html2canvas";
 type PdfjsInstance = typeof import("react-pdf").pdfjs;
 const pdfjsRef: { current: PdfjsInstance | null } = { current: null };
 const ensurePdfjs = async (): Promise<PdfjsInstance | null> => {
-  if (pdfjsRef.current) {
-    return pdfjsRef.current;
-  }
-
-  if (typeof window === "undefined") {
-    return null;
-  }
+  if (pdfjsRef.current) return pdfjsRef.current;
+  if (typeof window === "undefined") return null;
 
   const { pdfjs } = await import("react-pdf");
   pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
@@ -34,10 +29,10 @@ const ensurePdfjs = async (): Promise<PdfjsInstance | null> => {
 };
 
 // --- IMPORT TYPES ---
-import type { ViewItem, TodoItem, PageItem } from "@/types/explorer"; // Hoặc @/types/explorer tùy project của bạn
-import { ITag } from "@/types/tag";
-import {motion,  AnimatePresence } from 'framer-motion';
+import type { ViewItem, TodoItem, PageItem } from "@/types/explorer"; 
+import { motion,  AnimatePresence } from 'framer-motion';
 import { AnimatedPanel } from "@/components/ui/amination";
+import React from "react";
 
 type RightPanelState =
   | { type: "viewDetail"; data: ViewItem }
@@ -54,7 +49,7 @@ export default function DetailView2D({
   onLoaded,
   shareToken,
   onRegisterOpenViewPanel,
-  onRegisterOpenTodoPanel
+  onRegisterOpenTodoPanel, 
 }: {
   mode?: "view" | "file" | "share";
   fileId?: string;
@@ -64,6 +59,7 @@ export default function DetailView2D({
   onRegisterOpenTodoPanel?: (open: () => void) => void;
 }) {
   const params = useParams() as { projectId?: string; viewId?: string };
+  const routeProjectId = params?.projectId as string;
   const searchParams = useSearchParams();
   const activeShareToken = shareToken ?? searchParams.get("shareToken") ?? undefined;
 
@@ -72,13 +68,17 @@ export default function DetailView2D({
 
   const [file, setFile] = useState<IFile | null>(null);
   const [selectedFile, setSelectedFile] = useState<IFile | null>(null);
+  
+  const currentProjectId = routeProjectId || selectedFile?.projectId || file?.projectId || "";
 
   const [views, setViews] = useState<ViewItem[]>([]);
-  const [todos, setTodos] = useState<TodoItem[]>([]); // State chứa danh sách Todos
+  const [todos, setTodos] = useState<TodoItem[]>([]); 
   const [pages, setPages] = useState<PageItem[]>([]);
 
   const [selectedView, setSelectedView] = useState<ViewItem | null>(null);
   const [selectedTodo, setSelectedTodo] = useState<TodoItem | null>(null);
+
+  const [isAutoEditView, setIsAutoEditView] = useState(false);
 
   const [currentSrc, setCurrentSrc] = useState<string | null>(null);
   const [pageIndex, setPageIndex] = useState<number>(1);
@@ -92,7 +92,10 @@ export default function DetailView2D({
   const [pageRotations, setPageRotations] = useState<Record<number, number>>({});
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  
   const [isViewLoading, setIsViewLoading] = useState(false);
+  // 🔥 Thêm State để lưu trữ lệnh cuộn trang chờ thực thi
+  const [pendingScroll, setPendingScroll] = useState<{x: number, y: number} | null>(null);
 
   const isShareMode = !!activeShareToken;
   const [isLeftPanelOpen, setIsLeftPanelOpen] = useState<boolean>(true);
@@ -103,11 +106,141 @@ export default function DetailView2D({
     ? ["page"] 
     : ["page", "view", "todo", "filedetail"];
 
+  // --- HÀM TÌM CONTAINER CUỘN ---
+  const getScrollContainer = () => {
+    let scrollContainer: Element | null = document.getElementById('file-viewport-container');
+    if (scrollContainer && scrollContainer.scrollHeight <= scrollContainer.clientHeight) {
+         const childWithScroll = Array.from(scrollContainer.querySelectorAll('*')).find(el => el.scrollHeight > el.clientHeight && window.getComputedStyle(el).overflowY !== 'hidden');
+         if (childWithScroll) scrollContainer = childWithScroll;
+    }
+    return scrollContainer;
+  };
+
+  const scrollToPage = (targetPage: number) =>{
+    setTimeout(() => {
+      const pdfPage = document.querySelector(`.react-pdf__Page[data-page-number="${targetPage}"]`) as HTMLAnchorElement;
+      if(pdfPage) {
+        pdfPage.scrollIntoView({behavior: 'smooth', block: 'start'})
+        return;
+      }
+
+      const wordPages = document.querySelectorAll('.docx-wrapper section, .docx-document section, .document-page, #file-viewport-container canvas');
+      if(wordPages && wordPages.length >= targetPage){
+        const wordPage = wordPages[ targetPage - 1] as HTMLAnchorElement;
+        if(wordPage){
+          wordPage.scrollIntoView({behavior: 'smooth', block: 'start'})
+          return;
+        }
+      }
+      if(targetPage === 1){
+        const scrollContainer = getScrollContainer();
+        if(scrollContainer) {
+          scrollContainer.scrollTo({top: 0, behavior: 'smooth'})
+        }
+      }
+    }, 150)
+  };
+  // --- THỰC THI CUỘN KHI VIEW ĐÃ RENDER XONG ---
+  useEffect(() => {
+
+    if (!isViewLoading && pendingScroll) {
+       const timer = setTimeout(() => {
+          const scrollContainer = getScrollContainer();
+          if (scrollContainer) {
+             scrollContainer.scrollTo({ left: pendingScroll.x, top: pendingScroll.y, behavior: 'smooth' });
+          } 
+          setPendingScroll(null); // Xóa lệnh cuộn sau khi hoàn thành
+       }, 300); // 300ms là đủ an toàn vì lúc này loading đã xong
+       return () => clearTimeout(timer);
+    }
+  }, [isViewLoading, pendingScroll]);
+
+
+  const captureCurrentScreen = async () => {
+    let snapshotUrl = "";
+    let actualPageIndex = pageIndex;
+    
+    try {
+        const container = document.getElementById('file-viewport-container');
+        const canvases = document.querySelectorAll('#file-viewport-container canvas');
+        const containerRect = container?.getBoundingClientRect();
+        
+        let maxVisibleArea = 0;
+        let bestCanvas: HTMLCanvasElement | null = null;
+        
+        // 1. Tìm thẻ Canvas (PDF) đang chiếm diện tích lớn nhất trên màn hình
+        if (containerRect && canvases.length > 0) {
+            canvases.forEach((c) => {
+                const canvas = c as HTMLCanvasElement;
+                const rect = canvas.getBoundingClientRect();
+                const overlapX = Math.max(0, Math.min(rect.right, containerRect.right) - Math.max(rect.left, containerRect.left));
+                const overlapY = Math.max(0, Math.min(rect.bottom, containerRect.bottom) - Math.max(rect.top, containerRect.top));
+                const area = overlapX * overlapY;
+                if (area > maxVisibleArea) { maxVisibleArea = area; bestCanvas = canvas; }
+            });
+        }
+        
+        if (bestCanvas && container && containerRect) {
+            // Lấy số trang thực tế đang xem
+            const parentPage = bestCanvas.closest('.react-pdf__Page');
+            if (parentPage) {
+                const pageNum = parentPage.getAttribute('data-page-number');
+                if (pageNum) actualPageIndex = parseInt(pageNum, 10);
+            }
+
+            // 2. 🌟 CẮT ẢNH CHÍNH XÁC PHẦN ĐANG HIỂN THỊ TỪ CANVAS MÀ KHÔNG BỊ CO GIÃN 🌟
+            const canvasRect = bestCanvas.getBoundingClientRect();
+            const sx = Math.max(0, containerRect.left - canvasRect.left);
+            const sy = Math.max(0, containerRect.top - canvasRect.top);
+            const sWidth = Math.min(canvasRect.width - sx, containerRect.width);
+            const sHeight = Math.min(canvasRect.height - sy, containerRect.height);
+
+            const offCanvas = document.createElement('canvas');
+            offCanvas.width = sWidth;
+            offCanvas.height = sHeight;
+            const ctx = offCanvas.getContext('2d');
+            
+            // Quy đổi tọa độ CSS sang tọa độ thực tế của ảnh Canvas
+            const scaleX = bestCanvas.width / canvasRect.width;
+            const scaleY = bestCanvas.height / canvasRect.height;
+
+            if (ctx) {
+                ctx.drawImage(
+                    bestCanvas,
+                    sx * scaleX, sy * scaleY, sWidth * scaleX, sHeight * scaleY, // Tọa độ cắt
+                    0, 0, sWidth, sHeight // Tọa độ vẽ
+                );
+                snapshotUrl = offCanvas.toDataURL("image/jpeg", 0.8);
+            }
+        }
+    } catch (e) { console.warn("Lỗi cắt ảnh từ Canvas:", e); }
+
+    // 3. Fallback dùng HTML2Canvas cho file WORD, ẢNH
+    if (!snapshotUrl || snapshotUrl === "data:,") {
+        const container = getScrollContainer() as HTMLElement;
+        if (container) {
+          try {
+            const canvas = await html2canvas(container, {
+              scale: 0.5, useCORS: true, logging: false,
+              x: container.scrollLeft, y: container.scrollTop,
+              width: container.clientWidth, height: container.clientHeight
+            });
+            snapshotUrl = canvas.toDataURL("image/jpeg", 0.7); 
+          } catch (captureErr) { console.warn(captureErr); }
+        }
+    }
+
+    if (!snapshotUrl || snapshotUrl === "data:,") {
+        const currentPageInfo = pages.find(p => p.pageNumber === actualPageIndex || p.index === actualPageIndex);
+        snapshotUrl = currentPageInfo?.imageSrc || currentSrc || file?.fileUrl || "";
+    }
+    return { snapshotUrl, actualPageIndex };
+  };
+
   // --- LOGIC VIEW ---
   const handleCreateView2D = async (data: { name: string; description: string; createdBy?: string }) => {
-    console.log("Check Token trước khi gửi:", localStorage.getItem('accessToken'));
     const targetFileId = fileId || params.viewId;
-    const targetProjectId = params.projectId;
+    const targetProjectId = params.projectId || currentProjectId;
     
     if (!targetFileId || !targetProjectId) {
       alert("Thiếu thông tin File hoặc Project!");
@@ -115,24 +248,71 @@ export default function DetailView2D({
     }
 
     try {
-      // const elementToCapture = document.querySelector('.react-pdf__Page') as HTMLElement || document.querySelector('.viewport-container') as HTMLElement;
-      const elementToCapture =
-        document.querySelector(
-          `.react-pdf__Page[data-page-number="${pageIndex}"]`
-        ) as HTMLElement;
-
       let snapshotUrl = "";
-      if (elementToCapture) {
-        try {
-          const canvas = await html2canvas(elementToCapture, {
-            scale: 0.5, useCORS: true, logging: false,
-          });
-          snapshotUrl = canvas.toDataURL("image/jpeg", 0.7); 
-        } catch (captureErr) {
-          console.warn("Không thể chụp màn hình:", captureErr);
-          snapshotUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(data.name)}&background=random`;
+      let actualPageIndex = pageIndex;
+
+      // 1. Chụp ảnh
+      try {
+        const canvases = document.querySelectorAll('#file-viewport-container canvas');
+        const containerRect = document.getElementById('file-viewport-container')?.getBoundingClientRect();
+        let maxVisibleArea = 0;
+        let bestCanvas: HTMLCanvasElement | null = null;
+
+        if (containerRect && canvases.length > 0) {
+            canvases.forEach((c) => {
+                const canvas = c as HTMLCanvasElement;
+                const rect = canvas.getBoundingClientRect();
+                const overlapX = Math.max(0, Math.min(rect.right, containerRect.right) - Math.max(rect.left, containerRect.left));
+                const overlapY = Math.max(0, Math.min(rect.bottom, containerRect.bottom) - Math.max(rect.top, containerRect.top));
+                const area = overlapX * overlapY;
+                if (area > maxVisibleArea) { maxVisibleArea = area; bestCanvas = canvas; }
+            });
+        }
+        if (bestCanvas) {
+            snapshotUrl = bestCanvas.toDataURL("image/jpeg", 0.7);
+            const parentPage = bestCanvas.closest('.react-pdf__Page');
+            if (parentPage) {
+                const pageNum = parentPage.getAttribute('data-page-number');
+                if (pageNum) {
+                    actualPageIndex = parseInt(pageNum, 10);
+                    setPageIndex(actualPageIndex);
+                }
+            }
+        }
+      } catch (e) { console.warn(e); }
+
+      if (!snapshotUrl || snapshotUrl === "data:,") {
+        const container = getScrollContainer() as HTMLElement;
+        if (container) {
+          try {
+            const canvas = await html2canvas(container, {
+              scale: 0.5, useCORS: true, logging: false,
+              x: container.scrollLeft, y: container.scrollTop,
+              width: container.clientWidth, height: container.clientHeight
+            });
+            snapshotUrl = canvas.toDataURL("image/jpeg", 0.7); 
+          } catch (captureErr) { console.warn(captureErr); }
         }
       }
+
+      if (!snapshotUrl || snapshotUrl === "data:,") {
+         const currentPageInfo = pages.find(p => p.pageNumber === actualPageIndex || p.index === actualPageIndex);
+         snapshotUrl = currentPageInfo?.imageSrc || currentSrc || file?.fileUrl || "";
+      }
+      
+      if (!snapshotUrl) {
+         snapshotUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(data.name)}&background=random`;
+      }
+
+      // 2. LƯU TỌA ĐỘ VÀO ẢNH
+      let scrollX = 0;
+      let scrollY = 0;
+      const scrollContainer = getScrollContainer();
+      if (scrollContainer) {
+          scrollX = scrollContainer.scrollLeft;
+          scrollY = scrollContainer.scrollTop;
+      }
+      const finalPreviewSrc = `${snapshotUrl}#coords:${scrollX},${scrollY}`;
 
       const newView = await view2DService.createView({
         name: data.name,
@@ -140,10 +320,10 @@ export default function DetailView2D({
         createdBy: data.createdBy,
         projectId: targetProjectId,
         fileId: targetFileId,
-        pageIndex: pageIndex, 
-        scale: zoom, 
-        rotation: pageRotations[pageIndex] || 0,
-        previewSrc: snapshotUrl
+        pageIndex: actualPageIndex, 
+        scale: zoom,
+        rotation: pageRotations[actualPageIndex] || 0,
+        previewSrc: finalPreviewSrc
       });
 
       setViews((prev) => [newView, ...prev]);
@@ -152,6 +332,45 @@ export default function DetailView2D({
     } catch (error) {
       console.error("Lỗi khi tạo View:", error);
       alert("Đã có lỗi xảy ra khi lưu View.");
+    }
+  };
+
+  const handleUpdateViewSnapshot = async (targetView: ViewItem) => {
+    try {
+      let { snapshotUrl, actualPageIndex } = await captureCurrentScreen();
+      if (!snapshotUrl) {
+         snapshotUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(targetView.name || 'View')}&background=random`;
+      }
+
+      let scrollX = 0; let scrollY = 0;
+      const scrollContainer = getScrollContainer();
+      if (scrollContainer) { scrollX = scrollContainer.scrollLeft; scrollY = scrollContainer.scrollTop; }
+      
+      const finalPreviewSrc = `${snapshotUrl}#coords:${scrollX},${scrollY}`;
+
+      const payload = {
+        pageIndex: actualPageIndex,
+        scale: zoom,
+        rotation: pageRotations[actualPageIndex] || 0,
+        previewSrc: finalPreviewSrc
+      };
+
+      const updated = await view2DService.updateView(targetView._id, payload);
+
+      // 🌟 FORCE MERGE: Bắt buộc đè dữ liệu mới lên để phòng trường hợp Backend gửi lại ảnh cũ
+      const manuallyUpdatedView = { ...targetView, ...updated, ...payload };
+
+      setViews(prev => prev.map(v => v._id === manuallyUpdatedView._id ? (manuallyUpdatedView as any) : v));
+      setRightPanel({ type: "viewDetail", data: manuallyUpdatedView as any });
+
+      // Đồng bộ lại pageIndex hệ thống
+      if (actualPageIndex !== pageIndex) {
+         setPageIndex(actualPageIndex);
+      }
+      
+    } catch (error) {
+      console.error("Lỗi cập nhật ảnh View:", error);
+      alert("Lỗi khi cập nhật ảnh View.");
     }
   };
 
@@ -169,22 +388,56 @@ export default function DetailView2D({
     }
   };
 
+  // 🔥 LOGIC APPLY VỊ TRÍ KHI CLICK Ở VIEWTAB
+  const applyViewPosition = (v: ViewItem) => {
+    const targetPage = v.pageIndex && v.pageIndex > 0 ? v.pageIndex : 1;
+    setPageIndex(targetPage);
+
+    if (v.scale) setZoom(v.scale);
+    const rotationToRestore = v.rotation ?? 0;
+    setPageRotations((prev) => ({ ...prev, [targetPage]: rotationToRestore }));
+
+    if (file?.fileType !== 'PDF') {
+        const pageInfo = pages.find(p => p.pageNumber === targetPage || p.index === targetPage);
+        setCurrentSrc(pageInfo?.imageSrc || file?.fileUrl || null);
+        // Fix kẹt loading đối với ảnh
+        setTimeout(() => setIsViewLoading(false), 150); 
+    } else {
+        setCurrentSrc(null); 
+    }
+
+    const coordsMatch = v.previewSrc?.match(/#coords:(\d+),(\d+)/);
+    if (coordsMatch) {
+       // Giao việc cuộn lại cho useEffect bên trên lo
+       setPendingScroll({
+         x: parseInt(coordsMatch[1], 10),
+         y: parseInt(coordsMatch[2], 10)
+       });
+    } else {
+       setPendingScroll(null);
+       scrollToPage(targetPage);
+    }
+  };
+
   const handleSelectView = (v: ViewItem) => {
     setIsViewLoading(true);
     setSelectedView(v);
     setSelectedTodo(null);
+    setIsAutoEditView(false);
     setRightPanel({ type: "viewDetail", data: v });
-  
-    setCurrentSrc(null); // 🔥 BẮT BUỘC với PDF
-
-    if (v.pageIndex && v.pageIndex > 0) setPageIndex(v.pageIndex);
-    const rotationToRestore = v.rotation ?? 0;
-    if (v.pageIndex) {
-        setPageRotations((prev) => ({ ...prev, [v.pageIndex!]: rotationToRestore }));
-    }
+    applyViewPosition(v); // Chỉ cần gọi hàm này là đủ
   };
 
-  // --- 👇 [ADD] LOGIC TODO ---
+  const handleEditView = (v: ViewItem) => {
+    setIsViewLoading(true);
+    setSelectedView(v);
+    setSelectedTodo(null);
+    setIsAutoEditView(true); 
+    setRightPanel({ type: "viewDetail", data: v });
+    applyViewPosition(v);
+  };
+
+  // --- LOGIC TODO ---
   const handleCreateTodo = async (data: any) => {
     const targetFileId = fileId || params.viewId;
     if (!targetFileId) return;
@@ -193,7 +446,7 @@ export default function DetailView2D({
       const newTodo = await todo2DService.createTodo({
         ...data,
         fileId: targetFileId,
-        projectId: params.projectId,
+        projectId: currentProjectId,
         position: { pageIndex: pageIndex, x: 0, y: 0 }
       });
       setTodos((prev) => [newTodo, ...prev]);
@@ -204,12 +457,11 @@ export default function DetailView2D({
       alert("Lỗi khi tạo Todo.");
     }
   };
+
   const handleDeleteTodo = async (todoId: string) => {
     try {
         await todo2DService.deleteTodo(todoId);
-
         setTodos((prev) => prev.filter((t) => t._id !== todoId));
-
         if (rightPanel?.type === "todoDetail" && rightPanel.data._id === todoId) {
             setRightPanel(null);
             setSelectedTodo(null);
@@ -220,7 +472,6 @@ export default function DetailView2D({
       }
   };
 
-  // Helper PDF
   const getPdfTotalPages = async (url: string) => {
     try {
       const pdfjs = await ensurePdfjs();
@@ -233,12 +484,35 @@ export default function DetailView2D({
     }
   };
 
-  // Rotate Logic
   const rotateCurrentPage = (delta: number) => {
     setPageRotations(prev => ({
       ...prev,
       [pageIndex]: ((prev[pageIndex] ?? 0) + delta) % 360,
     }));
+  };
+
+  const handlePrevPage = () => {
+    setPageIndex((p) => {
+      const newP = Math.max(1, p - 1);
+      if (file?.fileType !== "PDF") {
+        const pageInfo = pages.find(page => page.pageNumber === newP || page.index === newP);
+        setCurrentSrc(pageInfo?.imageSrc || file?.fileUrl || null);
+      }
+      scrollToPage(newP);
+      return newP;
+    });
+  };
+
+  const handleNextPage = () => {
+    setPageIndex((p) => {
+      const newP = Math.min(pages.length, p + 1);
+      if (file?.fileType !== "PDF") {
+        const pageInfo = pages.find(page => page.pageNumber === newP || page.index === newP);
+        setCurrentSrc(pageInfo?.imageSrc || file?.fileUrl || null);
+      }
+      scrollToPage(newP);
+      return newP;
+    });
   };
 
   // Effects
@@ -290,8 +564,13 @@ export default function DetailView2D({
 
         if (!finalUrl && !isShareMode) throw new Error("Không có URL file để hiển thị");
 
-        const finalMimeType = raw.mimeType || currentVer?.mimeType || "application/pdf";
+        const finalMimeType = raw.mimeType || currentVer?.mimeType || "";
         const isPdf = finalMimeType.includes("pdf") || finalUrl.toLowerCase().includes(".pdf");
+        const isWord = finalMimeType.includes("word") || finalUrl.toLowerCase().match(/\.(doc|docx)$/);
+
+        let fileType = "IMAGE"; 
+        if (isPdf) fileType = "PDF";
+        else if (isWord) fileType = "WORD";
 
         const file: IFile = {
           ...raw,
@@ -299,7 +578,7 @@ export default function DetailView2D({
           previewSrc: raw.previewSrc || finalUrl,
           size: currentVer?.size ?? raw.size ?? 0,
           mimeType: finalMimeType,
-          fileType: isPdf ? "PDF" : "IMAGE",
+          fileType: fileType as any,
           createdBy: raw.createdBy || personName,
           modifiedBy: raw.modifiedBy || personName,
           location: raw.location,
@@ -326,18 +605,25 @@ export default function DetailView2D({
             fileId: file._id,
             source: "pdf",
           }));
+        } else if (file.fileType === "WORD") {
+          derivedPages = [{
+            _id: file._id,
+            index: 1,
+            imageSrc: "", 
+            fileId: file._id,
+            source: "word",
+          }];
         } else {
           derivedPages = [{
             _id: file._id,
             index: 1,
             imageSrc: file.previewSrc ?? file.fileUrl,
             fileId: file._id,
-            source: "file",
+            source: "image",
           }];
         }
 
         setPages(derivedPages);
-        // setPageIndex(1);
         if (!selectedView) {
           setPageIndex(1);
         }
@@ -358,7 +644,6 @@ export default function DetailView2D({
       if (!targetId) return;
 
       try {
-        // Load Views
         const viewsData = await view2DService.getViewsByFile(targetId);
         if (Array.isArray(viewsData)) setViews(viewsData);
 
@@ -368,7 +653,6 @@ export default function DetailView2D({
         } else if ((todosData as any).data) {
             setTodos((todosData as any).data);
         }
-
       } catch (error) {
         console.error("Lỗi tải metadata (view/todo):", error);
       }
@@ -376,7 +660,30 @@ export default function DetailView2D({
     fetchMetadata();
   }, [fileId, params.viewId]);
 
-  
+  const handleWordLoadSuccess = (totalPages: number) => {
+    if (!selectedFile) return;
+    const derivedPages: PageItem[] = Array.from({ length: totalPages }).map((_, i) => ({
+      _id: `${selectedFile._id}-page-${i + 1}`,
+      index: i + 1,
+      pageNumber: i + 1,
+      fileId: selectedFile._id,
+      source: "word",
+      imageSrc: "", 
+    }));
+    setPages(derivedPages);
+  };
+
+  const handleWordThumbnailGenerated = React.useCallback((index: number, src: string) => {
+    setPages((prevPages) => {
+      return prevPages.map((page) => {
+        if (page.source === "word" && page.index === index) {
+          return { ...page, imageSrc: src };
+        }
+        return page;
+      });
+    });
+  }, []);
+
   // Logic reload pages
   useEffect(() => {
     if (activeTool !== "page") return;
@@ -385,57 +692,48 @@ export default function DetailView2D({
 
     async function reLoadPagesForPageTab() {
       if (selectedFile?.fileType !== "PDF" && !selectedFile?.fileUrl?.toLocaleLowerCase().endsWith(".pdf")) {
-        setPages([{
-            _id: selectedFile?._id || "",
-            index: 1,
-            imageSrc: currentSrc ?? "",
-            fileId: selectedFile?._id || "",
-          }]);
-        setPageIndex(1);
+        const isWord = selectedFile?.fileType === "WORD";
+        
+        setPages((prevPages) => {
+          if (isWord && prevPages.length > 0 && prevPages[0].source === "word" && prevPages[0].fileId === selectedFile._id) {
+            return prevPages; 
+          }
+          return [{
+              _id: selectedFile?._id || "",
+              index: 1,
+              imageSrc: isWord ? "" : (currentSrc ?? ""),
+              fileId: selectedFile?._id || "",
+              source: isWord ? "word" : "image",
+          }];
+        });
+
+        if (!isWord) {
+          setPageIndex(prev => prev > 0 ? prev : 1);
+        }
         return;
       }
+
       const total = await getPdfTotalPages(selectedFile.fileUrl!);
       const derivedPages: PageItem[] = Array.from({ length: total }).map((_, i) => ({
           _id: `${selectedFile._id}-page-${i + 1}`,
           index: i + 1,
           pageNumber: i + 1,
           fileId: selectedFile._id,
+          source: "pdf",
         }));
       setPages(derivedPages);
       setPageIndex((prev) => Math.min(prev, derivedPages.length));
     }
+    
     reLoadPagesForPageTab();
   }, [activeTool, selectedFile, selectedView, currentSrc]);
-
 
   useEffect(() => {
     if (!allowedTools.includes(activeTool)) {
        setActiveTool("page");
-       // Đóng panel phải nếu đang mở tính năng bị cấm
-       setRightPanel(null);
-    }
+         setRightPanel(null);
+    }   
   }, [allowedTools, activeTool]);
-
-  // useEffect(() => {
-  //   if (isShareMode && userPermission === "VIEW") return;
-
-  //   const fetchMetadata = async () => {
-  //     const targetId = fileId || params.viewId;
-  //     if (!targetId) return;
-
-  //     try {
-  //       const viewsData = await view2DService.getViewsByFile(targetId);
-  //       if (Array.isArray(viewsData)) setViews(viewsData);
-
-  //       const todosData = await todo2DService.getTodosByFile(targetId);
-  //       if (Array.isArray(todosData)) setTodos(todosData);
-  //     } catch (error) {
-  //       console.error("Lỗi tải metadata:", error);
-  //     }
-  //   };
-
-  //   fetchMetadata();
-  // }, [fileId, params.viewId, isShareMode, userPermission]);
 
   if (loading) return <div className="flex items-center justify-center h-full text-gray-500">Loading 2D Management...</div>;
   if (error) return <div className="p-6 text-red-600">{error}</div>;
@@ -458,7 +756,6 @@ export default function DetailView2D({
       <AnimatePresence>
         {isLeftPanelOpen && (
           <motion.div
-            // key={activeTool}
             initial={{ x: -40, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: -40, opacity: 0 }}
@@ -479,9 +776,11 @@ export default function DetailView2D({
               onSelectPage={(item) => {
                 setPageIndex(item.pageNumber ?? item.index);
                 setCurrentSrc(item.imageSrc ?? null);
+                scrollToPage(item.pageNumber ?? item.index);
               }}
-              onSelectView={handleSelectView}
+              onSelectView={handleSelectView} // CLICK VÀO VIEWTAB SẼ CHẠY HÀM NÀY
               onDeleteView={handleDeleteView}
+              onEditView={handleEditView}
               onDeleteTodo={handleDeleteTodo}
               onSelectTodo={(t) => {
                 setSelectedTodo(t);
@@ -496,9 +795,9 @@ export default function DetailView2D({
       </AnimatePresence>
 
       {/* ===== CENTER VIEWPORT ===== */}
-      <div className="flex-1 min-w-0 min-h-0 relative bg-neutral-800">
+      <div id="file-viewport-container" className="flex-1 min-w-0 min-h-0 relative bg-neutral-800 overflow-auto">
         <FileViewport
-          // key={`${file?._id}-${currentSrc}`}
+          // 🔥 BỎ KEY ĐỂ KHÔNG BỊ XÓA COMPONENT MỖI KHI CLICK VIEW
           file={selectedFile || file}
           currentSrc={currentSrc}
           pageIndex={pageIndex}
@@ -506,9 +805,11 @@ export default function DetailView2D({
           pageRotation={pageRotations[pageIndex] ?? 0}
           onRotatePage={rotateCurrentPage}
           onZoom={(d) => setZoom((z) => Math.max(0.2, Math.min(3, z + d)))}
-          onPrev={() => setPageIndex((p) => Math.max(1, p - 1))}
-          onNext={() => setPageIndex((p) => Math.min(pages.length, p + 1))}
-          onRendered={() => setIsViewLoading(false)}
+          onPrev={handlePrevPage}
+          onNext={handleNextPage}
+          onRendered={() => setIsViewLoading(false)} // BÁO HIỆU XONG LOAD ĐỂ CUỘN TRANG
+          onWordLoadSuccess={handleWordLoadSuccess}
+          onWordThumbnailGenerated={handleWordThumbnailGenerated} 
         />
       </div>
 
@@ -527,11 +828,14 @@ export default function DetailView2D({
                 <ViewDetailPanel
                   view={rightPanel.data}
                   onClose={() => setRightPanel(null)}
+                  projectId={currentProjectId}
                   onUpdateSuccess={(updatedView) => {
                     setViews(prev => prev.map(v => v._id === updatedView._id ? updatedView : v));
                     setRightPanel({ type: "viewDetail", data: updatedView });
-                    
                   }}
+                  initialEditMode={isAutoEditView}
+                  onJumpToView={() => applyViewPosition(rightPanel.data)} 
+                  onUpdateSnapshot={() => handleUpdateViewSnapshot(rightPanel.data)} /* 👈 THÊM DÒNG NÀY */
                 />
               </AnimatedPanel>
             )}
@@ -541,6 +845,12 @@ export default function DetailView2D({
                 <TodoDetailPanel
                   todo={rightPanel.data}
                   onClose={() => setRightPanel(null)}
+                  projectId={currentProjectId}
+                  onUpdateSuccess={(updatedTodo) => {
+                    setTodos(prev => prev.map(t => t._id === updatedTodo._id ? updatedTodo : t));
+                    setRightPanel({ type: "todoDetail", data: updatedTodo });
+                    setSelectedTodo(updatedTodo);
+                  }}
                 />
               </AnimatedPanel>
             )}
@@ -557,6 +867,7 @@ export default function DetailView2D({
             {rightPanel.type === "createTodo" && (
               <AnimatedPanel animationKey="create-todo">
                 <CreateTodoPanel
+                  projectId={currentProjectId}
                   onClose={() => setRightPanel(null)}
                   onSave={handleCreateTodo}
                 />
@@ -568,5 +879,3 @@ export default function DetailView2D({
     </div>
   );
 }
-
-// // bimcde-fe\components\features\view2DManagement\viewHome.tsx

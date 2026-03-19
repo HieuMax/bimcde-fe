@@ -273,27 +273,24 @@ export default function ChatbotPanel({ isOpen, onClose }: ChatbotPanelProps) {
           <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4 bg-gray-50">
 
             {messages.map((msg, i) => (
-
               <div key={i} className={`flex gap-2 ${msg.role === "user" ? "justify-end" : "items-start"}`}>
-
+                
                 {msg.role === "assistant" && (
                   <div className="mt-1 flex-shrink-0 h-7 w-7 rounded-full bg-indigo-600 text-white flex items-center justify-center">
                     <Bot size={14} />
                   </div>
                 )}
-
-                <div
-                  className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm ${
-                    msg.role === "user"
-                      ? "bg-indigo-600 text-white rounded-tr-sm shadow-sm"
-                      : "bg-white border border-gray-200 text-gray-800 rounded-tl-sm shadow-sm"
-                  }`}
-                >
+                
+                {/* THÊM class 'whitespace-pre-wrap' VÀO DIV NÀY 👇 */}
+                <div className={`whitespace-pre-wrap max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm ${
+                  msg.role === "user"
+                    ? "bg-indigo-600 text-white rounded-tr-sm shadow-sm"
+                    : "bg-white border border-gray-200 text-gray-800 rounded-tl-sm shadow-sm leading-relaxed"
+                }`}>
                   {msg.content}
                 </div>
 
               </div>
-
             ))}
 
             {/* LOADING */}

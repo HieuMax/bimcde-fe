@@ -109,7 +109,63 @@ export default function IfcViewer({
   const EXPANDED_WIDTH = 370;
   const COLLAPSED_WIDTH = 250;
 
-  // const [isCollapsed, setIsCollapsed] = useState(false);
+  //marker
+  const topicMarkerGroupRef = useRef(new THREE.Group());
+  const [markerCallback, setMarkerCallback] = useState(null);
+  const markerCallbackRef = useRef(null);
+  useEffect(() => {
+    markerCallbackRef.current = markerCallback;
+  }, [markerCallback]);
+
+  // =====================================================
+  // TOPIC MARKER HELPERS
+  // =====================================================
+  const clearTopicMarker = useCallback(() => {
+      const g = topicMarkerGroupRef.current;
+      while (g.children.length > 0) g.remove(g.children[0]);
+  }, []);
+
+  const drawTopicMarker = useCallback((point) => {
+      clearTopicMarker();
+      if (!point) return;
+
+      const canvas = document.createElement('canvas');
+      canvas.width = 128; canvas.height = 128;
+      const ctx = canvas.getContext('2d');
+
+      // Nền tròn đỏ
+      ctx.beginPath();
+      ctx.arc(64, 64, 55, 0, Math.PI * 2);
+      ctx.fillStyle = '#dc2626'; 
+      ctx.fill();
+
+      // Viền trắng
+      ctx.lineWidth = 8;
+      ctx.strokeStyle = '#ffffff';
+      ctx.stroke();
+
+      // Dấu !
+      ctx.fillStyle = '#ffffff';
+      ctx.font = 'bold 64px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('!', 64, 68);
+
+      const texture = new THREE.CanvasTexture(canvas);
+      const mat = new THREE.SpriteMaterial({
+          map: texture,
+          depthTest: false, 
+          depthWrite: false,
+          sizeAttenuation: true
+      });
+
+      const sprite = new THREE.Sprite(mat);
+      sprite.position.copy(point);
+      sprite.scale.set(1.5, 1.5, 1);
+      sprite.renderOrder = 10000;
+      
+      topicMarkerGroupRef.current.add(sprite);
+  }, [clearTopicMarker]);
 
   const mouseDownPos = useRef({ x: 0, y: 0 });
   const isDragging = useRef(false);
@@ -141,56 +197,12 @@ export default function IfcViewer({
   const selectionRectRef = useRef(null);
   const areaDragRef = useRef({ active: false, startX: 0, startY: 0 });
 
-
-  // 1. Hàm lấy trạng thái Clip hiện tại để lưu
-// const getClippingState = () => {
-//     // Lấy context từ viewer (tùy thuộc vào library bạn dùng, đây là ví dụ logic)
-//     // Nếu dùng ifc.js components:
-//     const clipper = viewerRef.current.clipper; 
-    
-//     if (!clipper || !clipper.active) {
-//         return { enabled: false, planes: [] };
-//     }
-
-//     // Lấy danh sách các planes (Three.js Plane: normal & constant)
-//     const planes = clipper.planes.map(p => ({
-//         normal: { x: p.normal.x, y: p.normal.y, z: p.normal.z },
-//         constant: p.constant
-//     }));
-
-//     return {
-//         enabled: true,
-//         planes: planes
-//     };
-// };
-
-// 2. Hàm khôi phục Clip từ data đã lưu
-// const restoreClippingState = (clippingData) => {
-//     const clipper = viewerRef.current.clipper;
-    
-//     // Xóa hết clip cũ trước
-//     clipper.deleteAllPlanes();
-    
-//     if (!clippingData || !clippingData.enabled || !clippingData.planes) {
-//         return;
-//     }
-
-//     // Tạo lại planes
-//     clippingData.planes.forEach(pData => {
-//         const normal = new THREE.Vector3(pData.normal.x, pData.normal.y, pData.normal.z);
-//         // Gọi hàm tạo plane của viewer library
-//         clipper.createPlane(normal, pData.constant); 
-//     });
-// };
-
 // =====================================================
 // CLIP PLANE 
 // =====================================================
 const [selectedPlaneId, setSelectedPlaneId] = useState(null);
 // Hover
 const hoverGroupRef = useRef(new THREE.Group());
-// Cache adjacency and group maps per mesh to avoid recomputing on every hover
-// const meshAdjacencyCacheRef = useRef(new Map());
 // state từng mặt
 const sectionIndexRef = useRef(1); 
 
@@ -198,7 +210,6 @@ const sectionIndexRef = useRef(1);
 const planesDataRef = useRef([]);
 const planeHelpersGroupRef = useRef(new THREE.Group());
 const cutFaceGroupRef = useRef(new THREE.Group());
-const gridHelperRef = useRef(null);
 
 const draggingPlaneRef = useRef(null);
 const lastMouseYRef = useRef(0);
@@ -1492,22 +1503,26 @@ useEffect(() => {
   const helperGroup = planeHelpersGroupRef.current;
   const hoverGroup = hoverGroupRef.current;
   const measurementGroup = measurementGroupRef.current;
+  const topicMarkerGroup = topicMarkerGroupRef.current;
 
   scene.add(cutFaceGroup);
   scene.add(helperGroup);
   scene.add(hoverGroup);
   scene.add(measurementGroup);
+  scene.add(topicMarkerGroup);
 
   return () => {
     scene.remove(cutFaceGroup);
     scene.remove(helperGroup);
     scene.remove(hoverGroup);
     scene.remove(measurementGroup);
+    scene.remove(topicMarkerGroup);
 
     cutFaceGroup.clear();
     helperGroup.clear();
     hoverGroup.clear();
     measurementGroup.clear();
+    topicMarkerGroup.clear();
   };
 }, [models]);
 
@@ -1719,6 +1734,16 @@ useEffect(() => {
 
             // Lọc bỏ các object không phải model 
             const validHit = intersects.find(h => !h.object.userData.isClipHelper);
+
+            if (markerCallbackRef.current) {
+                if (validHit) {
+                  drawTopicMarker(validHit.point);
+                    markerCallbackRef.current(validHit.point); // Gửi tọa độ xyz về Topics.tsx
+                    setMarkerCallback(null); // Tắt chế độ đợi click
+                }
+                return; // Ngừng thực thi, không Select vật thể (tránh bị vàng lên)
+            }
+
             const result = loaderRef.current.pick(event, scene.getCamera(), scene.getRenderer());
 
               if (result) {
@@ -2010,6 +2035,12 @@ useEffect(() => {
     } else {
       clearMeasurements && clearMeasurements();
     }
+    //restore marker
+    if (viewState.marker) {
+      drawTopicMarker(new THREE.Vector3(viewState.marker.x, viewState.marker.y, viewState.marker.z));
+    } else {
+      clearTopicMarker();
+    }
 
     // ---------------------------------------------------------
     // 1. PREPARE MAPPING (URL <-> Model ID)
@@ -2242,6 +2273,12 @@ useEffect(() => {
      }));
 
      const thumbnail = sceneRef.current.getScreenshot();
+     const markerSprite = topicMarkerGroupRef.current.children[0];
+     const currentMarker = markerSprite ? {
+       x: markerSprite.position.x,
+       y: markerSprite.position.y,
+       z: markerSprite.position.z
+     } : null;
 
      return {
        camera,
@@ -2250,7 +2287,8 @@ useEffect(() => {
        thumbnail,
        modelOpacity: modelOpacity,
        clipping: getClippingState(),
-       measurements: measurements
+       measurements: measurements,
+       marker: currentMarker
      };
    };
 
@@ -2943,7 +2981,33 @@ useEffect(() => {
                     width: '100%',
                   }}
                 >
-                  <Topics />
+                  <Topics 
+                    projectId={projectId} 
+                    capture3DState={
+                      async () =>{
+                        const snapshot = getSnapshot();
+                        const context = getContext();
+
+                        let thumbnailBase64 ="";
+                        if(canvasRef.current && sceneRef.current) {
+                          const renderer = sceneRef.current.getRenderer();
+                          const scene = sceneRef.current.scene;
+                          const camera = sceneRef.current.getCamera();
+
+                          renderer.render(scene, camera);
+                          thumbnailBase64 = canvasRef.current.toDataURL("image/png", 0.5);
+                        }
+                        return {
+                          viewState: snapshot,
+                          items: context,
+                          thumbnail: thumbnailBase64 || snapshot?.thumbnail
+                        }
+                      }
+                    }
+                    onRestoreView={restoreState}
+                    onAddMarkerStart={(cb) => setMarkerCallback(() => cb)}
+                    onAddMarkerCancel={() => setMarkerCallback(null)}
+                  />
                 </div>
               )}
 

@@ -116,7 +116,7 @@ export default function ViewsTab({
                 >
                   {v.previewSrc ? (
                     <img
-                      src={v.previewSrc}
+                      src={v.previewSrc.split('#coords:')[0]}
                       alt={v.name || 'View'}
                       className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
                     />
