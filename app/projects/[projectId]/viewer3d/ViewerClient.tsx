@@ -399,43 +399,6 @@ export default function ViewerClient() {
     return () => clearTimeout(timer);
   }, [isDrawerOpen]);
 
-  // Model opacity is reset in the opacity UI; avoid cascading setState-in-effect lint
-
-
-  // --- 1. OPEN DRAWER (ViewList or Create New) ---
-  // const handleOpenViewDrawer = (view: IView | null, mode: "view" | "edit" | "create") => {
-  //   if (mode === 'create') {
-  //     let viewState = null;
-  //     let contextItems: ContextItem[] = [];
-
-  //     if (viewerActions.current) {
-  //       if (viewerActions.current.capture) {
-  //         viewState = viewerActions.current.capture();
-  //       }
-  //       if (viewerActions.current.getContext) {
-  //         contextItems = viewerActions.current.getContext();
-  //       }
-  //     }
-
-  //     if (contextItems.length === 0) {
-  //       contextItems = ifcUrls.map(url => ({ fileUrl: url, modelId: "0", expressId: [] }));
-  //     }
-
-  //     setViewInitialData({
-  //       viewState,
-  //       items: contextItems
-  //     });
-  //     setViewToEdit(null);
-  //     setViewDrawerMode("create");
-  //     setIsViewDrawerOpen(true);
-  //   } else {
-  //     // View/Edit mode
-  //     setViewToEdit(view);
-  //     setViewDrawerMode(mode);
-  //     setViewInitialData(null);
-  //     setIsViewDrawerOpen(true);
-  //   }
-  // };
   const handleOpenViewDrawer = (view: IView | null, mode: "view" | "edit" | "create") => {
     if (mode === 'create') {
       let viewState = null;
@@ -482,39 +445,6 @@ export default function ViewerClient() {
     }
   };
 
-  // --- 2. UPDATE SNAPSHOT (...) ---
-  // const handleUpdateSnapshot = async (view: IView) => {
-  //   if (!viewerActions.current?.capture) return;
-
-  //   try {
-  //     const newViewState = viewerActions.current.capture();
-
-  //     let currentContextItems: ContextItem[] = [];
-  //     if (viewerActions.current?.getContext) {
-  //       currentContextItems = viewerActions.current.getContext();
-  //     } else {
-  //       currentContextItems = ifcUrls.map((url: string) => ({
-  //         fileUrl: url,
-  //         modelId: "0", // Fallback
-  //         expressId: []
-  //       }));
-  //     }
-
-  //     await viewService.updateSnapshot(view._id, {
-  //       viewState: newViewState,
-  //       items: currentContextItems
-  //     });
-
-  //     toast.success("Snapshot updated to current view!");
-
-  //     queryClient.invalidateQueries({ queryKey: ["views", projectId] });
-  //     // ----------------------------------------------------
-
-  //   } catch (error) {
-  //     console.error(error);
-  //     toast.error("Failed to update snapshot");
-  //   }
-  // };
   const handleUpdateSnapshot = async (view: IView) => {
     if (!viewerActions.current?.capture) return;
 
@@ -554,31 +484,6 @@ export default function ViewerClient() {
     }
   };
 
-  // --- 3. RESTORE VIEW (same as handleSelectTodo) ---
-  // const handleRestoreView = (view: IView) => {
-  //   if (!view.items || !view.viewState) return;
-
-  //   // Get unique URL
-  //   const targetUrls = Array.from(new Set(view.items.map((i) => i.fileUrl) as string[]));
-
-  //   // Compare Context
-  //   const isContextMatch = targetUrls.length === 0 || areArraysEqual(ifcUrls, targetUrls);
-
-  //   if (isContextMatch) {
-  //     console.log("Context match, restoring view...");
-  //     if (viewerActions.current?.restore) {
-  //       viewerActions.current.restore(view.viewState, []);
-  //     }
-  //   } else {
-  //     console.log("Context mismatch, switching models for view...");
-
-  //     setIsViewDrawerOpen(false);
-  //     setPendingTodo({ todo: view, mode: "view", type: 'view' });
-
-  //     const newUrlsParams = JSON.stringify(targetUrls);
-  //     router.push(`/projects/${projectId}/viewer3d?urls=${encodeURIComponent(newUrlsParams)}`);
-  //   }
-  // };
   const handleRestoreView = (view: IView) => {
     if (!view.items || !view.viewState) return;
 
