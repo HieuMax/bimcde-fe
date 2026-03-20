@@ -36,6 +36,7 @@ export interface IView {
         selection: any[];
         thumbnail?: string; // Base64
         modelOpacity?: number;
+<<<<<<< HEAD
 
         clipping?: {
             enabled: boolean;
@@ -52,6 +53,10 @@ export interface IView {
             value: number; 
         }[];
         viewOptions?: ViewOptions
+=======
+        modelTransforms?: IModelTransform[];
+        clippingPlanes?: { normal: number[], constant: number }[];
+>>>>>>> 4bf1673e62ee3941ac4ca2540d7d9d0ed512681a
     };
 
     
@@ -74,4 +79,11 @@ export interface UpdateViewInfoDto {
     description?: string;
     shareWith?: string[];
     tags?: string[];
+}
+export interface IModelTransform {
+    modelID: number;
+    fileUrl: string;
+    position: { x: number, y: number, z: number };
+    rotation: { x: number, y: number, z: number };
+    scale: number;
 }

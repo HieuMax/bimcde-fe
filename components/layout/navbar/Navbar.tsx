@@ -1,62 +1,27 @@
 'use client'
 
-import {
-    ArrowLeft,
-    SquareDashed,
-    MousePointer,
-    CopyPlusIcon,
-    MessageCircleDashed,
-    CameraIcon,
-    SquareScissors,
-    Box,
-    ClipboardCheck,
-    MoreVertical,
-    Settings,
-    Fullscreen,
-    Eye,
-    Download,
-    LucideIcon,
-    Grid3x3,
-    RotateCcw,
-    ChevronDown,
-    Ghost,
-    Trash,
-    GitCommitHorizontal,
-    SquareSquare,
-    ScissorsLineDashed,
-    Scissors,
-    RulerDimensionLine,
-    TriangleRight,
-    Plus,
-    SquareArrowOutDownLeft,
-    CircleDot,
-    CircleCheck,
-    Crosshair,
-    Axis3D,
-} from 'lucide-react'
+import { ArrowLeft, MousePointer, CopyPlusIcon, MessageCircleDashed, CameraIcon, SquareScissors, Box, ClipboardCheck, Fullscreen, Eye, LucideIcon, RotateCcw, ChevronDown, Ghost, Trash, SquareDashed, Move, Orbit, Footprints, Check, ArrowRight, ArrowDown, ArrowUp, Trash2, RulerDimensionLine, Crosshair, TriangleRight, Axis3D, CircleCheck, Plus, SquareArrowOutDownLeft, GitCommitHorizontal, CircleDot } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import {
-    Tooltip,
-    TooltipContent,
-    TooltipProvider,
-    TooltipTrigger,
-} from '@/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger, } from '@/components/ui/tooltip'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,DropdownMenuCheckboxItem } from '@/components/ui/dropdown-menu';
-import { useState } from 'react';
-
+import { useState, useMemo } from 'react';
+import { cn } from '@/lib/utils';
 import { IView } from '@/types/view3d';
 
-type ActiveHeader = 'main' | 'clip' | 'measure'
-export type ClipType = 'none' | 'plane' | 'vertical' | 'box'
-export type ClipHoverMode = 'both'| 'lines' | 'faces'
-export type SelectionMode = 'single' | 'area'
+export type CameraMode = 'orbit' | 'pan' | 'look-around' | 'walk';
+export type ActiveToolType = 'todo' | 'view' | 'measurement' | 'clipping' | 'properties' | null;
+export type ViewOptionType = 'axon' | 'top' | 'front' | 'left' | 'right' | 'back' | 'bottom';
 
-type MeasureType =
+type ActiveHeader = 'main' | 'measure'
+export type SelectionMode = 'single' | 'area' | 'multiple'
+
+export type MeasureType =
   | 'perpendicular'
   | 'single-point'
   | 'angle'
   | 'slope'
   | null
+
 export interface ViewOptions {
     annotations: boolean;
     clipPlanes: boolean;
@@ -64,32 +29,27 @@ export interface ViewOptions {
     ifcTypes: boolean;
     objectAttachments: boolean;
 }
+
 interface NavbarProps {
     onBack?: () => void;
     onRefresh?: () => void;
     onAction?: () => void;
     onAddTodo?: () => void;
+    onAddView: () => void;
     modelOpacity?: number;
     onOpacityChange?: (value: number) => void;
 
     onOpenViewDrawer?: (view: IView | null, mode: "create" | "edit" | "view") => void;
+    
     // SELECTION MODE
     selectionMode?: SelectionMode;
     onChangeSelectionMode?: (mode: SelectionMode) => void;
-    // MULTI SELECT (additive) can be toggled alongside single/area
+    onSelectionModeChange?: (mode: SelectionMode) => void;
+    
+    // MULTI SELECT
     multiSelectEnabled?: boolean;
     onToggleMultiSelect?: () => void;
-    //  CLIP MODE
-    clipType: ClipType;
-    onChangeClipType: (type:ClipType ) => void;
-    hoverMode: ClipHoverMode;
-    onChangeHoverMode: (mode: ClipHoverMode) => void;
-
-    onFlipClipDirection?: () => void;
-    onDeleteClip?: () => void;
-    hasActiveVerticalClip?: boolean;
-    setHasActiveVerticalClip?: (v: boolean) => void
-    onClearAllClips?: () => void;
+    
     // MEASUREMENT MODE
     measureType?: MeasureType;
     onMeasureTypeChange?: (type: MeasureType) => void;
@@ -101,35 +61,45 @@ interface NavbarProps {
 
     viewOptions?: ViewOptions;
     onToggleViewOption?: (key: keyof ViewOptions) => void;
+
+    // DEV BRANCH TOOLS
+    activeTool?: ActiveToolType;
+    onToolSelect?: (tool: ActiveToolType) => void;
+    cameraMode?: CameraMode;
+    onCameraModeChange?: (mode: CameraMode) => void;
+    activeView?: ViewOptionType;
+    onViewChange?: (view: ViewOptionType) => void;
+    onClipSave?: () => void;
+    onClipCancel?: () => void;
+    onToolChange?: (tool: ActiveToolType) => void;
 }
 
-
-// Helper component to render a button with a tooltip to avoid code repetition
 interface NavButtonProps {
     icon: LucideIcon;
     label: string;
     onClick?: () => void;
     className?: string;
     active?: boolean;
-
+    isActive?: boolean; 
 }
 
-function NavIconButton({ icon: Icon, label, onClick, className, active }: NavButtonProps) {
+function NavIconButton({ icon: Icon, label, onClick, className, active, isActive }: NavButtonProps) {
+    const isBtnActive = active || isActive;
     return (
         <Tooltip>
             <TooltipTrigger asChild>
                 <Button
                     variant="ghost"
-                    size="sm"                    
+                    size="sm"
                     onClick={onClick}
-                    className={`
-                        h-8 w-8 p-0
-                        transition-colors
-                        ${active ? 'bg-blue-100 text-blue-600' : 'hover:bg-accent'}
-                        ${className || ''}
-                    `}
+                    className={cn(
+                        "h-9 w-9 transition-colors",
+                        isBtnActive
+                            ? "bg-blue-100 text-blue-600 hover:bg-blue-200 hover:text-blue-700 border-blue-200"
+                            : "hover:text-foreground hover:bg-accent",
+                        className
+                    )}
                 >
-
                     <Icon className="h-6 w-6" />
                     <span className="sr-only">{label}</span>
                 </Button>
@@ -141,22 +111,19 @@ function NavIconButton({ icon: Icon, label, onClick, className, active }: NavBut
     )
 }
 
-export function Navbar({ onBack, onRefresh, onAction, onAddTodo,
+export function Navbar({
+    onBack,
+    onAddTodo,
+    activeTool,
     modelOpacity = 1,
     onOpacityChange,
     onOpenViewDrawer,
     selectionMode = 'single',
     onChangeSelectionMode,
+    onSelectionModeChange,
     multiSelectEnabled = false,
     onToggleMultiSelect,
-    clipType,
-    onChangeClipType,
-    hasActiveVerticalClip = false,
-    onFlipClipDirection,
-    hoverMode,
-    onChangeHoverMode,
-    setHasActiveVerticalClip,
-    onClearAllClips,
+    
     // MEASUREMENT
     measureType: externalMeasureType = null,
     onMeasureTypeChange,
@@ -165,21 +132,22 @@ export function Navbar({ onBack, onRefresh, onAction, onAddTodo,
     isMeasureActive: externalIsMeasureActive = false,
     onMeasureActiveChange,
     onClearAllMeasurements,
+    
     viewOptions,
     onToggleViewOption,
+
+    onAddView,
+    cameraMode = 'orbit',
+    onCameraModeChange,
+    activeView,
+    onViewChange,
+    onToolSelect,
+    onClipSave,
+    onClipCancel,
 }: NavbarProps) {
 
-    const clipIconMap: Record<ClipType, LucideIcon> = {
-        none: Scissors,
-        plane: Scissors,
-        vertical: ScissorsLineDashed,
-        box: SquareScissors,
-    }
-    const clipMode = clipType
-    const ClipIcon = clipIconMap[clipMode]
-
     const [activeActions, setActiveActions] = useState<Set<string>>(new Set())
-        const toggleAction = (id: string) => {
+    const toggleAction = (id: string) => {
         setActiveActions(prev => {
             const next = new Set(prev)
             if (next.has(id)) {
@@ -191,31 +159,12 @@ export function Navbar({ onBack, onRefresh, onAction, onAddTodo,
         })
     }
     
-    const [currentView, setCurrentView] = useState("axon");
-    // const [viewOptions, setViewOptions] = useState({
-    //     annotations: true,
-    //     clipPlanes: true,
-    //     grids: false,
-    //     ifcTypes: false,
-    //     objectAttachments: false,
-    //     })
-
-//     const toggleOption = (key: keyof typeof viewOptions) => {
-    //     setViewOptions(prev => ({
-    //         ...prev,
-    //         [key]: !prev[key],
-    //     }))
-    // }
-
-
-// measure 
+    // measure 
     const isActive = (id: string) => activeActions.has(id)
-
     const isMeasureActive = externalIsMeasureActive !== undefined ? externalIsMeasureActive : isActive('measure')
     const measureType = externalMeasureType
     const measureColor = externalMeasureColor 
 
-    // Map measure types to icons and labels
     const measureMap: Record<
         Exclude<MeasureType, null>,
         { icon: LucideIcon; label: string }
@@ -246,23 +195,72 @@ export function Navbar({ onBack, onRefresh, onAction, onAddTodo,
     ? measureMap[measureType].label
     : 'Measurement'
 
+
+    const CurrentCameraIcon = useMemo(() => {
+        switch (cameraMode) {
+            case 'pan': return Move;
+            case 'look-around': return Eye;
+            case 'walk': return Footprints;
+            default: return Orbit;
+        }
+    }, [cameraMode]);
+
     // Determine active header
     const activeHeader: ActiveHeader = (() => {
         if (isMeasureActive) return 'measure'
-        if (clipMode !== 'none') return 'clip'
         return 'main'
     })()
+
+
+    if (activeTool === 'clipping') {
+        return (
+            <TooltipProvider delayDuration={300}>
+                <nav className="sticky top-0 z-50 bg-background border-b border-border shadow-sm flex-none">
+                    <div className="flex items-center h-16 px-4 gap-1 justify-between bg-blue-50/50">
+
+                        {/* Left: Message */}
+                        <div className="flex items-center gap-2 text-sm text-blue-700 font-medium animate-pulse">
+                            <SquareScissors className="h-5 w-5" />
+                            <span>Clipping Mode: Click on model to place cut</span>
+                        </div>
+
+                        {/* Right: Actions (Dev save/cancel) */}
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-red-600 hover:bg-red-50 border-red-200 gap-2"
+                                onClick={onClipCancel}
+                            >
+                                <Trash2 className="h-4 w-4" /> Cancel
+                            </Button>
+
+                            <Button
+                                variant="default"
+                                size="sm"
+                                className="bg-blue-600 hover:bg-blue-700 gap-2"
+                                onClick={onClipSave}
+                            >
+                                <Check className="h-4 w-4" /> Save Plane
+                            </Button>
+                        </div>
+                    </div>
+                </nav>
+            </TooltipProvider>
+        );
+    }
+
 
     return (
         <TooltipProvider delayDuration={300}>
             <nav className="sticky top-0 z-50 bg-background border-b border-border shadow-sm flex-none">
-                <div className="flex items-center h-16 px-4 gap-1">
+                <div className="flex items-center h-16 px-4 gap-1 w-full justify-between">
+                    
                     {/* Left Section */}
                     <div className="flex items-center gap-1">
-
                         {activeHeader === 'main' && (
                             <>
-                                    {/* Back Button (Handled separately due to text label next to icon) */}
+                                    {/* Back Button */}
                                 <Tooltip>
                                     <TooltipTrigger asChild>
                                         <Button
@@ -279,45 +277,41 @@ export function Navbar({ onBack, onRefresh, onAction, onAddTodo,
                                 </Tooltip>
 
                                 <div className="w-px h-6 bg-border mx-1" />
-                                {/* Camera Controls */}
+                                
+                                {/* --- CAMERA CONTROLS DROPDOWN --- */}
                                 <DropdownMenu>
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <DropdownMenuTrigger asChild>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-8 w-12"
-                                                >
-                                                    <Box />
-                                                    <ChevronDown className="h-2 w-2 ml-0.5" />
-                                                </Button>
-                                            </DropdownMenuTrigger>
-                                        </TooltipTrigger>
-                                        <TooltipContent side="bottom">Camera Controls</TooltipContent>
-                                    </Tooltip>
-
-                                    <DropdownMenuContent align="start" className="w-40">
-                                        <DropdownMenuItem>
-                                            <RotateCcw className="mr-2 h-4 w-4" />
-                                            Rotate
+                                    <DropdownMenuTrigger asChild>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className={cn(
+                                                "h-9 w-9",
+                                                cameraMode !== 'orbit'
+                                                    ? "bg-blue-100 text-blue-600 hover:bg-blue-200"
+                                                    : "text-muted-foreground"
+                                            )}
+                                        >
+                                            <CurrentCameraIcon className="h-5 w-5" />
+                                        </Button>
+                                    </DropdownMenuTrigger>
+                                    <DropdownMenuContent align="center">
+                                        <DropdownMenuItem onClick={() => onCameraModeChange?.('orbit')}>
+                                            <Orbit className="mr-2 h-4 w-4" /> Orbit (Rotate)
+                                            {cameraMode === 'orbit' && <Check className="ml-auto h-4 w-4" />}
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem>
-                                            <Eye className="mr-2 h-4 w-4" />
-                                            Pan
+                                        <DropdownMenuItem onClick={() => onCameraModeChange?.('pan')}>
+                                            <Move className="mr-2 h-4 w-4" /> Pan Only
+                                            {cameraMode === 'pan' && <Check className="ml-auto h-4 w-4" />}
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem>
-                                            <Grid3x3 className="mr-2 h-4 w-4" />
-                                            Look around
+                                        <DropdownMenuItem onClick={() => onCameraModeChange?.('look-around')}>
+                                            <Eye className="mr-2 h-4 w-4" /> Look Around
+                                            {cameraMode === 'look-around' && <Check className="ml-auto h-4 w-4" />}
                                         </DropdownMenuItem>
-                                        {/* <DropdownMenuItem>
-                                            <Grid3x3 className="mr-2 h-4 w-4 rotate-90" />
-                                            Walk mode
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem onClick={() => onCameraModeChange?.('walk')}>
+                                            <Footprints className="mr-2 h-4 w-4" /> Walk Mode (WASD)
+                                            {cameraMode === 'walk' && <Check className="ml-auto h-4 w-4" />}
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem>
-                                            <Grid3x3 className="mr-2 h-4 w-4 rotate-90" />
-                                            Path navigation
-                                        </DropdownMenuItem> */}
                                     </DropdownMenuContent>
                                 </DropdownMenu>
 
@@ -327,37 +321,44 @@ export function Navbar({ onBack, onRefresh, onAction, onAddTodo,
                                 {/* Layout Tools */}
                                 <NavIconButton
                                     icon={MousePointer}
-                                    label="Single Selection mode"
-                                    active={selectionMode === 'single'}
-                                    onClick={() => onChangeSelectionMode && onChangeSelectionMode('single')}
+                                    label="Single Selection"
+                                    isActive={selectionMode === 'single'}
+                                    onClick={() => {
+                                        onChangeSelectionMode?.('single');
+                                        onSelectionModeChange?.('single');
+                                    }}
                                 />
 
                                 <NavIconButton
                                     icon={SquareDashed}
-                                    label="Area Selection mode"
-                                    active={selectionMode === 'area'}
-                                    onClick={() => onChangeSelectionMode && onChangeSelectionMode('area')}
+                                    label="Area Selection"
+                                    isActive={selectionMode === 'area'}
+                                    onClick={() => {
+                                        onChangeSelectionMode?.('area');
+                                    }}
                                 />
                                 
                                 <div className="w-px h-6 bg-border mx-1" />
 
                                 <NavIconButton
                                     icon={CopyPlusIcon}
-                                    label="Multiple-select mode"
-                                    active={multiSelectEnabled}
-                                    onClick={() => onToggleMultiSelect?.()}
+                                    label="Multiple Selection"
+                                    isActive={selectionMode === 'multiple' || multiSelectEnabled}
+                                    onClick={() => {
+                                        onToggleMultiSelect?.();
+                                        onSelectionModeChange?.('multiple');
+                                    }}
                                 />                                
                                 
                                 <div className="w-px h-6 bg-border mx-1" />
                                 
-                                {/* perpendicular measurement */}
-                                {clipMode==='none' && !isMeasureActive &&(
-                                    <>
-                                        <DropdownMenu>
-                                            <Tooltip>
-                                                <TooltipTrigger asChild>
-                                                <DropdownMenuTrigger asChild>
-                                                    <Button
+                                {/* MEASUREMENT (Nếu click vào sẽ mở activeHeader measure) */}
+                                {!isMeasureActive &&(
+                                    <DropdownMenu>
+                                        <Tooltip>
+                                            <TooltipTrigger asChild>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button
                                                     variant="ghost"
                                                     size="icon"
                                                     className={`
@@ -367,182 +368,126 @@ export function Navbar({ onBack, onRefresh, onAction, onAddTodo,
                                                         : 'hover:bg-accent'}
                                                     `}
                                                     onClick={() => toggleAction('measure')}
-                                                    >
-                                                    <ActiveMeasureIcon className="h-5 w-5" />
-                                                    <ChevronDown className="h-2 w-2 opacity-70" />
-                                                    </Button>
-                                                </DropdownMenuTrigger>
-                                                </TooltipTrigger>
-                                                <TooltipContent side="bottom">{activeMeasureLabel}</TooltipContent>
-                                            </Tooltip>
+                                                >
+                                                <ActiveMeasureIcon className="h-5 w-5" />
+                                                <ChevronDown className="h-2 w-2 opacity-70" />
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            </TooltipTrigger>
+                                            <TooltipContent side="bottom">{activeMeasureLabel}</TooltipContent>
+                                        </Tooltip>
 
-                                            <DropdownMenuContent align="start" className="w-56">
-                                                {(
-                                                Object.keys(measureMap) as Array<Exclude<MeasureType, null>>
-                                                ).map(type => {
-                                                const Icon = measureMap[type].icon
-                                                return (
-                                                    <DropdownMenuItem
-                                                    key={type}
-                                                    className={measureType === type ? 'bg-accent' : ''}
-                                                    onClick={() => {
-                                                        onMeasureTypeChange?.(type)
-                                                        onMeasureActiveChange?.(true)
-                                                    }}
-                                                    >
-                                                    <Icon className="mr-2 h-4 w-4" />
-                                                    {measureMap[type].label}
-                                                    </DropdownMenuItem>
-                                                )
-                                                })}
-
-                                                <DropdownMenuSeparator />
-
+                                        <DropdownMenuContent align="start" className="w-56">
+                                            {(
+                                            Object.keys(measureMap) as Array<Exclude<MeasureType, null>>
+                                            ).map(type => {
+                                            const Icon = measureMap[type].icon
+                                            return (
                                                 <DropdownMenuItem
-                                                className="text-destructive"
+                                                key={type}
+                                                className={measureType === type ? 'bg-accent' : ''}
                                                 onClick={() => {
-                                                    onMeasureTypeChange?.(null)
-                                                    onMeasureActiveChange?.(false)
-                                                    onClearAllMeasurements?.()
+                                                    onMeasureTypeChange?.(type)
+                                                    onMeasureActiveChange?.(true)
+                                                    onToolSelect?.('measurement')
                                                 }}
                                                 >
-                                                <Trash className="mr-2 h-4 w-4" />
-                                                Delete all measurements
+                                                <Icon className="mr-2 h-4 w-4" />
+                                                {measureMap[type].label}
                                                 </DropdownMenuItem>
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
-                                    </>
+                                            )
+                                            })}
+
+                                            <DropdownMenuSeparator />
+
+                                            <DropdownMenuItem
+                                            className="text-destructive"
+                                            onClick={() => {
+                                                onMeasureTypeChange?.(null)
+                                                onMeasureActiveChange?.(false)
+                                                onClearAllMeasurements?.()
+                                            }}
+                                            >
+                                            <Trash className="mr-2 h-4 w-4" />
+                                            Delete all measurements
+                                            </DropdownMenuItem>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
                                 )}
                                 
-
                                 <NavIconButton
                                     icon={MessageCircleDashed}
                                     label="Add markup"
-                                    active={isActive('markup')}
+                                    isActive={isActive('markup')}
                                     onClick={() => toggleAction('markup')}
                                 />
 
-                                {/* <NavIconButton icon={SquareScissors} label="Clip plane" /> */}
-                                <DropdownMenu>
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                            <DropdownMenuTrigger asChild>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className={`h-8 w-12 flex items-center justify-center gap-1 ${
-                                                        clipMode !== 'none' ? 'bg-accent text-primary' : ''
-                                                    }`}
-                                                    onClick={(e) => {
-                                                        const target = e.target as HTMLElement
-                                                        if (!target.closest('[data-dropdown-arrow]')) {
-                                                            onChangeClipType('plane')
-                                                        }
-                                                    }}
-                                                >
-                                                    <ClipIcon className="h-5 w-5" />
+                                <NavIconButton
+                                    icon={SquareScissors}
+                                    label="Add Clip Plane"
+                                    onClick={() => onToolSelect?.('clipping')}
+                                />
 
-                                                    <span data-dropdown-arrow className="flex items-center">
-                                                        <ChevronDown className="h-2 w-2 ml-0.5" />
-                                                    </span>
-                                                </Button>
-                                            </DropdownMenuTrigger>
-                                        </TooltipTrigger>
-                                        <TooltipContent side="bottom">Clip</TooltipContent>
-                                    </Tooltip>
-
-                                    <DropdownMenuContent align="start" className="w-56">
-                                        <DropdownMenuItem onClick={() => onChangeClipType('plane')}>
-                                            <Scissors className="mr-2 h-4 w-4" />
-                                            Clip plane
-                                        </DropdownMenuItem>
-
-                                        <DropdownMenuItem onClick={() => onChangeClipType('vertical')}>
-                                            <ScissorsLineDashed className="mr-2 h-4 w-4" />
-                                            Vertical clip plane
-                                        </DropdownMenuItem>
-
-                                        <DropdownMenuItem onClick={() => onChangeClipType('box')}>
-                                            <SquareScissors className="mr-2 h-4 w-4" />
-                                            Clip box
-                                        </DropdownMenuItem>
-
-                                        <DropdownMenuSeparator />
-
-                                        <DropdownMenuItem
-                                            className="text-destructive"
-                                            onClick={() =>{onChangeClipType('none')
-                                                onClearAllClips?.()
-                                            }}
-                                        >
-                                            <Trash className="mr-2 h-4 w-4" />
-                                            Delete all clip planes
-                                        </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-
-                                {/*  */}
-                                {/* <NavIconButton icon={CameraIcon} label="Add view" /> */}
                                 <NavIconButton 
                                     icon={CameraIcon} 
-                                    label="Create View" 
+                                    label="Add view" 
                                     onClick={() => {
-                                        // Gọi hàm mở Drawer ở chế độ 'create'
+                                        onAddView?.();
                                         if (onOpenViewDrawer) {
                                             onOpenViewDrawer(null, "create");
                                         }
-                                    }}
+                                    }} 
+                                    isActive={activeTool === 'view'}
                                 />
-                                <NavIconButton icon={ClipboardCheck} label="Add todo" onClick={onAddTodo} />
+                                <NavIconButton icon={ClipboardCheck} label="Add todo" onClick={onAddTodo} isActive={activeTool === 'todo'} />
 
                                 {/* Divider */}
                                 <div className="w-px h-6 bg-border mx-1" />
 
+                                {/* --- VIEW OPTIONS DROPDOWN --- */}
                                 <DropdownMenu>
                                     <Tooltip>
                                         <TooltipTrigger asChild>
                                             <DropdownMenuTrigger asChild>
-                                                <Button
-                                                    variant="ghost"
-                                                    size="icon"
-                                                    className="h-8 w-12"
-                                                >
-                                                    <Box />
+                                                <Button variant="ghost" size="icon" className="h-8 w-12">
+                                                    <Box className="h-5 w-5" />
                                                     <ChevronDown className="h-2 w-2 ml-0.5" />
                                                 </Button>
                                             </DropdownMenuTrigger>
                                         </TooltipTrigger>
-                                        <TooltipContent side="bottom">Perform action</TooltipContent>
+                                        <TooltipContent side="bottom">View Options</TooltipContent>
                                     </Tooltip>
 
                                     <DropdownMenuContent align="start" className="w-40">
-                                        <DropdownMenuItem>
-                                            <RotateCcw className="mr-2 h-4 w-4" />
-                                            Axon View
+                                        <DropdownMenuItem onClick={() => onViewChange?.('axon')}>
+                                            <RotateCcw className="mr-2 h-4 w-4" /> Axon View
+                                            {activeView === 'axon' && <Check className="ml-auto h-4 w-4" />}
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem>
-                                            <Eye className="mr-2 h-4 w-4" />
-                                            Top view
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem onClick={() => onViewChange?.('top')}>
+                                            <ArrowDown className="mr-2 h-4 w-4" /> Top View
+                                            {activeView === 'top' && <Check className="ml-auto h-4 w-4" />}
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem>
-                                            <Grid3x3 className="mr-2 h-4 w-4" />
-                                            Front View
+                                        <DropdownMenuItem onClick={() => onViewChange?.('bottom')}>
+                                            <ArrowUp className="mr-2 h-4 w-4" /> Bottom View
+                                            {activeView === 'bottom' && <Check className="ml-auto h-4 w-4" />}
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem>
-                                            <Grid3x3 className="mr-2 h-4 w-4 rotate-90" />
-                                            Left View
+                                        <DropdownMenuSeparator />
+                                        <DropdownMenuItem onClick={() => onViewChange?.('front')}>
+                                            <Box className="mr-2 h-4 w-4" /> Front View
+                                            {activeView === 'front' && <Check className="ml-auto h-4 w-4" />}
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem>
-                                            <Grid3x3 className="mr-2 h-4 w-4 rotate-90" />
-                                            Back View
+                                        <DropdownMenuItem onClick={() => onViewChange?.('back')}>
+                                            <Box className="mr-2 h-4 w-4 opacity-50" /> Back View
+                                            {activeView === 'back' && <Check className="ml-auto h-4 w-4" />}
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem>
-                                            <Grid3x3 className="mr-2 h-4 w-4 rotate-90" />
-                                            Right View
+                                        <DropdownMenuItem onClick={() => onViewChange?.('left')}>
+                                            <ArrowLeft className="mr-2 h-4 w-4" /> Left View
+                                            {activeView === 'left' && <Check className="ml-auto h-4 w-4" />}
                                         </DropdownMenuItem>
-                                        <DropdownMenuItem>
-                                            <Grid3x3 className="mr-2 h-4 w-4 rotate-90" />
-                                            Bottom View
+                                        <DropdownMenuItem onClick={() => onViewChange?.('right')}>
+                                            <ArrowRight className="mr-2 h-4 w-4" /> Right View
+                                            {activeView === 'right' && <Check className="ml-auto h-4 w-4" />}
                                         </DropdownMenuItem>
                                     </DropdownMenuContent>
                                 </DropdownMenu>
@@ -564,39 +509,30 @@ export function Navbar({ onBack, onRefresh, onAction, onAddTodo,
                                     </Tooltip>
 
                                     <DropdownMenuContent align="start" className="w-56">
-                                        {/* Annotations */}
                                         <DropdownMenuCheckboxItem
                                             checked={viewOptions?.annotations}
                                             onCheckedChange={() => onToggleViewOption?.('annotations')}
                                         >
                                             Annotation
                                         </DropdownMenuCheckboxItem>
-
-                                        {/* Clip planes */}
                                         <DropdownMenuCheckboxItem
                                             checked={viewOptions?.clipPlanes}
                                             onCheckedChange={() => onToggleViewOption?.('clipPlanes')}
                                         >
                                             Clip planes
                                         </DropdownMenuCheckboxItem>
-
-                                        {/* Grids */}
                                         <DropdownMenuCheckboxItem
                                             checked={viewOptions?.grids}
                                             onCheckedChange={() => onToggleViewOption?.('grids')}
                                         >
                                             Grids
                                         </DropdownMenuCheckboxItem>
-
-                                        {/* IFC element types */}
                                         <DropdownMenuCheckboxItem
                                             checked={viewOptions?.ifcTypes}
                                             onCheckedChange={() => onToggleViewOption?.('ifcTypes')}
                                         >
                                             IFC element types
                                         </DropdownMenuCheckboxItem>
-
-                                        {/* Object attachments */}
                                         <DropdownMenuCheckboxItem
                                             checked={viewOptions?.objectAttachments}
                                             onCheckedChange={() => onToggleViewOption?.('objectAttachments')}
@@ -607,6 +543,7 @@ export function Navbar({ onBack, onRefresh, onAction, onAddTodo,
                                 </DropdownMenu>
 
                                 <div className="w-px h-6 bg-border mx-1" />
+
 
                                 {/* --- BUTTON TRANSPARENCY --- */}
                                 <DropdownMenu>
@@ -640,245 +577,14 @@ export function Navbar({ onBack, onRefresh, onAction, onAddTodo,
                                         </div>
                                     </DropdownMenuContent>
                                 </DropdownMenu>
-
-                                <div className="w-px h-6 bg-border mx-1" />
-
-                                <NavIconButton icon={MoreVertical} label="More options" />
                             </>
                         )}
                     </div>
 
-                        {/* --- CLIP MODE TOOLBAR --- */}
-                        {clipMode !== 'none' && !hasActiveVerticalClip &&(
-                            <div className="flex-1 flex items-center justify-center">
-                                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-md border border-slate-200 shadow-sm animate-in fade-in zoom-in-95 duration-200">
-                                {/* ===== CLIP MODE DROPDOWN ===== */}
-                                <DropdownMenu>
-                                    <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <DropdownMenuTrigger asChild>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-8 w-10 flex items-center justify-center gap-0.5 bg-white text-blue-600 hover:bg-blue-50 border border-blue-100 shadow-sm"
-                                        >
-                                            {clipMode === 'plane' && <Scissors className="h-4 w-4" />}
-                                            {clipMode === 'vertical' && <ScissorsLineDashed className="h-4 w-4" />}
-                                            {clipMode === 'box' && <SquareScissors className="h-4 w-4" />}
-                                            <ChevronDown className="h-3 w-3 opacity-50" />
-                                        </Button>
-                                        </DropdownMenuTrigger>
-                                    </TooltipTrigger>
-                                    <TooltipContent side="bottom">Change Clip Mode</TooltipContent>
-                                    </Tooltip>
-
-                                    <DropdownMenuContent align="start" className="w-56">
-                                    <DropdownMenuItem
-                                        onClick={() => {
-                                        onChangeClipType('plane')
-                                        onChangeHoverMode('both')
-                                        }}
-                                    >
-                                        <Scissors className="mr-2 h-4 w-4" />
-                                        Clip plane
-                                    </DropdownMenuItem>
-
-                                    <DropdownMenuItem
-                                        onClick={() => {
-                                        onChangeClipType('vertical')
-                                        onChangeHoverMode('both')
-                                        }}
-                                    >
-                                        <ScissorsLineDashed className="mr-2 h-4 w-4" />
-                                        Vertical clip plane
-                                    </DropdownMenuItem>
-
-                                    <DropdownMenuItem
-                                        onClick={() => {
-                                        onChangeClipType('box')
-                                        }}
-                                    >
-                                        <SquareScissors className="mr-2 h-4 w-4" />
-                                        Clip box
-                                    </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
-
-                                <div className="w-px h-5 bg-slate-300 mx-1" />
-
-                                {(clipMode === 'plane' || clipMode === 'vertical') && (
-                                    <>
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() => onChangeHoverMode('lines')}
-                                            className={`h-8 w-8 transition-all duration-200 ${
-                                            hoverMode === 'lines'
-                                                ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
-                                                : 'text-slate-600 hover:bg-slate-200'
-                                            }`}
-                                        >
-                                            <GitCommitHorizontal className="h-4 w-4" />
-                                        </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>Show lines only</TooltipContent>
-                                    </Tooltip>
-
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() => onChangeHoverMode('faces')}
-                                            className={`h-8 w-8 transition-all duration-200 ${
-                                            hoverMode === 'faces'
-                                                ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
-                                                : 'text-slate-600 hover:bg-slate-200'
-                                            }`}
-                                        >
-                                            <SquareSquare className="h-4 w-4" />
-                                        </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>Show faces only</TooltipContent>
-                                    </Tooltip>
-
-                                    <Tooltip>
-                                        <TooltipTrigger asChild>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            onClick={() => onChangeHoverMode('both')}
-                                            className={`h-8 w-8 transition-all duration-200 ${
-                                            hoverMode === 'both'
-                                                ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
-                                                : 'text-slate-600 hover:bg-slate-200'
-                                            }`}
-                                        >
-                                            <SquareDashed className="h-4 w-4" />
-                                        </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>Show lines & faces</TooltipContent>
-                                    </Tooltip>
-
-                                    <div className="w-px h-5 bg-slate-300 mx-1" />
-                                    </>
-                                )}
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-8 w-8 text-slate-600 hover:bg-slate-200"
-                                            onClick={() => {
-                                                // [THÊM MỚI] Gọi hàm mở Drawer tạo view
-                                                if (onOpenViewDrawer) {
-                                                    onOpenViewDrawer(null, "create");
-                                                }
-                                            }}
-                                        >
-                                            <CameraIcon className="h-4 w-4" />
-                                        </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>Capture view</TooltipContent>
-                                </Tooltip>
-                                <Tooltip>
-                                    <TooltipTrigger asChild>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() => {
-                                            onClearAllClips?.()
-                                        }}
-                                        className="h-8 w-8 text-red-500 hover:bg-red-100 hover:text-red-600"
-                                    >
-                                        <Trash className="h-4 w-4" />
-                                    </Button>
-                                    </TooltipTrigger>
-                                    <TooltipContent>Clear all clips</TooltipContent>
-                                </Tooltip>
-
-                                <div className="w-px h-5 bg-slate-300 mx-1" />
-
-                                <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="h-8 px-3 text-xs font-bold text-slate-600 hover:bg-slate-200 hover:text-slate-900 uppercase tracking-wide"
-                                    onClick={() => onChangeClipType('none')}
-                                >
-                                    Done
-                                </Button>
-
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-8 px-3 text-xs font-semibold text-green-600 border-green-200 hover:bg-green-50"
-                                    onClick={() => {
-                                    setHasActiveVerticalClip?.(true)
-                                    }}
-                                    >
-                                    Preview header 3
-                                </Button>
-
-                                </div>
-                            </div>
-                        )}
-
-                        {clipMode !== 'none' && hasActiveVerticalClip && (
-                            <div className="flex-1 flex items-center justify-center">
-                                <div className="flex items-center justify-center h-12 gap-2 px-4 animate-in fade-in slide-in-from-top-2 duration-200">
-
-                                <span className="text-sm font-medium text-slate-600 mr-2">
-                                    Clip active
-                                </span>
-
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-8"
-                                    onClick={onFlipClipDirection}
-                                >
-                                    Switch direction
-                                </Button>
-
-                                <Button
-                                    size="sm"
-                                    variant="outline"
-                                    className="h-8 text-red-600 border-red-200 hover:bg-red-50"
-                                    onClick={ () => {onClearAllClips?.()}}
-                                >
-                                    <Trash className="h-4 w-4 mr-1" />
-                                    Delete
-                                </Button>
-
-                                <Button
-                                    size="sm"
-                                    variant="default"
-                                    className="h-8"
-                                    onClick={() => onChangeClipType('none')}
-                                >
-                                    Done
-                                </Button>
-                                <Button
-                                    size="sm"
-                                    variant="default"
-                                    className="h-8"
-                                    onClick={() => {
-                                    setHasActiveVerticalClip?.(false)
-                                    }}
-                                    >
-                                    Back
-                                </Button>
-                                </div>
-                            </div>
-                        )}
-                        
-
                         {/* CLIP MODE MEASURE */}
-                        {isMeasureActive && (
-                            <div className="flex-1 flex items-center justify-center animate-in fade-in zoom-in-95 duration-200">
-                                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-md border border-slate-200 shadow-sm">
+                        {isMeasureActive && activeHeader === 'measure' && (
+                            <div className="flex-1 flex items-center justify-center animate-in fade-in zoom-in-95 duration-200 absolute inset-x-0 mx-auto pointer-events-none">
+                                <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-md border border-slate-200 shadow-sm pointer-events-auto">
                                     
                                     {/* 1. Measure Type Selector (Dropdown) */}
                                     <DropdownMenu>
@@ -912,7 +618,6 @@ export function Navbar({ onBack, onRefresh, onAction, onAddTodo,
                                             <TooltipTrigger asChild>
                                                 <DropdownMenuTrigger asChild>
                                                     <Button variant="ghost" size="icon" className="h-8 w-10 hover:bg-slate-200 gap-1 px-1">
-                                                        {/* Hiển thị màu đang chọn (Reactive) */}
                                                         <div 
                                                             className="h-3 w-8 rounded-full ring-1 ring-slate-300 transition-colors duration-200" 
                                                             style={{ backgroundColor: measureColor }}
@@ -965,7 +670,7 @@ export function Navbar({ onBack, onRefresh, onAction, onAddTodo,
                                         <Tooltip>
                                             <TooltipTrigger asChild>
                                                 <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-600 hover:bg-slate-200">
-                                                        <SquareArrowOutDownLeft className="h-4 w-4" />
+                                                    <SquareArrowOutDownLeft className="h-4 w-4" />
                                                 </Button>
                                             </TooltipTrigger>
                                             <TooltipContent>Snap to points</TooltipContent>
@@ -974,7 +679,7 @@ export function Navbar({ onBack, onRefresh, onAction, onAddTodo,
                                         <Tooltip>
                                             <TooltipTrigger asChild>
                                                 <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-600 hover:bg-slate-200">
-                                                        <GitCommitHorizontal className="h-4 w-4" /> 
+                                                    <GitCommitHorizontal className="h-4 w-4" /> 
                                                 </Button>
                                             </TooltipTrigger>
                                             <TooltipContent>Snap to lines</TooltipContent>
@@ -983,7 +688,7 @@ export function Navbar({ onBack, onRefresh, onAction, onAddTodo,
                                         <Tooltip>
                                             <TooltipTrigger asChild>
                                                 <Button variant="ghost" size="icon" className="h-7 w-7 bg-white text-blue-600 shadow-sm">
-                                                        <SquareDashed className="h-4 w-4" /> 
+                                                    <SquareDashed className="h-4 w-4" /> 
                                                 </Button>
                                             </TooltipTrigger>
                                             <TooltipContent>Snap to faces</TooltipContent>
@@ -992,7 +697,7 @@ export function Navbar({ onBack, onRefresh, onAction, onAddTodo,
                                         <Tooltip>
                                             <TooltipTrigger asChild>
                                                 <Button variant="ghost" size="icon" className="h-7 w-7 text-slate-600 hover:bg-slate-200">
-                                                        <CircleDot className="h-4 w-4" />
+                                                    <CircleDot className="h-4 w-4" />
                                                 </Button>
                                             </TooltipTrigger>
                                             <TooltipContent>Snap to center</TooltipContent>
@@ -1009,7 +714,6 @@ export function Navbar({ onBack, onRefresh, onAction, onAddTodo,
                                                 size="icon"
                                                 className="h-8 w-8 text-slate-600 hover:bg-slate-200"
                                                 onClick={() => {
-                                                    // [THÊM MỚI] Gọi hàm mở Drawer tạo view
                                                     if (onOpenViewDrawer) {
                                                         onOpenViewDrawer(null, "create");
                                                     }
@@ -1022,13 +726,13 @@ export function Navbar({ onBack, onRefresh, onAction, onAddTodo,
                                     </Tooltip>
                                     <Tooltip>
                                         <TooltipTrigger asChild>
-                                            <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-600 hover:bg-red-50 hover:text-red-600"
-                                                onClick={() => {
-                                                    onClearAllMeasurements?.()
-                                                }} 
-                                            >
-                                                <Trash className="h-4 w-4" />
-                                            </Button>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8 text-slate-600 hover:bg-red-50 hover:text-red-600"
+                                            onClick={() => {
+                                                onClearAllMeasurements?.()
+                                            }} 
+                                        >
+                                            <Trash className="h-4 w-4" />
+                                        </Button>
                                         </TooltipTrigger>
                                         <TooltipContent>Delete all measurements</TooltipContent>
                                     </Tooltip>
@@ -1041,8 +745,8 @@ export function Navbar({ onBack, onRefresh, onAction, onAddTodo,
                                         size="sm"
                                         className="h-8 px-3 text-xs font-bold text-blue-600 hover:bg-blue-50 uppercase tracking-wide"
                                         onClick={() => {
-                                            onMeasureActiveChange?.(false)
-                                            // onMeasureTypeChange?.(null)
+                                            onMeasureActiveChange?.(false);
+                                            onToolSelect?.(null);
                                         }}
                                     >
                                         Done
@@ -1053,18 +757,10 @@ export function Navbar({ onBack, onRefresh, onAction, onAddTodo,
 
                     {/* ================= RIGHT SECTION ================= */}
                     {activeHeader === 'main' && (
-                        <>
-                        <div className="flex-1" />
-
-                        <div className="flex items-center gap-1">
-                            <div className="w-px h-6 bg-border mx-1" />
-                            <NavIconButton icon={Download} label="Download" />
-                            <NavIconButton icon={Settings} label="Settings" />
+                        <div className="flex items-center gap-1 ml-auto">
                             <NavIconButton icon={Fullscreen} label="Fullscreen" />
                         </div>
-                        </>
                     )}
-
                 </div>
             </nav>
         </TooltipProvider>

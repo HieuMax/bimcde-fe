@@ -1,12 +1,48 @@
+import * as THREE from 'three';
 import { Matrix4, Raycaster, Vector2 } from 'three';
 import { IFCLoader } from 'web-ifc-three/IFCLoader';
 import { acceleratedRaycast, computeBoundsTree, disposeBoundsTree } from 'three-mesh-bvh';
-import { IFCSPACE, IFCOPENINGELEMENT } from 'web-ifc';
-
-import * as THREE from 'three';
+import {
+  IFCWALL, IFCWALLSTANDARDCASE, IFCSLAB, IFCWINDOW, IFCDOOR, IFCCOLUMN, IFCBEAM,
+  IFCROOF, IFCSTAIR, IFCRAMP, IFCRAILING, IFCCURTAINWALL, IFCBUILDINGELEMENTPROXY,
+  IFCPIPESEGMENT, IFCPIPEFITTING, IFCDUCTSEGMENT, IFCDUCTFITTING,
+  IFCFLOWTERMINAL, IFCFLOWCONTROLLER, IFCFLOWFITTING, IFCFLOWSEGMENT,
+  IFCELEMENTASSEMBLY, IFCFURNISHINGELEMENT, IFCMEMBER, IFCPLATE,
+  IFCSPACE, IFCOPENINGELEMENT
+} from 'web-ifc';
+import { TransformControls } from 'three-stdlib';
 import * as BufferGeometryUtils from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
+const IGNORED_TYPES = [
+  IFCSPACE,
+  IFCOPENINGELEMENT,
+  1289199279, // IFCSITE
+  3124254112, // IFCPROJECT
+  1451395588  // IFCBUILDING
+];
+
+const SOLID_TYPES = [
+  IFCWALL, IFCWALLSTANDARDCASE, IFCSLAB, IFCWINDOW, IFCDOOR, IFCCOLUMN, IFCBEAM,
+  IFCROOF, IFCSTAIR, IFCRAMP, IFCRAILING, IFCCURTAINWALL, IFCBUILDINGELEMENTPROXY,
+  IFCPIPESEGMENT, IFCPIPEFITTING, IFCDUCTSEGMENT, IFCDUCTFITTING,
+  IFCFLOWTERMINAL, IFCFLOWCONTROLLER, IFCFLOWFITTING, IFCFLOWSEGMENT,
+  IFCELEMENTASSEMBLY, IFCFURNISHINGELEMENT, IFCMEMBER, IFCPLATE
+];
+
 const yieldToMain = () => new Promise(resolve => setTimeout(resolve, 0));
+const degToRad = (deg) => deg * (Math.PI / 180);
+const radToDeg = (rad) => rad * (180 / Math.PI);
+
+const timeBudget = 12;
+let lastYieldTime = performance.now();
+
+const checkYield = async () => {
+  const now = performance.now();
+  if (now - lastYieldTime > timeBudget) {
+    await new Promise(resolve => setTimeout(resolve, 0));
+    lastYieldTime = performance.now(); // Reset
+  }
+};
 
 export class IfcManager {
   constructor(scene, ifcModels) {
@@ -15,10 +51,20 @@ export class IfcManager {
     this.ifcLoader = new IFCLoader();
     this.ifcLoader.ifcManager.setWasmPath('/wasm/');
 
+    this.raycaster = new Raycaster();
+    this.raycaster.firstHitOnly = true;
+    this.mouse = new Vector2();
+
+    // --- CLIPPING STATE ---
+    this.planes = [];
+    this.planeObjects = [];
+    this.scissorIcons = []
+    this.pendingPlaneMesh = null;
+    this.transformControls = null;
+    this.clipHelpersVisible = true; // Trạng thái visibility của helpers
+
     this.setupLoader();
 
-    // 
-    
     // Tạo material cho việc highlight mặt phẳng (giống Trimble thường là màu xanh lơ, hơi trong suốt)
     this.highlightMaterial = new THREE.MeshBasicMaterial({
       color: 0x00aaff, // Màu xanh dương nhạt
@@ -37,8 +83,35 @@ export class IfcManager {
 
     this.highlightModel = null; // Lưu trữ mesh highlight hiện tại
     this.highlightLines = null; // Lưu trữ lines highlight hiện tại
+    this.currentHighlightId = null;
   }
 
+  // --- VISIBILITY CONTROL (Dev Helpers) ---
+  setClipHelperVisibility(visible) {
+    this.clipHelpersVisible = visible;
+    
+    // Cập nhật mesh của mặt phẳng
+    this.planeObjects.forEach(mesh => {
+        mesh.visible = visible;
+    });
+    
+    // Cập nhật icon cái kéo
+    this.scissorIcons.forEach(icon => {
+        if (!visible) {
+            icon.visible = false;
+        } else {
+            // Nếu đang bật hiển thị thì icon chỉ hiện khi mặt cắt KHÔNG ở trạng thái pending (đang được edit)
+            icon.visible = icon.userData.linkedMesh !== this.pendingPlaneMesh;
+        }
+    });
+    
+    // Cập nhật trục kéo thả (TransformControls)
+    if (this.transformControls && this.pendingPlaneMesh) {
+        this.transformControls.visible = visible;
+    }
+  }
+
+  // --- USER HOVER HIGHLIGHT (Trimble Style) ---
   cast(event, threeCanvas) {
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2();
@@ -73,8 +146,9 @@ export class IfcManager {
     const modelID = found.object.modelID;
 
     if (this.currentHighlightId === id) return;
-    this.currentHighlightId = id;      const subset = this.ifcLoader.ifcManager.createSubset({
-      // ... các tham số cũ giữ nguyên
+    this.currentHighlightId = id;      
+    
+    const subset = this.ifcLoader.ifcManager.createSubset({
       modelID: modelID,
       ids: [id],
       material: this.highlightMaterial,
@@ -83,36 +157,27 @@ export class IfcManager {
       customID: 'highlight-face'
     });
 
-    // 2. Xử lý hình học để tạo Lines "sạch" (Trimble Style)
     // Clone geometry ra để không ảnh hưởng đến cái subset gốc
     let lineGeometry = subset.geometry.clone();
 
-    // --- BƯỚC QUAN TRỌNG NHẤT: HÀN CÁC ĐỈNH LẠI ---
     // Lệnh này sẽ nối các tam giác rời rạc thành một bề mặt liền mạch
-    // Nếu không có bước này, thresholdAngle sẽ vô tác dụng với các file IFC rời rạc.
     lineGeometry = BufferGeometryUtils.mergeVertices(lineGeometry);
-
-    // Tính toán lại pháp tuyến để đảm bảo góc giữa các mặt chính xác
     lineGeometry.computeVertexNormals();
 
-    // 3. Tạo EdgesGeometry với góc ngưỡng
-    const thresholdAngle = 40 * (Math.PI / 180); // Tăng lên 40 độ cho chắc chắn
+    const thresholdAngle = 40 * (Math.PI / 180); 
     const edgesGeometry = new THREE.EdgesGeometry(lineGeometry, thresholdAngle);
 
-    // Xóa lines cũ
     if (this.highlightLines) {
         this.scene.scene.remove(this.highlightLines);
-        this.highlightLines.geometry.dispose(); // Nhớ dispose để tránh leak mem
+        this.highlightLines.geometry.dispose(); 
     }
 
     this.highlightLines = new THREE.LineSegments(edgesGeometry, this.lineMaterial);
 
-    // Copy transform từ subset
     this.highlightLines.position.copy(subset.position);
     this.highlightLines.rotation.copy(subset.rotation);
     this.highlightLines.scale.copy(subset.scale);
 
-    // Render settings
     this.highlightLines.renderOrder = 999;
     this.highlightLines.material.depthTest = false; 
     this.highlightLines.material.depthWrite = false;
@@ -121,10 +186,8 @@ export class IfcManager {
   }
 
   clearHighlight() {
-    // Xóa subset highlight của ifc (dựa vào customID đã đặt ở trên)
     this.ifcLoader.ifcManager.removeSubset(0, this.highlightMaterial, 'highlight-face'); 
     
-    // Xóa đường lines
     if (this.highlightLines) {
       this.scene.scene.remove(this.highlightLines);
       this.highlightLines.geometry.dispose();
@@ -132,7 +195,11 @@ export class IfcManager {
     }
     this.currentHighlightId = null;
   }
-  
+
+  get clippingPlanes() {
+    return [];
+  }
+
   async editSubset(type) {
     const ids = await this.ifcLoader.ifcManager.getAllItemsOfType(0, type, false);
     if (this.remove) this.ifcLoader.ifcManager.removeFromSubset(0, ids);
@@ -164,6 +231,16 @@ export class IfcManager {
     await this.ifcLoader.ifcManager.dispose();
     this.ifcLoader = null;
     this.ifcLoader = new IFCLoader();
+
+    if (this.transformControls) {
+      this.transformControls.dispose();
+      this.scene.remove(this.transformControls);
+    }
+    this.planeObjects.forEach(obj => {
+      this.scene.remove(obj);
+      obj.geometry.dispose();
+      obj.material.dispose();
+    });
 
     await this.setupLoader();
   }
@@ -204,7 +281,7 @@ export class IfcManager {
 
     this.ifcModels.push(ifcModel);
     this.scene.add(ifcModel);
-
+    this.updateModelClipPlanes();
     await this.initializeAllExpressIDs(ifcModel.modelID);
 
     const stop = window.performance.now();
@@ -214,9 +291,6 @@ export class IfcManager {
     return ifcModel;
   }
 
-  /**
-   * Here we support import 1 model at a time -> maybe extend later
-   */
   async clearModels() {
     console.log("Clearing IFC models...");
     if (this.layerMap) this.layerMap.clear();
@@ -251,8 +325,6 @@ export class IfcManager {
           subset.material.dispose();
         }
       }
-      // subset.geometry.dispose();
-      // if (subset.material) subset.material.dispose();
     });
     this.hiddenSubsets.clear();
 
@@ -273,6 +345,9 @@ export class IfcManager {
 
     this.raycaster.setFromCamera(this.mouse, camera);
 
+    const previousFirstHitOnly = this.raycaster.firstHitOnly;
+    this.raycaster.firstHitOnly = false;
+
     const pickTargets = [];
 
     for (const model of this.ifcModels) {
@@ -288,20 +363,45 @@ export class IfcManager {
       }
     }
 
-    if (pickTargets.length === 0) return;
+    if (pickTargets.length === 0) {
+      this.raycaster.firstHitOnly = previousFirstHitOnly;
+      return;
+    }
 
     const intersects = this.raycaster.intersectObjects(pickTargets, false);
+    this.raycaster.firstHitOnly = previousFirstHitOnly;
+
     this.removeHighlight();
     if (intersects.length === 0) return;
 
-    const found = intersects[0];
+    let found = null;
+
+    for (const hit of intersects) {
+      const point = hit.point;
+      let isVisible = true;
+
+      for (const plane of this.planes) {
+        if (plane.distanceToPoint(point) < -0.0001) {
+          isVisible = false;
+          break;
+        }
+      }
+
+      if (isVisible) {
+        found = hit;
+        break;
+      }
+    }
+
+    if (!found) return;
     const faceIndex = found.faceIndex;
     const geometry = found.object.geometry;
 
     const expressID = this.ifcLoader.ifcManager.getExpressId(geometry, faceIndex);
     const modelID = found.object.modelID;
 
-    this.highlight(modelID, expressID);
+    // Use selection highlight from DEV instead of hover highlight
+    this.highlightItems([{ modelID, expressID }]);
 
     return { modelID, expressID };
   }
@@ -335,9 +435,6 @@ export class IfcManager {
       return await this.ifcLoader.ifcManager.getItemProperties(modelID, node.expressID, false);
     };
 
-    /**
-     * Optimize by limiting depth of property fetching -> can be adjusted
-     */
     async function enrichNode(node, depth = 0, maxDepth = 5) {
       let properties = null;
 
@@ -358,17 +455,15 @@ export class IfcManager {
 
     const tree = await enrichNode(rawTree);
     const layers = this.buildLayersFromTree(tree);
-    // console.log('Spatial Tree with flags:', tree);
 
     return {
       tree,
       layers,
     };
-    // return tree;
   }
 
   /**
-   * HIGHLIGHT MANAGEMENT
+   * SELECTION HIGHLIGHT MANAGEMENT (DEV branch)
    */
 
   highlightModelID = null;
@@ -387,10 +482,13 @@ export class IfcManager {
     if (!subset) return;
 
 
+    const model = this.ifcModels.find(m => m.modelID === modelID);
+    const parentMesh = model ? model.mesh : null;
+
     const geometry = subset.geometry.clone();
     const glowMaterial = new THREE.MeshPhongMaterial({
-      color: 0xffff00,
-      emissive: 0xffff00,
+      color: 0xFFFF39,
+      emissive: 0xFFFF39,
       emissiveIntensity: 0.4,
       transparent: true,
       opacity: 0.3,
@@ -400,9 +498,16 @@ export class IfcManager {
     });
 
     const glowMesh = new THREE.Mesh(geometry, glowMaterial);
-    glowMesh.position.copy(subset.position);
-    glowMesh.rotation.copy(subset.rotation);
-    glowMesh.scale.copy(subset.scale);
+    if (parentMesh) {
+      glowMesh.position.copy(parentMesh.position);
+      glowMesh.rotation.copy(parentMesh.rotation);
+      glowMesh.scale.copy(parentMesh.scale);
+      glowMesh.updateMatrixWorld(true);
+    } else {
+      glowMesh.position.copy(subset.position);
+      glowMesh.rotation.copy(subset.rotation);
+      glowMesh.scale.copy(subset.scale);
+    }
 
     glowMesh.userData = { isHighlight: true, modelID };
 
@@ -419,70 +524,19 @@ export class IfcManager {
     });
 
     const edgesMesh = new THREE.LineSegments(edgesGeom, edgeMaterial);
-    edgesMesh.position.copy(subset.position);
-    edgesMesh.rotation.copy(subset.rotation);
-    edgesMesh.scale.copy(subset.scale);
-
+    if (parentMesh) {
+      edgesMesh.position.copy(parentMesh.position);
+      edgesMesh.rotation.copy(parentMesh.rotation);
+      edgesMesh.scale.copy(parentMesh.scale);
+      edgesMesh.updateMatrixWorld(true);
+    } else {
+      edgesMesh.position.copy(subset.position);
+      edgesMesh.rotation.copy(subset.rotation);
+      edgesMesh.scale.copy(subset.scale);
+    }
+    edgesMesh.userData = { isHighlight: true, modelID };
     this.scene.add(edgesMesh);
     this.highlightMeshes.push(edgesMesh);
-  }
-
-  // async highlight(modelID, expressID) {
-  //   this.removeHighlight();
-
-  //   this.highlightModelID = modelID;
-  //   this.highlightExpressID = expressID;
-
-  //   const subset = this.ifcLoader.ifcManager.createSubset({
-  //     modelID,
-  //     ids: [expressID],
-  //     applyBVH: true,
-  //     removePrevious: true,
-  //   });
-
-  //   if (!subset) return;
-
-  //   const geometry = subset.geometry.clone();
-
-  //   const glowMaterial = new THREE.MeshPhongMaterial({
-  //     color: 0xffff00,
-  //     emissive: 0xffff00,
-  //     emissiveIntensity: 0.4,
-  //     transparent: true,
-  //     opacity: 0.3,
-  //     depthTest: false,
-  //     side: THREE.DoubleSide,
-  //     wireframe: false,
-  //   });
-
-  //   const glowMesh = new THREE.Mesh(geometry, glowMaterial);
-  //   glowMesh.position.copy(subset.position);
-  //   glowMesh.rotation.copy(subset.rotation);
-  //   glowMesh.scale.copy(subset.scale);
-  //   this.scene.add(glowMesh);
-  //   this.highlightMeshes.push(glowMesh);
-
-  //   const edgesGeom = new THREE.EdgesGeometry(geometry, 25);
-  //   const edgeMaterial = new THREE.LineBasicMaterial({
-  //     color: 0xffff00,
-  //     transparent: true,
-  //     opacity: 0.8,
-  //     depthTest: false,
-  //     linewidth: 3,
-  //   });
-
-  //   const edgesMesh = new THREE.LineSegments(edgesGeom, edgeMaterial);
-  //   edgesMesh.position.copy(subset.position);
-  //   edgesMesh.rotation.copy(subset.rotation);
-  //   edgesMesh.scale.copy(subset.scale);
-  //   this.scene.add(edgesMesh);
-  //   this.highlightMeshes.push(edgesMesh);
-
-  //   this.rebuildSubset(modelID);
-  // }
-
-  async highlight(modelID, expressID) {
-    await this.highlightItems([{ modelID, expressID }]);
   }
 
   async highlightItems(items) {
@@ -490,7 +544,6 @@ export class IfcManager {
     this.removeHighlight();
 
     if (!items || items.length === 0) return;
-
 
     const itemsByModel = {};
 
@@ -504,7 +557,6 @@ export class IfcManager {
         itemsByModel[mId].push(eId);
       }
     });
-
 
     for (const modelIDStr in itemsByModel) {
       const modelID = parseInt(modelIDStr);
@@ -608,12 +660,6 @@ export class IfcManager {
     const hiddenSet = this.hiddenExpressIDs.get(modelID);
     const isModelHidden = this.modelHidden.get(modelID) === true;
 
-    // const oldSubset = this.hiddenSubsets.get(modelID);
-    // if (oldSubset) {
-    //   this.scene.remove(oldSubset);
-    //   oldSubset.geometry.dispose();
-    //   this.hiddenSubsets.delete(modelID);
-    // }
     const oldSubset = this.hiddenSubsets.get(modelID);
     if (oldSubset) {
       this.scene.remove(oldSubset);
@@ -644,6 +690,13 @@ export class IfcManager {
       removePrevious: true,
       applyBVH: true,
     });
+
+    if (model.mesh) {
+      subset.position.copy(model.mesh.position);
+      subset.rotation.copy(model.mesh.rotation);
+      subset.scale.copy(model.mesh.scale);
+      subset.updateMatrixWorld(true);
+    }
 
     model.mesh.visible = false;
     subset.visible = !isModelHidden;
@@ -771,14 +824,6 @@ export class IfcManager {
     this.modelHidden.clear()
 
     modelsToReset.forEach(modelID => this.rebuildSubset(modelID));
-
-    // if (!savedState || !Array.isArray(savedState)) return;
-
-    // for (const item of savedState) {
-    //   const { modelID, ids } = item;
-    //   this.hiddenExpressIDs.set(modelID, new Set(ids));
-    //   this.rebuildSubset(modelID);
-    // }
 
     modelsToReset.forEach(modelID => {
       const model = this.ifcModels.find(m => m.modelID === modelID);
@@ -1159,16 +1204,6 @@ export class IfcManager {
     return "N/A";
   }
 
-
-
-
-
-
-
-
-
-
-
   // --------------------------------
   // DATA TABLE
   // --------------------------------
@@ -1236,8 +1271,6 @@ export class IfcManager {
     return results;
   }
 
-
-
   async getAllUniquePropertyNames(visibleItems) {
     const uniqueKeys = new Set();
 
@@ -1245,7 +1278,6 @@ export class IfcManager {
     uniqueKeys.add("Presentation Layers.Layer");
     uniqueKeys.add("Reference Object.Name");
     uniqueKeys.add("Reference Object.File Name");
-
 
     const sampleSize = Math.min(visibleItems.length, 15);
     const step = Math.floor(visibleItems.length / sampleSize) || 1;
@@ -1269,10 +1301,6 @@ export class IfcManager {
 
     return Array.from(uniqueKeys).sort();
   }
-
-
-
-
 
   /**
    * --- MODEL TRANSPARENCY ---
@@ -1316,5 +1344,753 @@ export class IfcManager {
         mat.needsUpdate = true;
       });
     });
+  }
+
+  /**
+   * --- MODEL TRANSFORM (Move / Rotate / Scale) ---
+   */
+  getModelTransform(modelID) {
+    const model = this.ifcModels.find(m => m.modelID === modelID);
+    if (!model || !model.mesh) return null;
+
+    const m = model.mesh;
+
+    return {
+      position: {
+        x: m.position.x,
+        y: m.position.y,
+        z: m.position.z
+      },
+      rotation: {
+        x: radToDeg(m.rotation.x),
+        y: radToDeg(m.rotation.y),
+        z: radToDeg(m.rotation.z)
+      },
+      scale: m.scale.x
+    };
+  }
+
+  setModelTransform(modelID, data) {
+    const targetModelID = parseInt(modelID);
+
+    const model = this.ifcModels.find(m => m.modelID === targetModelID);
+    if (!model || !model.mesh) return;
+
+    const m = model.mesh;
+
+    // 1. Position
+    if (data.position) {
+      m.position.set(
+        parseFloat(data.position.x),
+        parseFloat(data.position.y),
+        parseFloat(data.position.z)
+      );
+    }
+
+    // 2. Rotation
+    if (data.rotation) {
+      m.rotation.set(
+        degToRad(parseFloat(data.rotation.x)),
+        degToRad(parseFloat(data.rotation.y)),
+        degToRad(parseFloat(data.rotation.z))
+      );
+    }
+
+    // 3. Scale
+    if (data.scale) {
+      const s = parseFloat(data.scale);
+      m.scale.set(s, s, s);
+    }
+
+    // 4. Update Matrix 
+    m.updateMatrixWorld(true);
+
+    this.highlightMeshes.forEach(mesh => {
+      if (mesh.userData.modelID === modelID) {
+        mesh.position.copy(m.position);
+        mesh.rotation.copy(m.rotation);
+        mesh.scale.copy(m.scale);
+        mesh.updateMatrixWorld(true);
+      }
+    });
+
+    const subset = this.hiddenSubsets.get(modelID);
+    if (subset) {
+      subset.position.copy(m.position);
+      subset.rotation.copy(m.rotation);
+      subset.scale.copy(m.scale);
+      subset.updateMatrixWorld(true);
+    }
+  }
+
+  getAllModelsTransform() {
+    return this.ifcModels.map(m => {
+      if (!m.mesh) return null;
+      return {
+        modelID: m.modelID,
+        fileUrl: m.url,
+        position: { x: m.mesh.position.x, y: m.mesh.position.y, z: m.mesh.position.z },
+        rotation: { x: m.mesh.rotation.x, y: m.mesh.rotation.y, z: m.mesh.rotation.z },
+        scale: m.mesh.scale.x
+      };
+    }).filter(item => item !== null);
+  }
+
+  restoreAllModelsTransform(transforms) {
+    if (!transforms || !Array.isArray(transforms)) return;
+
+    transforms.forEach(t => {
+      const model = this.ifcModels.find(m => m.url === t.fileUrl);
+      if (model && model.mesh) {
+        model.mesh.position.set(t.position.x, t.position.y, t.position.z);
+        model.mesh.rotation.set(t.rotation.x, t.rotation.y, t.rotation.z);
+        model.mesh.scale.set(t.scale, t.scale, t.scale);
+        model.mesh.updateMatrixWorld(true);
+      }
+    });
+  }
+
+  // =========================================================================
+  // CLASH DETECTION ENGINE
+  // =========================================================================
+
+  _getPreciseBoundingBox(mesh, matrixWorld) {
+    const geometry = mesh.geometry;
+    const index = geometry.index;
+    const position = geometry.attributes.position;
+
+    const min = new THREE.Vector3(Infinity, Infinity, Infinity);
+    const max = new THREE.Vector3(-Infinity, -Infinity, -Infinity);
+    const v = new THREE.Vector3();
+
+    if (index) {
+      for (let i = 0; i < index.count; i++) {
+        const idx = index.getX(i);
+        v.fromBufferAttribute(position, idx);
+        v.applyMatrix4(matrixWorld);
+
+        min.min(v);
+        max.max(v);
+      }
+    }
+    else {
+      for (let i = 0; i < position.count; i++) {
+        v.fromBufferAttribute(position, i);
+        v.applyMatrix4(matrixWorld);
+
+        min.min(v);
+        max.max(v);
+      }
+    }
+
+    const bbox = new THREE.Box3(min, max);
+    const size = new THREE.Vector3();
+    bbox.getSize(size);
+
+    // Validation
+    const maxDim = Math.max(size.x, size.y, size.z);
+    const minDim = Math.min(size.x, size.y, size.z);
+
+    if (bbox.isEmpty() || maxDim < 0.001 || maxDim > 10000.0) return null;
+
+    return { bbox, size, minThickness: minDim };
+  }
+
+  async runClashTest(modelIDs, tolerance = 0.01, onProgress) {
+    console.time("ClashTest");
+    console.log("🚀 Starting Precise Clash Test (Verify Phase Added)...", modelIDs);
+
+    if (!modelIDs || modelIDs.length < 2) return [];
+
+    const itemsCache = {};
+    const candidates = [];
+    const confirmedClashes = [];
+    let totalItemsToScan = 0;
+
+    // =========================================================
+    // PHASE 1: SCANNING BOUNDS
+    // =========================================================
+    if (onProgress) onProgress(0, "Phase 1: Scanning Geometry...");
+
+    for (const id of modelIDs) {
+      const modelID = parseInt(id);
+      const model = this.ifcModels.find(m => m.modelID === modelID);
+      if (!model) continue;
+
+      // Force update world matrix
+      if (model.mesh) model.mesh.updateMatrixWorld(true);
+
+      itemsCache[modelID] = [];
+      const solidIDs = [];
+
+      for (const type of SOLID_TYPES) {
+        if (IGNORED_TYPES.includes(type)) continue;
+        try {
+          const ids = await this.ifcLoader.ifcManager.getAllItemsOfType(modelID, type, false);
+          if (ids && ids.length > 0) solidIDs.push(...ids);
+        } catch (e) { }
+      }
+
+      model._solidExpressIDs = [...new Set(solidIDs)];
+      totalItemsToScan += model._solidExpressIDs.length;
+    }
+
+    if (totalItemsToScan === 0) return [];
+
+    let processedCount = 0;
+
+    for (const id of modelIDs) {
+      const modelID = parseInt(id);
+      const model = this.ifcModels.find(m => m.modelID === modelID);
+      const validIDs = model._solidExpressIDs || [];
+
+      for (let i = 0; i < validIDs.length; i++) {
+        const expressID = validIDs[i];
+        const customID = `scan_${modelID}_${expressID}`;
+
+        const subset = this.ifcLoader.ifcManager.createSubset({
+          modelID, ids: [expressID], removePrevious: true,
+          customID: customID, applyBVH: false
+        });
+
+        if (subset && subset.geometry) {
+          const data = this._getPreciseBoundingBox(subset, model.mesh.matrixWorld);
+
+          if (data) {
+            itemsCache[modelID].push({
+              modelID, expressID,
+              bbox: data.bbox,
+              size: data.size,
+              minThickness: data.minThickness,
+              matrixWorld: model.mesh.matrixWorld
+            });
+          }
+        }
+        this.ifcLoader.ifcManager.removeSubset(modelID, undefined, customID);
+
+        processedCount++;
+        if (processedCount % 100 === 0) {
+          const percent = Math.round((processedCount / totalItemsToScan) * 30);
+          if (onProgress) onProgress(percent, `Scanning Bounds...`);
+          await checkYield();
+        }
+      }
+    }
+
+    console.log("Phase 1 Done. Valid Items:", Object.values(itemsCache).reduce((a, b) => a + b.length, 0));
+
+    // =========================================================
+    // PHASE 2: FIND CANDIDATES (AABB OVERLAP)
+    // =========================================================
+    const uniquePairs = [];
+    for (let i = 0; i < modelIDs.length; i++) {
+      for (let j = i + 1; j < modelIDs.length; j++) {
+        uniquePairs.push([modelIDs[i], modelIDs[j]]);
+      }
+    }
+
+    for (const [idA, idB] of uniquePairs) {
+      const listA = itemsCache[parseInt(idA)] || [];
+      const listB = itemsCache[parseInt(idB)] || [];
+
+      for (const itemA of listA) {
+        for (const itemB of listB) {
+          const boxAExpanded = itemA.bbox.clone().expandByScalar(-tolerance);
+          if (boxAExpanded.intersectsBox(itemB.bbox)) {
+            candidates.push({ itemA, itemB });
+          }
+        }
+      }
+    }
+
+    console.log(`Phase 2 Done. Potential Candidates: ${candidates.length}`);
+    if (onProgress) onProgress(30, `Verifying ${candidates.length} candidates...`);
+
+    // =========================================================
+    // PHASE 3: VERIFY GEOMETRY
+    // =========================================================
+
+    const totalCandidates = candidates.length;
+    let falsePositives = 0;
+
+    for (let i = 0; i < totalCandidates; i++) {
+      const { itemA, itemB } = candidates[i];
+      const idGeoA = `verify_A_${i}_${Math.random()}`;
+      const idGeoB = `verify_B_${i}_${Math.random()}`;
+
+      const meshA = this.ifcLoader.ifcManager.createSubset({
+        modelID: itemA.modelID, ids: [itemA.expressID], removePrevious: true,
+        customID: idGeoA, applyBVH: true
+      });
+
+      const meshB = this.ifcLoader.ifcManager.createSubset({
+        modelID: itemB.modelID, ids: [itemB.expressID], removePrevious: true,
+        customID: idGeoB, applyBVH: true
+      });
+
+      if (meshA && meshB && meshA.geometry && meshB.geometry) {
+
+        if (!meshA.geometry.boundsTree) meshA.geometry.computeBoundsTree();
+        if (!meshB.geometry.boundsTree) meshB.geometry.computeBoundsTree();
+
+        const matA = itemA.matrixWorld;
+        const matB = itemB.matrixWorld;
+
+        const isClashing = meshA.geometry.boundsTree.intersectsGeometry(
+          meshB.geometry,
+          matA.clone().invert().multiply(matB)
+        );
+
+        if (!isClashing) {
+          falsePositives++;
+        }
+        else {
+          const boxA = itemA.bbox;
+          const boxB = itemB.bbox;
+
+          const xOverlap = Math.max(0, Math.min(boxA.max.x, boxB.max.x) - Math.max(boxA.min.x, boxB.min.x));
+          const yOverlap = Math.max(0, Math.min(boxA.max.y, boxB.max.y) - Math.max(boxA.min.y, boxB.min.y));
+          const zOverlap = Math.max(0, Math.min(boxA.max.z, boxB.max.z) - Math.max(boxA.min.z, boxB.min.z));
+
+          let rawPenetration = Math.min(xOverlap, yOverlap, zOverlap);
+          if (xOverlap < 0.0001 || yOverlap < 0.0001 || zOverlap < 0.0001) rawPenetration = 0;
+
+          const minThickness = Math.min(itemA.minThickness, itemB.minThickness);
+          const penetration = Math.min(rawPenetration, minThickness);
+
+          let distanceStr = "";
+          let clashPoint = new THREE.Vector3();
+
+          if (penetration > 0.0001) {
+            distanceStr = "-" + penetration.toFixed(3) + "m";
+            const intersectBox = boxA.clone().intersect(boxB);
+            if (!intersectBox.isEmpty()) intersectBox.getCenter(clashPoint);
+            else clashPoint.addVectors(boxA.getCenter(new THREE.Vector3()), boxB.getCenter(new THREE.Vector3())).multiplyScalar(0.5);
+          } else {
+            const cA = new THREE.Vector3(); boxA.getCenter(cA);
+            const cB = new THREE.Vector3(); boxB.getCenter(cB);
+            const dist = cA.distanceTo(cB);
+            distanceStr = dist.toFixed(3) + "m";
+            clashPoint.addVectors(cA, cB).multiplyScalar(0.5);
+          }
+
+          confirmedClashes.push({
+            name: `Clash #${confirmedClashes.length + 1}`,
+            distance: distanceStr,
+            status: "Active",
+            item1: { modelID: itemA.modelID, expressID: itemA.expressID },
+            item2: { modelID: itemB.modelID, expressID: itemB.expressID },
+            point: { x: clashPoint.x, y: clashPoint.y, z: clashPoint.z }
+          });
+        }
+      }
+
+      this.ifcLoader.ifcManager.removeSubset(itemA.modelID, undefined, idGeoA);
+      this.ifcLoader.ifcManager.removeSubset(itemB.modelID, undefined, idGeoB);
+
+      if (i % 20 === 0) {
+        const percent = 30 + Math.round((i / totalCandidates) * 70);
+        if (onProgress) onProgress(percent, `Verifying (${i}/${totalCandidates}) - Ignored ${falsePositives} false positives...`);
+        await checkYield();
+      }
+    }
+
+    if (onProgress) onProgress(100, "Done");
+    console.log(`Clash detection finished. Real Clashes: ${confirmedClashes.length} (Filtered ${falsePositives} false positives)`);
+    console.timeEnd("ClashTest");
+
+    return confirmedClashes;
+  }
+
+  // =========================================================================
+  // CLIPPING
+  // =========================================================================
+
+  updateModelClipPlanes() {
+    for (const model of this.ifcModels) {
+      if (model.mesh && model.mesh.material) {
+        const materials = Array.isArray(model.mesh.material) ? model.mesh.material : [model.mesh.material];
+        materials.forEach(mat => {
+          mat.clippingPlanes = this.clipHelpersVisible ? this.planes : [];
+          mat.needsUpdate = true;
+        });
+      }
+    }
+  }
+
+  toggleClipping(active, camera, renderer) {
+    renderer.localClippingEnabled = true;
+
+    if (active) {
+      if (!this.transformControls) {
+        if (typeof TransformControls === 'undefined') return;
+        this.transformControls = new TransformControls(camera, renderer.domElement);
+        this.transformControls.addEventListener('change', () => this.updateClippingPlanes());
+        this.transformControls.addEventListener('dragging-changed', (event) => { });
+        this.scene.add(this.transformControls);
+      }
+
+      if (this.pendingPlaneMesh) {
+        this.transformControls.attach(this.pendingPlaneMesh);
+        this.transformControls.visible = this.clipHelpersVisible;
+      }
+    } else {
+      if (this.transformControls) {
+        this.transformControls.detach();
+        this.transformControls.visible = false;
+      }
+      this.cancelCurrentClipping();
+    }
+  }
+
+  createCanvasIcon() {
+    const canvas = document.createElement('canvas');
+    canvas.width = 128;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+
+    ctx.beginPath();
+    ctx.arc(64, 64, 50, 0, 2 * Math.PI);
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.fill();
+
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = '#000000';
+    ctx.stroke();
+
+    ctx.font = "80px Arial";
+    ctx.fillStyle = "#000000";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("✂", 64, 70);
+
+    const texture = new THREE.CanvasTexture(canvas);
+    const material = new THREE.SpriteMaterial({
+      map: texture,
+      depthTest: false,
+      depthWrite: false,
+      clippingPlanes: []
+    });
+
+    const sprite = new THREE.Sprite(material);
+    sprite.renderOrder = 9999;
+    sprite.userData.isIcon = true;
+
+    return sprite;
+  }
+
+  createPlaneFromIntersection(intersection) {
+    this.removePendingPlane();
+
+    const normal = intersection.face.normal.clone().applyQuaternion(intersection.object.quaternion).negate();
+    const constant = -intersection.point.dot(normal);
+
+    const plane = new THREE.Plane(normal, constant);
+    this.planes.push(plane);
+    this.updateModelClipPlanes();
+
+    const size = 30;
+    const geom = new THREE.PlaneGeometry(size, size);
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0xffff00,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.3,
+      depthWrite: false,
+      depthTest: false,
+      clippingPlanes: []
+    });
+
+    const mesh = new THREE.Mesh(geom, mat);
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
+
+    // Offset
+    const offset = 0.1;
+    const visualPosition = normal.clone().multiplyScalar(-constant).add(normal.clone().multiplyScalar(offset));
+
+    mesh.lookAt(normal);
+    mesh.position.copy(visualPosition);
+    mesh.userData.plane = plane;
+    mesh.isPlaneHelper = true;
+    mesh.renderOrder = 1000;
+    mesh.visible = this.clipHelpersVisible;
+
+    const edgesGeom = new THREE.EdgesGeometry(geom);
+    const edgeMaterial = new THREE.LineBasicMaterial({
+      color: 0xffff00, transparent: true, opacity: 1.0,
+      depthTest: false, depthWrite: false, clippingPlanes: []
+    });
+    const edgesMesh = new THREE.LineSegments(edgesGeom, edgeMaterial);
+    mesh.userData.border = edgesMesh;
+    mesh.add(edgesMesh);
+
+    const icon = this.createCanvasIcon();
+    icon.position.copy(visualPosition);
+    icon.visible = false; 
+
+    mesh.userData.linkedIcon = icon;
+    mesh.userData.icon = icon;
+    icon.userData.linkedMesh = mesh;
+
+    this.scene.add(mesh);
+    this.scene.add(icon);
+
+    this.scissorIcons.push(icon);
+
+    this.planeObjects.push(mesh);
+
+    if (!this.iconObjects) this.iconObjects = [];
+    this.iconObjects.push(icon);
+    this.pendingPlaneMesh = mesh;
+
+    if (this.transformControls) {
+      this.transformControls.attach(mesh);
+      this.transformControls.visible = this.clipHelpersVisible;
+    }
+  }
+
+  saveCurrentClipping() {
+    if (this.pendingPlaneMesh) {
+      const mesh = this.pendingPlaneMesh;
+      const icon = mesh.userData.linkedIcon;
+
+      if (this.transformControls) {
+        this.transformControls.detach();
+        this.transformControls.visible = false;
+      }
+
+      mesh.material.visible = false;
+
+      if (icon && this.clipHelpersVisible) {
+          icon.visible = true;
+      }
+
+      this.pendingPlaneMesh = null;
+    }
+  }
+
+  editPlane(mesh) {
+    this.cancelCurrentClipping();
+
+    const icon = mesh.userData.linkedIcon;
+
+    mesh.visible = this.clipHelpersVisible;
+    mesh.material.opacity = 0.3;
+    mesh.material.visible = true;
+
+    if (icon) icon.visible = false;
+
+    this.pendingPlaneMesh = mesh;
+
+    if (this.transformControls) {
+      this.transformControls.attach(mesh);
+      this.transformControls.visible = this.clipHelpersVisible;
+    }
+  }
+
+  pickClipPlane(event, camera, renderer) {
+    const bounds = renderer.domElement.getBoundingClientRect();
+    this.mouse.x = ((event.clientX - bounds.left) / bounds.width) * 2 - 1;
+    this.mouse.y = -((event.clientY - bounds.top) / bounds.height) * 2 + 1;
+
+    this.raycaster.setFromCamera(this.mouse, camera);
+
+    const visibleIcons = this.scissorIcons.filter(icon => icon.visible);
+    const iconIntersects = this.raycaster.intersectObjects(visibleIcons, false);
+
+    if (iconIntersects.length > 0) {
+      const icon = iconIntersects[0].object;
+      return icon.userData.linkedMesh;
+    }
+
+    const visibleMeshes = this.planeObjects.filter(m => m.material.visible);
+    const meshIntersects = this.raycaster.intersectObjects(visibleMeshes, false);
+
+    if (meshIntersects.length > 0) {
+      return meshIntersects[0].object;
+    }
+
+    return null;
+  }
+
+  updateClippingPlanes() {
+    if (this.pendingPlaneMesh) {
+      const mesh = this.pendingPlaneMesh;
+      const plane = mesh.userData.plane;
+
+      const icon = mesh.userData.linkedIcon;
+      if (plane) {
+        const normal = new THREE.Vector3(0, 0, 1).applyQuaternion(mesh.quaternion);
+        const constant = -mesh.position.dot(normal) + 0.1;
+        plane.normal.copy(normal);
+        plane.constant = constant;
+      }
+
+      if (icon) {
+        icon.position.copy(mesh.position);
+      }
+    }
+  }
+
+  cancelCurrentClipping() {
+    if (this.pendingPlaneMesh) {
+      this.removePlane(this.pendingPlaneMesh);
+      this.pendingPlaneMesh = null;
+    }
+    if (this.transformControls) {
+      this.transformControls.detach();
+      this.transformControls.visible = false;
+    }
+  }
+
+  removePendingPlane() {
+    if (this.pendingPlaneMesh) {
+      this.removePlane(this.pendingPlaneMesh);
+      this.pendingPlaneMesh = null;
+    }
+  }
+
+  removePlane(mesh) {
+    this.scene.remove(mesh);
+    if (mesh.geometry) mesh.geometry.dispose();
+    if (mesh.material) mesh.material.dispose();
+
+    const icon = mesh.userData.linkedIcon;
+    if (icon) {
+      this.scene.remove(icon);
+      if (icon.material) icon.material.dispose();
+      if (this.iconObjects) {
+        this.iconObjects = this.iconObjects.filter(i => i !== icon);
+        this.updateModelClipPlanes();
+      }
+    }
+
+    if (mesh.userData.icon) {
+      this.scissorIcons = this.scissorIcons.filter(i => i !== mesh.userData.icon);
+    }
+
+    this.planeObjects = this.planeObjects.filter(p => p !== mesh);
+
+    const plane = mesh.userData.plane;
+    if (plane) {
+      this.planes = this.planes.filter(p => p !== plane);
+      this.updateModelClipPlanes();
+    }
+  }
+
+  deleteAllPlanes() {
+    this.planeObjects.forEach(obj => {
+      this.scene.remove(obj);
+      if (obj.userData.linkedIcon) this.scene.remove(obj.userData.linkedIcon);
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) obj.material.dispose();
+    });
+    this.planeObjects = [];
+    this.iconObjects = [];
+    this.scissorIcons = [];
+    this.planes = [];
+    this.pendingPlaneMesh = null;
+    this.updateModelClipPlanes();
+    if (this.transformControls) this.transformControls.detach();
+  }
+
+  restoreClippingState(planesData) {
+    this.deleteAllPlanes();
+    if (!planesData || planesData.length === 0) return;
+    planesData.forEach(pData => {
+      const normal = new THREE.Vector3().fromArray(pData.normal);
+      this.createClippingPlane(normal, pData.constant);
+    });
+  }
+
+  createClippingPlane(normal, constant) {
+    const plane = new THREE.Plane(normal, constant);
+    this.planes.push(plane);
+    this.updateModelClipPlanes();
+    const size = 30;
+    const geom = new THREE.PlaneGeometry(size, size);
+
+    const mat = new THREE.MeshBasicMaterial({
+      color: 0xffff00,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.3,
+      depthWrite: false,
+      depthTest: false,
+      clippingPlanes: []
+    });
+    mat.visible = false;
+    const mesh = new THREE.Mesh(geom, mat);
+    mesh.castShadow = false;
+    mesh.receiveShadow = false;
+
+    // Offset
+    const offset = 0.1;
+    const visualPosition = normal.clone().multiplyScalar(-constant).add(normal.clone().multiplyScalar(offset));
+
+    mesh.lookAt(normal);
+    mesh.position.copy(visualPosition);
+    mesh.userData.plane = plane;
+    mesh.isPlaneHelper = true;
+    mesh.renderOrder = 1000;
+    mesh.visible = this.clipHelpersVisible;
+
+    const edgesGeom = new THREE.EdgesGeometry(geom);
+    const edgeMaterial = new THREE.LineBasicMaterial({
+      color: 0xffff00,
+      transparent: true,
+      opacity: 1.0,
+      depthTest: false,
+      depthWrite: false,
+      clippingPlanes: []
+    });
+    const edgesMesh = new THREE.LineSegments(edgesGeom, edgeMaterial);
+    mesh.userData.border = edgesMesh;
+    mesh.add(edgesMesh);
+
+    const icon = this.createCanvasIcon();
+    icon.position.copy(visualPosition);
+    icon.visible = this.clipHelpersVisible;
+
+    // Link
+    mesh.userData.linkedIcon = icon;
+    mesh.userData.icon = icon;
+    icon.userData.linkedMesh = mesh;
+
+    this.scene.add(mesh);
+    this.scene.add(icon);
+
+    this.scissorIcons.push(icon);
+
+    this.planeObjects.push(mesh);
+    if (!this.iconObjects) this.iconObjects = [];
+    this.iconObjects.push(icon);
+  }
+
+  handleClippingClick(event, camera, renderer) {
+    const bounds = renderer.domElement.getBoundingClientRect();
+    const mouse = new Vector2();
+    mouse.x = ((event.clientX - bounds.left) / bounds.width) * 2 - 1;
+    mouse.y = -((event.clientY - bounds.top) / bounds.height) * 2 + 1;
+
+    this.raycaster.setFromCamera(mouse, camera);
+
+    const models = this.ifcModels.map(m => m.mesh).filter(m => m && m.visible);
+    const intersects = this.raycaster.intersectObjects(models, true);
+
+    if (intersects.length > 0) {
+      const hit = intersects[0];
+      this.createPlaneFromIntersection(hit);
+    }
+  }
+
+  getClippingState() {
+    if (this.planes.length === 0) return null;
+
+    return this.planes.map(p => ({
+      normal: p.normal.toArray(),
+      constant: p.constant
+    }));
   }
 }
