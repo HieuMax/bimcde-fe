@@ -1,59 +1,130 @@
-export interface ICamera {
-  position: { x: number; y: number; z: number };
-  target: { x: number; y: number; z: number };
-  up: { x: number; y: number; z: number };
-  projection: "ORTHO" | "PERSPECTIVE";
-  zoom?: number;
+
+export interface IPoint {
+  x: number;
+  y: number;
 }
 
-export interface ISectionPlane {
-  position: { x: number; y: number; z: number };
-  normal: { x: number; y: number; z: number };
+export type ViewMode = "list" | "grid";
+
+export type ToolType = "cursor" | "hand" | "pentagon" | "cloud" | "rectangle" | "circle" | "pencil" | "arrow" | "text" | "measure";
+
+export interface IAnnotation {
+  id: string;
+  type: ToolType;
+  color?: string;
+  x?: number;
+  y?: number;
+  w?: number;
+  h?: number;
+  points?: IPoint[];
+  text?: string;
+  fontSize?: number;
 }
 
-export interface IViewState {
-  camera: ICamera;
-  hiddenElements?: string[]; // Array of GUIDs
+export interface View2DMarkup {
+  annotations: IAnnotation[];
+  viewport: {
+    rotate: number;
+    pageIndex: number;
+  };
+}
+
+export interface ViewState {
+  camera: {
+    position: { x: number; y: number; z: number };
+    target: { x: number; y: number; z: number };
+    up: { x: number; y: number; z: number };
+    projection: "ORTHO" | "PERSPECTIVE";
+    zoom: number;
+  };
+  markupData?: View2DMarkup | string; 
+  
+  hiddenElements?: string[];
   selectedElements?: string[];
   coloredElements?: { color: string; elementIds: string[] }[];
-  sectionPlanes?: ISectionPlane[];
-  markupData?: any;
+  sectionPlanes?: any[];
 }
 
-export interface IView {
+export interface UserPopulated {
   _id: string;
-  projectId: string;
-  name: string;
-  description?: string | null;
-  thumbnailUrl?: string | null;
-  type: "3D" | "2D";
-  relatedFileId?: string; // If 2D
-  createdBy: {
-    _id: string;
-    fullName: string;
-    email: string;
-  };
-  sharedWith: {
-    isPublic: boolean;
-    users: string[]; // User IDs
-  };
-  viewState: IViewState;
-  createdAt: string;
-  updatedAt: string;
+  fullName: string;
+  email: string;
 }
 
-export interface CreateViewDTO {
+export interface FilePopulated {
+  _id: string;
+  name: string;
+}
+
+export interface SharedWith {
+  isPublic: boolean;
+  users: string[]; 
+}
+
+export interface ViewItem {
+  _id: string;
   projectId: string;
   name: string;
   description?: string;
   thumbnailUrl?: string;
-  type: "3D" | "2D";
-  relatedFileId?: string;
-  viewState: IViewState;
-  sharedWith?: {
-    isPublic?: boolean;
-    users?: string[];
+  type: "2D" | "3D";
+  relatedFileId?: FilePopulated | string; 
+  createdBy: UserPopulated;
+  sharedWith: SharedWith;
+
+  viewState: ViewState;
+
+  createdAt: string;
+  updatedAt: string;
+}
+export interface CreateViewDTO {
+  projectId: string;
+  name: string;
+  description?: string;
+  type: "2D" | "3D";
+  relatedFileId: string;
+  thumbnailUrl?: string;
+  
+  viewState: ViewState;
+  
+  sharedWith: {
+    isPublic: boolean;
+    users: string[];
   };
 }
 
-export interface UpdateViewDTO extends Partial<CreateViewDTO> {}
+export interface UpdateViewDTO {
+  name?: string;
+  description?: string;
+  thumbnailUrl?: string;
+  viewState?: ViewState;
+  sharedWith?: {
+    isPublic: boolean;
+    users: string[];
+  };
+}
+export interface FileItem {
+  _id: string;
+  name: string;
+  projectId: string;
+  fileUrl: string;
+  fileType: "PDF" | "IMAGE";
+  previewSrc: string;
+  uploadedBy?: string;
+  createdAt: string;
+}
+
+export interface PageItem {
+  _id: string;
+  index: number;
+  pageNumber: number;
+  fileId: string;
+  source: "pdf" | "file";
+  imageSrc?: string;
+}
+
+export interface TodoItem {
+  _id: string;
+  title: string;
+  status: "open" | "closed";
+}

@@ -1,256 +1,142 @@
-'use client';
+import React, { useState, useEffect } from "react";
+import { ViewItem } from "@/types/view";
+import { X, Calendar, User, Info, Save, Globe, Lock } from "lucide-react";
+import { format } from "date-fns";
 
-import { MessageSquarePlus, Paperclip } from 'lucide-react';
-import { useState } from 'react';
+interface ViewDetailPanelProps {
+  view: ViewItem;
+  onClose: () => void;
+  onSave: (updatedView: ViewItem) => void;
+}
 
 export default function ViewDetailPanel({
   view,
   onClose,
-}: {
-  view: any;
-  onClose?: () => void;
-}) {
-  if (!view) return null;
+  onSave,
+}: ViewDetailPanelProps) {
+  // State quản lý việc chỉnh sửa
+  const [localName, setLocalName] = useState(view.name);
+  const [localDesc, setLocalDesc] = useState(view.description || "");
+  const [isPublic, setIsPublic] = useState(view.sharedWith?.isPublic || false);
 
-  const [comments, setComments] = useState<
-    {
-      id: string;
-      text: string;
-      author: string;
-      createdAt: string;
-      attachments?: { name: string; size: number }[];
-    }[]
-  >([]);
+  // Cập nhật lại state nếu view thay đổi (khi chọn view khác từ sidebar)
+  useEffect(() => {
+    setLocalName(view.name);
+    setLocalDesc(view.description || "");
+    setIsPublic(view.sharedWith?.isPublic || false);
+  }, [view]);
 
-  const [isCommenting, setIsCommenting] = useState(false);
-  const [commentText, setCommentText] = useState('');
-  const [ attachments, setAttachments ] = useState
-  <{ id: string; name: string; size: string}[] >([]);
+  const handleSaveClick = () => {
+    // Tạo object mới chứa các thông tin đã sửa để gửi đi
+    const updatedData: ViewItem = {
+      ...view,
+      name: localName,
+      description: localDesc,
+      sharedWith: {
+        ...view.sharedWith,
+        isPublic: isPublic,
+      },
+    };
+    onSave(updatedData);
+  };
+
+  const creatorName = view.createdBy?.fullName || "Unknown";
 
   return (
-    <div className='w-80'>
-      <aside className="w-80 h-full bg-white shadow flex flex-col">
-            {/* ===== Header ===== */}
-            <div className="p-4 border-b border-gray-300 flex items-center justify-between">
-              <div className="font-semibold text-lg">{view.name}</div>
-              <button onClick={onClose} className="text-gray-500 hover:text-black">
-                ✕
-              </button>
+    <div className="w-80 h-full bg-white border-l shadow-xl flex flex-col absolute right-0 top-0 z-[60]">
+      {/* Header */}
+      <div className="p-4 border-b flex justify-between items-center bg-gray-50">
+        <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+          <Info size={16} /> Edit View
+        </h3>
+        <button onClick={onClose} className="text-gray-400 hover:text-gray-700">
+          <X size={18} />
+        </button>
+      </div>
+
+      <div className="p-5 space-y-6 overflow-y-auto flex-1">
+        {/* View Name Input */}
+        <div>
+          <label className="text-xs font-medium text-gray-500 uppercase">
+            View Name
+          </label>
+          <input
+            type="text"
+            value={localName}
+            onChange={(e) => setLocalName(e.target.value)}
+            className="w-full text-sm font-medium text-gray-900 mt-1 border rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
+          />
+        </div>
+
+        {/* Description Textarea */}
+        <div>
+          <label className="text-xs font-medium text-gray-500 uppercase">
+            Description
+          </label>
+          <textarea
+            value={localDesc}
+            onChange={(e) => setLocalDesc(e.target.value)}
+            className="w-full text-sm text-gray-700 mt-1 border rounded px-3 py-2 min-h-[100px] focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+            placeholder="Enter description..."
+          />
+        </div>
+
+        {/* Permission Toggle */}
+        <div>
+          <label className="text-xs font-medium text-gray-500 uppercase">
+            Privacy
+          </label>
+          <div className="flex gap-2 mt-2">
+            <button
+              onClick={() => setIsPublic(false)}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 border rounded text-xs font-medium transition ${!isPublic ? "bg-gray-800 text-white" : "bg-gray-50 text-gray-600"}`}
+            >
+              <Lock size={14} /> Private
+            </button>
+            <button
+              onClick={() => setIsPublic(true)}
+              className={`flex-1 flex items-center justify-center gap-2 py-2 border rounded text-xs font-medium transition ${isPublic ? "bg-green-600 text-white border-green-600" : "bg-gray-50 text-gray-600"}`}
+            >
+              <Globe size={14} /> Public
+            </button>
+          </div>
+        </div>
+
+        <div className="pt-4 border-t grid grid-cols-2 gap-4">
+          <div>
+            <label className="text-[10px] font-medium text-gray-400 uppercase">
+              Created By
+            </label>
+            <div className="text-xs text-gray-600 truncate">{creatorName}</div>
+          </div>
+          <div>
+            <label className="text-[10px] font-medium text-gray-400 uppercase">
+              Date
+            </label>
+            <div className="text-xs text-gray-600">
+              {view.createdAt
+                ? format(new Date(view.createdAt), "dd/MM/yyyy")
+                : "N/A"}
             </div>
+          </div>
+        </div>
+      </div>
 
-            {/* ===== Scrollable content ===== */}
-            <div className="flex-1 overflow-y-auto">
-              {/* Thumbnail */}
-              <div className="p-4">
-                <div className="w-full h-full bg-gray-100 rounded overflow-hidden">
-                  {view.previewSrc && (
-                    <img
-                      src={view.previewSrc}
-                      className="w-full h-full object-cover"
-                      alt={view.name}
-                    />
-                  )}
-                </div>
-              </div>
-
-              {/* Details */}
-              <div className="px-4 text-sm space-y-3">
-                <div>
-                  <div className="text-gray-500">Description</div>
-                  <div>{view.description ?? '--'}</div>
-                </div>
-
-                <div>
-                  <div className="text-gray-500">Created</div>
-                  <div>
-                    {view.createdOn} by {view.createdBy}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="text-gray-500">Modified</div>
-                  <div>
-                    {view.modifiedOn} by {view.modifiedBy}
-                  </div>
-                </div>
-
-                <div>
-                  <div className="text-gray-500">
-                    Shared with ({view.sharedWith?.length ?? 0})
-                  </div>
-                  <div>--</div>
-                </div>
-              </div>
-              {/* ===== ATTACHMENTS ===== */}
-              <div className="mt-6 border-t border-gray-300 px-4 pt-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="text-sm text-gray-600">Attachments</div>
-
-                  <label className="cursor-pointer text-gray-600 hover:text-blue-900">
-                    <Paperclip size={16}/>
-                    <input
-                      type="file"
-                      hidden
-                      multiple
-                      onChange={(e) => {
-                        if (!e.target.files) return;
-                        const files = Array.from(e.target.files).map(f => ({
-                          id: crypto.randomUUID(),
-                          name: f.name,
-                          size: f.size,
-                        }));
-                        setAttachments(prev => [...files, ...prev]);
-                      }}
-                    />
-                  </label>
-                </div>
-
-                {attachments.length === 0 ? (
-                  <div className="text-sm text-gray-400">No attachments</div>
-                ) : (
-                  <div className="space-y-2">
-                    {attachments.map(a => (
-                      <div
-                        key={a.id}
-                        className="flex items-center justify-between text-sm"
-                      >
-                        <div className="flex items-center gap-2 text-blue-600">
-                          <Paperclip size={14}/> {a.name}
-                        </div>
-
-                        <button className="text-gray-400 hover:text-gray-700">
-                          ⋮
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* ===== COMMENTS LIST (CHỈ HIỆN KHI CÓ) ===== */}
-              {comments.length > 0 && (
-                <div className="mt-6 border-t border-gray-300 px-4 pt-4 space-y-4">
-                  <div className="text-gray-500 text-sm">Comments</div>
-
-                  {comments.map(c => (
-                    <div key={c.id} className="text-sm">
-                      <div className="font-medium text-gray-800">{c.author}</div>
-                      <div className="text-gray-700 mt-1">{c.text}</div>
-
-                      {c.attachments && c.attachments.length > 0 && (
-                        <div className="mt-2 space-y-1">
-                          {c.attachments.map((a, i) => (
-                            <div
-                              key={i}
-                              className="flex items-center gap-2 text-xs text-blue-600 hover:underline cursor-pointer"
-                            >
-                              📎 {a.name}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      <div className="text-xs text-gray-400 mt-1">
-                        {new Date(c.createdAt).toLocaleString()}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* ===== COMMENT COMPOSER (BOTTOM) ===== */}
-            <div className="border-t border-gray-300 p-4">
-              {!isCommenting ? (
-                <button
-                  onClick={() => setIsCommenting(true)}
-                  className="flex items-center gap-2 text-sm text-gray-600 hover:text-blue-800"
-                >
-                  <span className="w-6 h-6 rounded text-blue-950 flex items-center justify-center">
-                    <MessageSquarePlus/>
-                  </span>
-                  Add a comment…
-                </button>
-              ) : (
-                <div className="space-y-3">
-                  <textarea
-                    autoFocus
-                    value={commentText}
-                    onChange={e => setCommentText(e.target.value)}
-                    placeholder="Write a comment…"
-                    rows={3}
-                    className="w-full border border-slate-600 rounded px-3 py-2 text-sm resize-none
-                              focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-
-                  {/* Actions */}
-                  <div className="flex gap-2 items-center justify-end">
-                    <div className="flex gap-3 text-sm">
-                      <label className="flex items-start gap-2 text-blue-900 cursor-pointer hover:underline">
-                        <Paperclip size={18} />
-                        <input
-                          type="file"
-                          multiple
-                          hidden
-                          onChange={e => {
-                            if (!e.target.files) return;
-                            setAttachments(prev => [
-                              ...prev,
-                              ...Array.from(e.target.files),
-                            ]);
-                          }}
-                        />
-                      </label>
-
-                    {attachments.length > 0 && (
-                      <span className="text-xs text-gray-500">
-                        {attachments.length} file(s)
-                      </span>
-                    )}
-
-                  </div>
-                    <button
-                      onClick={() => {
-                        setIsCommenting(false);
-                        setCommentText('');
-                        setAttachments([]);
-                      }}
-                      className="px-3 py-1.5 items-end text-sm border rounded hover:bg-red-900 transition-colors hover:text-white"
-                    >
-                      Cancel
-                    </button>
-
-                    <button
-                      disabled={!commentText.trim()}
-                      onClick={() => {
-                        setComments(prev => [
-                          {
-                            id: crypto.randomUUID(),
-                            text: commentText.trim(),
-                            author: 'Hao Nguyen',
-                            createdAt: new Date().toISOString(),
-                            attachments: attachments.map(f => ({
-                              name: f.name,
-                              size: f.size,
-                            })),
-                          },
-                          ...prev,
-                        ]);
-                        setCommentText('');
-                        setAttachments([]);
-                        setIsCommenting(false);
-                      }}
-                      className="px-4 py-1.5 text-sm rounded bg-blue-600
-                                text-white disabled:opacity-50 "
-                    >
-                      Comment
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          </aside>
+      {/* Footer */}
+      <div className="p-4 border-t bg-gray-50 flex gap-2">
+        <button
+          onClick={onClose}
+          className="flex-1 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleSaveClick}
+          className="flex-[2] py-2 bg-blue-600 hover:bg-blue-700 text-white rounded text-sm font-medium flex items-center justify-center gap-2 shadow-sm"
+        >
+          <Save size={16} /> Save Changes
+        </button>
+      </div>
     </div>
-    
   );
 }

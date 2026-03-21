@@ -1,7 +1,7 @@
-'use client';
+"use client";
 
-import React, { useState } from 'react';
-import { Pencil } from 'lucide-react';
+import React, { useState } from "react";
+import { Pencil } from "lucide-react";
 
 /* ===== TYPES ===== */
 export interface DetailItem {
@@ -36,8 +36,8 @@ export default function DetailsPanel({
 }: DetailsPanelProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editFields, setEditFields] = useState({
-    name: item.name ?? '',
-    description: item.description ?? '',
+    name: item.name ?? "",
+    description: item.description ?? "",
   });
 
   const handleSaveEdit = () => {
@@ -50,8 +50,8 @@ export default function DetailsPanel({
 
   const handleCancelEdit = () => {
     setEditFields({
-      name: item.name ?? '',
-      description: item.description ?? '',
+      name: item.name ?? "",
+      description: item.description ?? "",
     });
     setIsEditing(false);
   };
@@ -98,19 +98,19 @@ export default function DetailsPanel({
           <div className="text-sm text-gray-600 space-y-3">
             <div>
               <div className="font-medium">Description</div>
-              <div>{item.description ?? '--'}</div>
+              <div>{item.description ?? "--"}</div>
             </div>
             <div>
               <div className="font-medium">Created</div>
               <div>
-                {item.createdOn ?? '--'}{' '}
+                {item.createdOn ?? "--"}{" "}
                 {item.createdBy && `By ${item.createdBy}`}
               </div>
             </div>
             <div>
               <div className="font-medium">Modified</div>
               <div>
-                {item.modifiedOn ?? '--'}{' '}
+                {item.modifiedOn ?? "--"}{" "}
                 {item.modifiedBy && `By ${item.modifiedBy}`}
               </div>
             </div>
@@ -177,14 +177,14 @@ export default function DetailsPanel({
           <button
             onClick={() => {
               onPost({ comment });
-              setComment('');
+              setComment("");
             }}
             className="px-3 py-2 rounded bg-blue-600 text-white text-sm"
           >
             Post
           </button>
           <button
-            onClick={() => setComment('')}
+            onClick={() => setComment("")}
             className="px-3 py-2 rounded border text-sm"
           >
             Cancel

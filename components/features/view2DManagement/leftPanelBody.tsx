@@ -1,22 +1,19 @@
-'use client';
-import dynamic from 'next/dynamic';
-import FileDetailTab from './tabView2D/detailTab';
-import TodosTab from './tabView2D/todoTab';
-import ViewsTab from './tabView2D/viewTab';
+"use client";
+import dynamic from "next/dynamic";
+import FileDetailTab from "./tabView2D/detailTab";
+import TodosTab from "./tabView2D/todoTab";
+import ViewsTab from "./tabView2D/viewTab";
 
-import {
-  FileItem,
-  ViewItem,
-  TodoItem,
-  PageItem,
-} from '@/app/types/api';
-const PagesTab = dynamic(() => import('./tabView2D/pageTab'), { 
+import { FileItem, ViewItem, TodoItem, PageItem } from "@/types/view";
+const PagesTab = dynamic(() => import("./tabView2D/pageTab"), {
   ssr: false,
-  loading: () => <div className="p-4 text-xs text-gray-400">Loading sidebar...</div>
+  loading: () => (
+    <div className="p-4 text-xs text-gray-400">Loading sidebar...</div>
+  ),
 });
-const CURRENT_USER = { name: 'hao nguyen' };
+const CURRENT_USER = { name: "hao nguyen" };
 
-type ActiveTool = 'filedetail' | 'page' | 'view' | 'todo';
+type ActiveTool = "filedetail" | "page" | "view" | "todo";
 
 type LeftPanelData = {
   file?: FileItem | null;
@@ -25,6 +22,7 @@ type LeftPanelData = {
   pageIndex: number;
   views: ViewItem[];
   todos: TodoItem[];
+  currentUser?: string;
 };
 
 type LeftPanelBodyProps = {
@@ -33,11 +31,11 @@ type LeftPanelBodyProps = {
 
   // --- SỬA LẠI DÒNG NÀY ---
   // Đổi từ (src, index) thành (item: PageItem) để khớp với PagesTab mới
-  onSelectPage: (item: PageItem) => void; 
-  
+  onSelectPage: (item: PageItem) => void;
+
   onSelectView: (view: ViewItem) => void;
   onSelectTodo: (todo: TodoItem) => void;
-
+  onDeleteView: (view: ViewItem) => void;
   onCreateView: () => void;
   onCreateTodo: () => void;
 };
@@ -49,14 +47,16 @@ export default function LeftPanelBody({
   onSelectView,
   onSelectTodo,
   onCreateView,
+  onDeleteView,
   onCreateTodo,
 }: LeftPanelBodyProps) {
-
   switch (activeTool) {
-    case 'filedetail':
-      return <FileDetailTab file={data.file ?? null} view={data.view ?? null} />;
+    case "filedetail":
+      return (
+        <FileDetailTab file={data.file ?? null} view={data.view ?? null} />
+      );
 
-    case 'page':
+    case "page":
       return (
         <PagesTab
           pages={data.pages}
@@ -67,17 +67,18 @@ export default function LeftPanelBody({
         />
       );
 
-    case 'view':
+    case "view":
       return (
         <ViewsTab
           views={data.views}
           currentUser={CURRENT_USER.name}
           onSelectView={onSelectView}
           onCreateView={onCreateView}
+          onDeleteView={onDeleteView}
         />
       );
 
-    case 'todo':
+    case "todo":
       return (
         <TodosTab
           todos={data.todos}

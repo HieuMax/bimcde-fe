@@ -1,14 +1,22 @@
-'use client';
+// src/components/features/view2DManagement/viewPort.tsx
+"use client";
 
-import { FileItem } from '@/app/types/api';
-import dynamic from 'next/dynamic';
-import ImageViewer from './imageViewer'; 
-import { useMemo } from 'react';
+import React, { useMemo, forwardRef, useImperativeHandle, useRef } from "react";
+import dynamic from "next/dynamic";
+import ImageViewer, { ImageViewerHandle } from "./imageViewer"; // Import thêm Type ImageViewerHandle
+import { FileItem } from "@/types/view"; // Đã sửa đường dẫn import cho đúng context
+import { ToolType, IAnnotation } from "@/types/view";
 
-const PdfViewerClient = dynamic(() => import('./PdfViewer'), {
+const PdfViewerClient = dynamic(() => import("./PdfViewer"), {
   ssr: false,
-  loading: () => <div className="flex-1 bg-gray-700 flex items-center justify-center text-white">Loading PDF...</div>
+  loading: () => <div className="text-white">Loading PDF...</div>,
 });
+
+/* ===== TYPES ===== */
+
+export interface FileViewportHandle {
+  exportSnapshot: () => Promise<Blob | null>;
+}
 
 interface FileViewportProps {
   file: FileItem | null;
@@ -16,68 +24,87 @@ interface FileViewportProps {
   pageIndex: number;
   zoom: number;
   rotate: number;
+  showAnnotation: boolean;
   onZoom: (d: number) => void;
   onRotate: (d: number) => void;
   onPrev: () => void;
   onNext: () => void;
+
+  // Drawing
+  activeTool: ToolType;
+  activeColor: string;
+  annotations: IAnnotation[];
+  onAnnotationsChange: (anns: IAnnotation[]) => void;
+  onSelectAnnotation?: (id: string | null) => void;
 }
 
-export default function FileViewport({
-  file,
-  currentSrc,
-  pageIndex,
-  zoom,
-  rotate,
-  onZoom,
-  onRotate,
-  onPrev,
-  onNext,
-}: FileViewportProps) {
-  
-  // LOGIC URL & CACHE BUSTING
-  const { viewType, finalUrl, uniqueKey } = useMemo(() => {
+/* ===== COMPONENT ===== */
 
-    const isImageMode = currentSrc && !currentSrc.toLowerCase().endsWith('.pdf');
-    
-    const rawUrl = isImageMode ? currentSrc : (file?.fileUrl ?? currentSrc ?? '');
+const FileViewport = forwardRef<FileViewportHandle, FileViewportProps>(
+  (props, ref) => {
+    const imageViewerRef = useRef<ImageViewerHandle>(null);
 
-    return {
-      viewType: isImageMode ? 'IMAGE' : 'PDF',
-      finalUrl: rawUrl,
-      uniqueKey: `${rawUrl}-${pageIndex}`
-    };
-  }, [file, currentSrc, pageIndex]);
+    const { viewType, finalUrl, uniqueKey } = useMemo(() => {
+      const isImageMode =
+        props.currentSrc && !props.currentSrc.toLowerCase().endsWith(".pdf");
 
-  // CASE 1: IMAGE VIEWER (Ưu tiên)
-  if (viewType === 'IMAGE') {
-    return (
-      <ImageViewer
-        key={uniqueKey}
-        src={finalUrl}
-        zoom={zoom}
-        rotate={rotate}
-        pageIndex={pageIndex}
-        totalPages={1}
-        onZoom={onZoom}
-        onRotate={onRotate}
-        onPrev={onPrev}
-        onNext={onNext}
-      />
-    );
-  }
+      const rawUrl = isImageMode
+        ? props.currentSrc
+        : (props.file?.fileUrl ?? props.currentSrc ?? "");
 
-  // CASE 2: PDF VIEWER
-  if (finalUrl && finalUrl.length > 10) { 
-    return (
-      <div className='flex-1 relative w-full h-full bg-gray-700'>
-        <PdfViewerClient 
-          key={uniqueKey} 
-          src={finalUrl}
-          currentPageIndex={pageIndex} 
+      return {
+        viewType: isImageMode ? "IMAGE" : "PDF",
+        finalUrl: rawUrl,
+        uniqueKey: `${rawUrl}-${props.pageIndex}`,
+      };
+    }, [props.file, props.currentSrc, props.pageIndex]);
+
+    /* ===== EXPOSE HANDLE ===== */
+    useImperativeHandle(ref, () => ({
+      exportSnapshot: async () => {
+        // SỬA LẠI LOGIC: Chỉ export được khi đang ở chế độ xem ảnh (hoặc PDF page được convert sang ảnh)
+        if (viewType === "IMAGE") {
+          return (await imageViewerRef.current?.exportSnapshot()) ?? null;
+        }
+        // Nếu cần hỗ trợ PDF, bạn cần implement exportSnapshot trong PdfViewerClient tương tự
+        return null;
+      },
+    }));
+
+    /* ===== RENDER ===== */
+
+    if (viewType === "IMAGE") {
+      return (
+        <ImageViewer
+          ref={imageViewerRef}
+          key={uniqueKey}
+          src={finalUrl || ""}
+          totalPages={1}
+          {...props}
         />
+      );
+    }
+
+    if (finalUrl && finalUrl.length > 10) {
+      return (
+        <div className="flex-1 relative w-full h-full bg-gray-700">
+          <PdfViewerClient
+            key={uniqueKey}
+            src={finalUrl}
+            currentPageIndex={props.pageIndex}
+          />
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex-1 bg-gray-200 flex items-center justify-center text-gray-400">
+        Select a document
       </div>
     );
-  }
+  },
+);
 
-  return <div className="flex-1 bg-gray-200 flex items-center justify-center text-gray-400">Select a document</div>;
-}
+FileViewport.displayName = "FileViewport";
+
+export default FileViewport;

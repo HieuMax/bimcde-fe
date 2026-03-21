@@ -2,22 +2,21 @@
 
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
-// import { toast } from "sonner"; // Hoặc thư viện toast bạn đang dùng
+import { toast } from "sonner";
 
-interface CreateViewPanelProps {
-  onClose: () => void;
-  // Callback nhận dữ liệu form
-  onSave: (data: {
-    name: string;
-    description: string;
-    sharedWithUsers: string;
-  }) => Promise<void>;
+export interface CreateViewPanelProps {
+  name: string;
+  description: string;
+  sharedWithUsers: string;
 }
 
 export default function CreateViewPanel({
   onClose,
   onSave,
-}: CreateViewPanelProps) {
+}: {
+  onClose: () => void;
+  onSave: (data: CreateViewPanelProps) => void;
+}) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [shareWith, setShareWith] = useState("");

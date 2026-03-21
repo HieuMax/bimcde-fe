@@ -1,31 +1,47 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useEffect, useState } from "react";
+import {
+  useEffect,
+  useState,
+  useRef,
+  forwardRef,
+  useImperativeHandle,
+} from "react";
 import { useParams } from "next/navigation";
 import { viewService } from "@/services/view.service";
-import { CreateViewDTO } from "@/types/view";
-// --- IMPORT SERVICE MỚI ---
-import { explorerService } from "@/services/explorer.service"; // Import service bạn vừa sửa
-
 import LeftPanelTool from "./leftPanelTool";
 import LeftPanelBody from "./leftPanelBody";
-
+import { explorerService } from "@/services/explorer.service";
+import FileViewport, { FileViewportHandle } from "./viewPort";
+import { pdfjs } from "react-pdf";
+// import { jsPDF } from "jspdf";
 import ViewDetailPanel from "./tabView2D/properties2DView/viewProperties";
 import TodoDetailPanel from "./tabView2D/properties2DView/todoProperties";
-import CreateViewPanel from "./createModel/createView";
+// Import form cũ (trả về sharedWith: string)
+import CreateViewPanel, {
+  CreateViewPanelProps,
+} from "./createModel/createView";
 import CreateTodoPanel from "./createModel/createTodo";
-import FileViewport from "./viewPort";
+import type {
+  FileItem,
+  ViewItem,
+  TodoItem,
+  PageItem,
+  UpdateViewDTO,
+  UserPopulated,
+} from "@/types/view";
+import { ToolType, IAnnotation, View2DMarkup, ViewState } from "@/types/view";
+import { toast } from "sonner";
+// Giả sử bạn có hook lấy user, nếu không sẽ dùng mock
+// import { useAuth } from "@/hooks/useAuth";
 
-import { pdfjs } from "react-pdf";
-
-// Config worker cho PDF
+// Setup PDF worker
 if (typeof window !== "undefined") {
   pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 }
 
-// --- IMPORT TYPES ---
-import type { FileItem, ViewItem, TodoItem, PageItem } from "@/types/api";
-
+// --- TYPES ---
 type RightPanelState =
   | { type: "viewDetail"; data: ViewItem }
   | { type: "todoDetail"; data: TodoItem }
@@ -33,416 +49,672 @@ type RightPanelState =
   | { type: "createTodo" }
   | null;
 
-type ActiveTool = "filedetail" | "page" | "view" | "todo";
+type ActiveTab = "filedetail" | "page" | "view" | "todo";
+
+interface DetailView2DProps {
+  mode?: "view" | "file";
+  fileId?: string;
+  activeTool: ToolType;
+  activeColor: string;
+  showAnnotation: boolean;
+  onLoaded?: (file: FileItem) => void;
+  onToolSelect?: (tool: ToolType) => void;
+  // Có thể nhận currentUser từ Page cha nếu Page cha là Server Component
+  currentUser?: string;
+}
 
 /* ========= COMPONENT ========= */
 
-export default function DetailView2D({
-  mode = "view",
-  fileId,
-  onLoaded, // Callback để báo cho trang cha biết đã load xong (để set tên trên toolbar)
-}: {
-  mode?: "view" | "file";
-  fileId?: string;
-  onLoaded?: (file: FileItem) => void;
-}) {
-  // Lấy params từ URL: /projects/[projectId]/viewer/[viewId]
-  // Lưu ý: viewId ở đây chính là ID của file cần lấy chi tiết
-  const params = useParams() as { projectId: string; viewId: string };
+const DetailView2D = forwardRef<FileViewportHandle, DetailView2DProps>(
+  (props, ref) => {
+    const {
+      mode = "view",
+      fileId,
+      showAnnotation,
+      onLoaded,
+      activeTool,
+      activeColor,
+      currentUser, // Nhận prop user ID
+    } = props;
 
-  const [file, setFile] = useState<FileItem | null>(null);
-  const [views, setViews] = useState<ViewItem[]>([]);
-  const [todos, setTodos] = useState<TodoItem[]>([]);
-  const [pages, setPages] = useState<PageItem[]>([]);
+    const params = useParams() as { projectId: string; viewId: string };
+    const viewportRef = useRef<FileViewportHandle>(null);
 
-  const [selectedFile, setSelectedFile] = useState<FileItem | null>(null);
-  const [selectedView, setSelectedView] = useState<ViewItem | null>(null);
-  const [selectedTodo, setSelectedTodo] = useState<TodoItem | null>(null);
+    // --- STATES ---
+    const [file, setFile] = useState<FileItem | null>(null);
+    const [views, setViews] = useState<ViewItem[]>([]);
+    const [isPanelOpen, setIsPanelOpen] = useState(false);
+    const [todos, setTodos] = useState<TodoItem[]>([]);
+    const [pages, setPages] = useState<PageItem[]>([]);
 
-  const [currentSrc, setCurrentSrc] = useState<string | null>(null);
-  const [pageIndex, setPageIndex] = useState<number>(1);
+    const [selectedFile, setSelectedFile] = useState<FileItem | null>(null);
+    const [selectedView, setSelectedView] = useState<ViewItem | null>(null);
 
-  const [activeTool, setActiveTool] = useState<ActiveTool>(
-    mode === "file" ? "page" : "view"
-  );
+    const [currentSrc, setCurrentSrc] = useState<string | null>(null);
+    const [pageIndex, setPageIndex] = useState<number>(1);
 
-  const [isLeftPanelOpen, setIsLeftPanelOpen] = useState<boolean>(true);
-  const [rightPanel, setRightPanel] = useState<RightPanelState>(null);
+    const [annotations, setAnnotations] = useState<IAnnotation[]>([]);
+    const [selectedAnnotationId, setSelectedAnnotationId] = useState<
+      string | null
+    >(null);
 
-  const [zoom, setZoom] = useState<number>(1);
-  const [rotate, setRotate] = useState<number>(0);
+    const [activeTab, setActiveTab] = useState<ActiveTab>(
+      mode === "file" ? "page" : "view",
+    );
 
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
+    const [isLeftPanelOpen, setIsLeftPanelOpen] = useState<boolean>(true);
+    const [rightPanel, setRightPanel] = useState<RightPanelState>(null);
 
-  // Helper: Đếm số trang PDF
-  const getPdfTotalPages = async (url: string) => {
-    try {
-      const loadingTask = pdfjs.getDocument(url);
-      const pdf = await loadingTask.promise;
-      return pdf.numPages;
-    } catch (error) {
-      console.error("Lỗi đếm trang PDF:", error);
-      return 1;
-    }
-  };
-  // [NEW] Hàm giả lập lấy state từ Viewer 2D
-  // Trong thực tế, bạn sẽ lấy thông tin này từ component <FileViewport /> thông qua ref hoặc context
-  const get2DViewerState = () => {
-    return {
-      camera: {
-        position: { x: 0, y: 0, z: 0 },
-        target: { x: 0, y: 0, z: 0 },
-        up: { x: 0, y: 1, z: 0 },
-        projection: "ORTHO" as const, // 2D bắt buộc là ORTHO
-        zoom: zoom, // Lấy state zoom hiện tại của component
-      },
-      markupData: {
-        pageIndex: pageIndex, // Lưu lại đang xem trang nào
-        rotate: rotate, // Lưu lại góc xoay
-      },
-    };
-  };
+    const [zoom, setZoom] = useState<number>(1);
+    const [rotate, setRotate] = useState<number>(0);
 
-  // [NEW] Hàm xử lý tạo View
-  const handleCreateView = async (formData: {
-    name: string;
-    description: string;
-    sharedWithUsers: string;
-  }) => {
-    try {
-      const targetFileId = fileId || params.viewId; // Đây là ID của file bản vẽ (Related File)
+    const [loading, setLoading] = useState<boolean>(true);
+    const [error, setError] = useState<string | null>(null);
 
-      const payload: CreateViewDTO = {
-        projectId: params.projectId,
-        name: formData.name,
-        description: formData.description,
-        type: "2D",
-        relatedFileId: targetFileId,
-        // TODO: Logic chụp ảnh thumbnail từ Canvas nếu có
-        thumbnailUrl: "",
-        viewState: get2DViewerState(),
-        sharedWith: {
-          isPublic: false,
-          users: [], // TODO: Xử lý chuỗi formData.sharedWithUsers thành mảng ID
-        },
-      };
+    const effectiveUserId = currentUser || "MOCK_USER_ID";
 
-      await viewService.createView(payload);
-      toast.success("View created successfully");
+    // --- EXPOSE EXPORT FUNCTION ---
+    useImperativeHandle(ref, () => ({
+      exportSnapshot: () =>
+        viewportRef.current?.exportSnapshot() || Promise.resolve(null),
+    }));
 
-      // Đóng panel sau khi tạo xong
-      setRightPanel(null);
-
-      // Có thể gọi lại API lấy danh sách views nếu cần
-      // setViews(prev => [...prev, newView]);
-    } catch (error) {
-      console.error(error);
-      toast.error("Failed to create view");
-      throw error; // Ném lỗi để Panel biết và tắt loading
-    }
-  };
-  /* ===== sync active tool ===== */
-  useEffect(() => {
-    setActiveTool(mode === "file" ? "page" : "view");
-  }, [mode]);
-
-  /* ===== LOAD DATA ===== */
-  useEffect(() => {
-    async function load() {
+    // --- HELPER: GET PDF PAGES ---
+    const getPdfTotalPages = async (url: string) => {
       try {
-        setLoading(true);
-        setError(null);
+        const loadingTask = pdfjs.getDocument(url);
+        const pdf = await loadingTask.promise;
+        return pdf.numPages;
+      } catch {
+        return 1;
+      }
+    };
 
-        // 1. Xác định ID file cần fetch
-        // Ưu tiên props fileId truyền vào, nếu không thì lấy params.viewId từ URL
-        const targetId = fileId || params.viewId;
+    // --- EFFECT: SYNC TAB ---
+    useEffect(() => {
+      setActiveTab(mode === "file" ? "page" : "view");
+    }, [mode]);
 
-        if (!targetId) {
-          throw new Error("Missing File ID (viewId)");
-        }
+    // --- EFFECT: LOAD DATA ---
+    // --- MAIN LOAD LOGIC ---
+    useEffect(() => {
+      async function load() {
+        try {
+          setLoading(true);
+          setError(null);
 
-        // 2. Gọi API Service mới
-        const response: any = await explorerService.getFileDetail(targetId);
-        // Xử lý trường hợp response trả về nguyên cục data hoặc bọc trong .data
-        const rawData = response.data || response;
+          // 1. Identify Input ID (ViewID or FileID)
+          const incomingId = fileId || params.viewId;
+          if (!incomingId) throw new Error("Missing ID");
 
-        if (!rawData) throw new Error("No data returned");
+          let targetFileId = incomingId;
+          let initialViewData: ViewItem | null = null;
 
-        // 3. Mapping Data (Quan trọng)
-        // API cũ trả về object phẳng, API mới trả về versions[].
-        // Cần lấy location từ version hiện tại để làm fileUrl.
+          // =========================================================
+          // STEP 1: LOAD VIEW DETAIL (If in 'view' mode)
+          // =========================================================
+          if (mode === "view") {
+            try {
+              const viewData = await viewService.getViewById(incomingId);
+              if (!viewData) throw new Error("View not found");
 
-        const currentVer =
-          rawData.versions?.find(
-            (v: any) => v.version === rawData.currentVersion
-          ) || rawData.versions?.[0];
-        const fileUrl = currentVer?.location || "";
-        const mimeType = currentVer?.mimeType || "";
+              initialViewData = viewData;
 
-        const mappedFile: FileItem = {
-          _id: rawData._id,
-          name: rawData.name,
-          projectId: rawData.projectId,
-          fileUrl: fileUrl,
-          fileType: mimeType.toLowerCase().includes("pdf") ? "PDF" : "IMAGE",
-          previewSrc: fileUrl, // Dùng luôn link gốc để preview
-          uploadedBy: currentVer?.uploadedBy,
-          createdAt: rawData.createdAt,
-          // Map thêm các trường khác nếu cần
-        } as unknown as FileItem;
+              targetFileId =
+                typeof viewData.relatedFileId === "object" &&
+                viewData.relatedFileId !== null
+                  ? viewData.relatedFileId._id
+                  : (viewData.relatedFileId as string);
 
-        // 4. Set State và Callback
-        setFile(mappedFile);
-        setCurrentSrc(mappedFile.previewSrc || mappedFile.fileUrl || null);
+              // --- Parse ViewState (Camera, Zoom, Markup) ---
+              let loadedZoom = 1;
+              let loadedRotate = 0;
+              let loadedPageIndex = 1;
+              let loadedAnnotations: any[] = [];
 
-        // Gọi callback để update Toolbar ở trang cha
-        if (onLoaded) {
-          onLoaded(mappedFile);
-        }
+              if (viewData.viewState) {
+                // Camera
+                if (viewData.viewState.camera) {
+                  loadedZoom = viewData.viewState.camera.zoom || 1;
+                }
 
-        // Hiện tại chưa có API lấy Views/Todos trong service mới, set rỗng để tránh lỗi
-        setViews([]);
-        setTodos([]);
+                // Markup Data
+                let markup = viewData.viewState.markupData;
+                if (typeof markup === "string") {
+                  try {
+                    markup = JSON.parse(markup);
+                  } catch {}
+                }
 
-        /* ===== DERIVE PAGES (Tách trang PDF hoặc Ảnh) ===== */
-        let derivedPages: PageItem[] = [];
+                const markupObj = markup as View2DMarkup;
+                if (markupObj) {
+                  loadedAnnotations = markupObj.annotations || [];
+                  if (markupObj.viewport) {
+                    loadedRotate = markupObj.viewport.rotate || 0;
+                    loadedPageIndex = markupObj.viewport.pageIndex || 1;
+                  }
+                }
+              }
 
-        if (
-          mappedFile.fileType === "PDF" ||
-          mappedFile.fileUrl?.toLowerCase().endsWith(".pdf")
-        ) {
-          const total = mappedFile.fileUrl
-            ? await getPdfTotalPages(mappedFile.fileUrl)
-            : 1;
-          derivedPages = Array.from({ length: total }).map((_, i) => ({
-            _id: `${mappedFile._id}-page-${i + 1}`,
-            index: i + 1,
-            pageNumber: i + 1,
-            fileId: mappedFile._id,
-            source: "pdf",
-          }));
-        } else {
-          // Mặc định cho file ảnh đơn
-          derivedPages = [
-            {
-              _id: mappedFile._id,
-              index: 1,
-              imageSrc: mappedFile.previewSrc ?? "",
+              // Apply State
+              setZoom(loadedZoom);
+              setRotate(loadedRotate);
+              setPageIndex(loadedPageIndex);
+              setAnnotations(loadedAnnotations);
+              setSelectedView(viewData);
+            } catch (err) {
+              console.warn(
+                "Could not load view details, falling back to file mode:",
+                err,
+              );
+            }
+          }
+
+          // =========================================================
+          // STEP 2: LOAD FILE DETAILS (Critical Step)
+          // =========================================================
+          const fileRes: any =
+            await explorerService.getFileDetail(targetFileId);
+          const rawData = fileRes.data || fileRes;
+
+          if (!rawData) throw new Error("File not found");
+
+          const currentVer =
+            rawData.versions?.find(
+              (v: any) => v.version === rawData.currentVersion,
+            ) || rawData.versions?.[0];
+
+          const mappedFile: FileItem = {
+            _id: rawData._id,
+            name: rawData.name,
+            projectId: rawData.projectId,
+            fileUrl: currentVer?.location || "",
+            fileType: currentVer?.mimeType?.toLowerCase().includes("pdf")
+              ? "PDF"
+              : "IMAGE",
+            previewSrc: currentVer?.location || "",
+            uploadedBy: currentVer?.uploadedBy,
+            createdAt: rawData.createdAt,
+          } as unknown as FileItem;
+
+          setFile(mappedFile);
+
+          // Set Display Source
+          if (mode === "view" && initialViewData?.thumbnailUrl) {
+            setCurrentSrc(mappedFile.fileUrl); // Use high-res file for viewer
+          } else {
+            setCurrentSrc(mappedFile.previewSrc || mappedFile.fileUrl || null);
+          }
+
+          if (onLoaded) onLoaded(mappedFile);
+
+          // =========================================================
+          // STEP 3: LOAD LIST VIEWS (With Client-Side Filtering)
+          // =========================================================
+          try {
+            const response: any = await viewService.getViews(
+              rawData.projectId,
+              { type: "2D" },
+            );
+            const data = response?.data?.data || response?.data || response;
+
+            // KIỂM TRA VÀ SET VIEW
+            if (Array.isArray(data)) {
+              setViews(data);
+            } else {
+              console.warn("Dữ liệu Views trả về không phải mảng:", data);
+              setViews([]);
+            }
+          } catch (err) {
+            console.warn("Failed to load views list", err);
+            setViews([]);
+          }
+
+          // =========================================================
+          // STEP 4: GENERATE PAGES
+          // =========================================================
+          let derivedPages: PageItem[] = [];
+          if (
+            mappedFile.fileType === "PDF" ||
+            mappedFile.fileUrl?.toLowerCase().endsWith(".pdf")
+          ) {
+            const total = await getPdfTotalPages(mappedFile.fileUrl!);
+            derivedPages = Array.from({ length: total }).map((_, i) => ({
+              _id: `${mappedFile._id}-page-${i + 1}`,
+              index: i + 1,
+              pageNumber: i + 1,
               fileId: mappedFile._id,
-              source: "file",
-            },
-          ];
+              source: "pdf",
+            }));
+          } else {
+            derivedPages = [
+              {
+                _id: `${mappedFile._id}-page-1`,
+                index: 1,
+                pageNumber: 1,
+                fileId: mappedFile._id,
+                source: "file",
+                imageSrc: mappedFile.previewSrc,
+              },
+            ];
+          }
+          setPages(derivedPages);
+          if (mode !== "view") {
+            setPageIndex(1);
+            setAnnotations([]);
+            setZoom(1);
+            setRotate(0);
+          }
+        } catch (e) {
+          console.error("Load Error:", e);
+          setError((e as Error).message || "Failed to load content");
+        } finally {
+          setLoading(false);
+        }
+      }
+      load();
+    }, [mode, fileId, params.viewId]);
+
+    // --- HANDLERS ---
+
+    const handleSelectView = async (v: ViewItem) => {
+      try {
+        // 1. Xác định ID file gốc của View này
+        const targetFileId =
+          typeof v.relatedFileId === "object" && v.relatedFileId
+            ? v.relatedFileId._id
+            : (v.relatedFileId as string);
+
+        const currentFileId = file?._id;
+
+        if (targetFileId !== currentFileId) {
+          const fileRes: any =
+            await explorerService.getFileDetail(targetFileId);
+          const rawData = fileRes.data || fileRes;
+
+          if (!rawData)
+            throw new Error("Original file for this view not found.");
+
+          const currentVer =
+            rawData.versions?.find(
+              (ver: any) => ver.version === rawData.currentVersion,
+            ) || rawData.versions?.[0];
+
+          // Map data chuẩn
+          const mappedFile: FileItem = {
+            _id: rawData._id,
+            name: rawData.name,
+            projectId: rawData.projectId,
+            fileUrl: currentVer?.location || "",
+            fileType: currentVer?.mimeType?.toLowerCase().includes("pdf")
+              ? "PDF"
+              : "IMAGE",
+            previewSrc: currentVer?.location || "",
+            uploadedBy: currentVer?.uploadedBy,
+            createdAt: rawData.createdAt,
+          } as unknown as FileItem;
+
+          setFile(mappedFile);
+
+          if (v.thumbnailUrl && mode === "view") {
+            setCurrentSrc(mappedFile.fileUrl);
+          } else {
+            setCurrentSrc(mappedFile.previewSrc || mappedFile.fileUrl || "");
+          }
+
+          // --- C. TẠO LẠI DANH SÁCH PAGE ---
+          if (mappedFile.fileType === "PDF") {
+            const total = await getPdfTotalPages(mappedFile.fileUrl);
+            setPages(
+              Array.from({ length: total }).map((_, i) => ({
+                _id: `${mappedFile._id}-p${i + 1}`,
+                index: i + 1,
+                pageNumber: i + 1,
+                fileId: mappedFile._id,
+                source: "pdf",
+              })),
+            );
+          } else {
+            setPages([
+              {
+                _id: `${mappedFile._id}-p1`,
+                index: 1,
+                pageNumber: 1,
+                fileId: mappedFile._id,
+                source: "file",
+                imageSrc: mappedFile.previewSrc,
+              },
+            ]);
+          }
         }
 
-        setPages(derivedPages);
-        setPageIndex(1);
-      } catch (e) {
-        console.error("Load detail failed:", e);
-        setError((e as Error).message);
-      } finally {
-        setLoading(false);
+        // 3. KHÔI PHỤC TRẠNG THÁI VIEW (ANNOTATION, ZOOM, ROTATE)
+        let z = 1,
+          r = 0,
+          p = 1,
+          ann: IAnnotation[] = [];
+
+        const vs = v.viewState;
+        if (vs) {
+          // 3.1 Camera
+          z = vs.camera.zoom || 1;
+
+          // 3.2 Markup Data
+          let markup = vs.markupData;
+          if (typeof markup === "string") {
+            try {
+              markup = JSON.parse(markup);
+            } catch {}
+          }
+
+          const m = markup as View2DMarkup;
+          if (m) {
+            ann = m.annotations || [];
+            if (m.viewport) {
+              r = m.viewport.rotate || 0;
+              p = m.viewport.pageIndex || 1;
+            }
+          }
+        }
+
+        // 4. APPLY VÀO CANVAS
+        setZoom(z);
+        setRotate(r);
+        setPageIndex(p);
+        setAnnotations(ann);
+
+        // 5. UI Update
+        setSelectedView(v);
+        setRightPanel({
+          type: "viewDetail",
+          data: {
+            ...v,
+            createdBy:
+              (v.createdBy as any)?.fullName ||
+              (v.createdBy as any)?.email ||
+              "Unknown",
+          } as any,
+        });
+      } catch (error) {
+        console.error("Failed to load view context:", error);
+        toast.error("Could not load the file for this view.");
       }
-    }
+    };
 
-    load();
-  }, [mode, fileId, params.viewId]);
+    const handleUpdateAnnotation = async (viewToUpdate: ViewItem) => {
+      if (!viewToUpdate?._id) return;
 
-  // Logic reload pages khi chọn file từ danh sách (Sidebar)
-  useEffect(() => {
-    if (activeTool !== "page") return;
-    if (selectedView?.previewSrc) return;
-    if (!selectedFile) return;
+      const loadingToast = toast.loading("Đang lưu thay đổi...");
 
-    async function reLoadPagesForPageTab() {
-      if (
-        selectedFile?.fileType !== "PDF" &&
-        !selectedFile?.fileUrl?.toLocaleLowerCase().endsWith(".pdf")
-      ) {
-        setPages([
-          {
-            _id: selectedFile?._id || "",
-            index: 1,
-            imageSrc: currentSrc ?? "",
-            fileId: selectedFile?._id || "",
+      try {
+        // 1. Gom dữ liệu nét vẽ
+        const newMarkupData = {
+          viewport: {
+            zoom: zoom,
+            rotate: rotate,
+            pageIndex: pageIndex,
           },
-        ]);
-        setPageIndex(1);
-        return;
+          annotations: annotations,
+        };
+
+        // 2. Tạo Payload
+        const payload: UpdateViewDTO = {
+          name: viewToUpdate.name,
+          description: viewToUpdate.description,
+
+          // Cập nhật Permission
+          sharedWith: {
+            isPublic: viewToUpdate.sharedWith?.isPublic || false,
+            users: viewToUpdate.sharedWith?.users || [],
+          },
+
+          // Cập nhật Markup
+          viewState: {
+            ...viewToUpdate.viewState,
+            markupData: newMarkupData,
+          } as any,
+        };
+
+        // 3. GỌI API UPDATE
+        await viewService.updateView(viewToUpdate._id, payload);
+
+        // 4. CẬP NHẬT LẠI LOCAL STATE
+        setViews((prev) =>
+          prev.map((v) =>
+            v._id === viewToUpdate._id
+              ? {
+                  ...v,
+                  ...payload,
+                  viewState: { ...v.viewState, markupData: newMarkupData },
+                }
+              : v,
+          ),
+        );
+
+        toast.success("Đã cập nhật View thành công!", { id: loadingToast });
+      } catch (error) {
+        console.error("Lỗi khi cập nhật View:", error);
+        toast.error("Không thể lưu thay đổi. Vui lòng thử lại!", {
+          id: loadingToast,
+        });
       }
-      const total = await getPdfTotalPages(selectedFile.fileUrl!);
-      const derivedPages: PageItem[] = Array.from({ length: total }).map(
-        (_, i) => ({
-          _id: `${selectedFile._id}-page-${i + 1}`,
-          index: i + 1,
-          pageNumber: i + 1,
-          fileId: selectedFile._id,
-        })
+    };
+
+    const handleSaveNewView = async (formData: CreateViewPanelProps) => {
+      if (!file) return;
+      const savedUser = localStorage.getItem("user");
+      const currentUser = savedUser ? JSON.parse(savedUser) : null;
+      const currentUserPopulated: UserPopulated = {
+        _id: currentUser?._id || currentUser?.id || "unknown_id",
+        fullName: currentUser?.fullName || "Me",
+        email: currentUser?.email || "",
+      };
+      try {
+        const isPublicShare = formData.sharedWithUsers
+          ?.toLowerCase()
+          .includes("public");
+
+        // 1. Tạo Payload
+        const view2DData: View2DMarkup = {
+          annotations: annotations,
+          viewport: { rotate, pageIndex },
+        };
+
+        const newViewState: ViewState = {
+          camera: {
+            position: { x: 0, y: 0, z: zoom },
+            target: { x: 0, y: 0, z: 0 },
+            up: { x: 0, y: 1, z: 0 },
+            projection: "ORTHO",
+            zoom: zoom,
+          },
+          markupData: view2DData,
+        };
+
+        const payload = {
+          projectId: params.projectId,
+          name: formData.name,
+          description: formData.description,
+          type: "2D",
+          relatedFileId: file._id,
+          thumbnailUrl: currentSrc || "",
+          viewState: newViewState,
+          sharedWith: { isPublic: isPublicShare || false, users: [] },
+        };
+        const rawNewView: any = await viewService.createView(payload as any);
+
+        const hydratedView: ViewItem = {
+          ...rawNewView,
+          createdBy:
+            typeof rawNewView.createdBy === "string"
+              ? {
+                  _id: rawNewView.createdBy,
+                  fullName:
+                    rawNewView.createdBy === currentUserPopulated._id
+                      ? currentUserPopulated.fullName
+                      : "Unknown",
+                  email: "",
+                }
+              : rawNewView.createdBy,
+
+          // Tự tạo object file giả lập
+          relatedFileId:
+            typeof rawNewView.relatedFileId === "string"
+              ? {
+                  _id: rawNewView.relatedFileId,
+                  name: file.name,
+                }
+              : rawNewView.relatedFileId,
+        };
+
+        // 4. Cập nhật State với view đã được sửa
+        setViews((prev) => [hydratedView, ...prev]);
+
+        toast.success("View saved!");
+        setRightPanel(null);
+        setIsLeftPanelOpen(true);
+        setActiveTab("view");
+      } catch (err: any) {
+        console.error(err);
+        toast.error("Failed to save view");
+      }
+    };
+    const handleDeleteView = async (viewToDelete: ViewItem) => {
+      const confirm = window.confirm(
+        `Are you sure you want to delete view "${viewToDelete.name}"?`,
+      );
+      if (!confirm) return;
+
+      try {
+        // 2. Gọi API Delete
+        await viewService.deleteView(viewToDelete._id);
+        setViews((prevViews) =>
+          prevViews.filter((v) => v._id !== viewToDelete._id),
+        );
+
+        if (selectedView?._id === viewToDelete._id) {
+          setSelectedView(null);
+          setAnnotations([]);
+          setRightPanel(null);
+          toast.info("View deleted. Returned to base file.");
+        } else {
+          toast.success("View deleted successfully");
+        }
+      } catch (err: any) {
+        console.error("Delete failed:", err);
+        if (err.response?.status === 403) {
+          toast.error(
+            "Permission denied: Only the owner can delete this view.",
+          );
+        } else {
+          toast.error("Failed to delete view.");
+        }
+      }
+    };
+    // --- RENDER ---
+
+    if (loading)
+      return (
+        <div className="flex h-full items-center justify-center text-gray-500">
+          Loading...
+        </div>
+      );
+    if (error)
+      return (
+        <div className="flex h-full items-center justify-center text-red-600">
+          {error}
+        </div>
       );
 
-      setPages(derivedPages);
-      setPageIndex((prev) => Math.min(prev, derivedPages.length));
-    }
-    reLoadPagesForPageTab();
-  }, [activeTool, selectedFile, selectedView, currentSrc]);
-
-  /* ===== RENDER STATES ===== */
-  if (loading) {
     return (
-      <div className="flex items-center justify-center h-full text-gray-500">
-        Loading 2D Management...
+      <div className="flex h-full w-full overflow-hidden flex-col">
+        <div className="flex-1 h-full flex overflow-hidden relative">
+          <LeftPanelTool
+            activeKey={activeTab}
+            viewCount={views.length}
+            onClick={(k) => {
+              const t = k as ActiveTab;
+              if (t === activeTab) setIsLeftPanelOpen(!isLeftPanelOpen);
+              else {
+                setActiveTab(t);
+                setIsLeftPanelOpen(true);
+              }
+              setRightPanel(null);
+            }}
+          />
+
+          {isLeftPanelOpen && (
+            <div className="w-72 border-r h-full border-gray-300 bg-white shrink-0 overflow-hidden">
+              <LeftPanelBody
+                activeTool={activeTab}
+                data={{
+                  file: file,
+                  view: selectedView,
+                  pages,
+                  pageIndex,
+                  views,
+                  todos: [],
+                  currentUser: effectiveUserId,
+                }}
+                onSelectPage={(item) => {
+                  setPageIndex(item.pageNumber || 1);
+                  if (item.source === "file")
+                    setCurrentSrc(item.imageSrc || null);
+                }}
+                onSelectView={handleSelectView}
+                onSelectTodo={() => {}}
+                onCreateView={() => setRightPanel({ type: "createView" })}
+                onCreateTodo={() => {}}
+                onDeleteView={handleDeleteView}
+              />
+            </div>
+          )}
+
+          <FileViewport
+            ref={viewportRef}
+            {...props}
+            file={file}
+            currentSrc={currentSrc}
+            pageIndex={pageIndex}
+            zoom={zoom}
+            rotate={rotate}
+            activeTool={activeTool}
+            activeColor={activeColor}
+            annotations={annotations}
+            onAnnotationsChange={setAnnotations}
+            showAnnotation={showAnnotation}
+            onZoom={(d) => setZoom((z) => Math.max(0.1, Math.min(5, z + d)))}
+            onRotate={(d) => setRotate((r) => (r + d) % 360)}
+            onPrev={() => setPageIndex((p) => Math.max(1, p - 1))}
+            onNext={() => setPageIndex((p) => Math.min(pages.length, p + 1))}
+          />
+
+          {rightPanel?.type === "createView" && (
+            <CreateViewPanel
+              onClose={() => setRightPanel(null)}
+              onSave={handleSaveNewView}
+            />
+          )}
+
+          {!isPanelOpen && selectedView && (
+            <div
+              onMouseEnter={() => setIsPanelOpen(true)}
+              className="fixed right-0 top-48 h-4/5 w-4 z-[55] cursor-pointer hover:bg-blue-500/10 transition-colors"
+              title="Rê chuột để xem chi tiết"
+            />
+          )}
+          {rightPanel?.type === "viewDetail" && selectedView && isPanelOpen && (
+            <ViewDetailPanel
+              view={selectedView}
+              onClose={() => setIsPanelOpen(false)}
+              onSave={handleUpdateAnnotation}
+            />
+          )}
+        </div>
       </div>
     );
-  }
+  },
+);
 
-  if (error) {
-    return <div className="p-6 text-red-600">{error}</div>;
-  }
-
-  /* ===== UI ===== */
-  return (
-    <div
-      className="flex h-full w-full overflow-hidden"
-      style={{ height: "calc(100vh - 120px)" }}
-    >
-      <LeftPanelTool
-        activeKey={activeTool}
-        viewCount={views.length}
-        onClick={(key) => {
-          const tool = key as ActiveTool;
-          if (tool === activeTool) {
-            setIsLeftPanelOpen((prev) => !prev);
-          } else {
-            setActiveTool(tool);
-            setIsLeftPanelOpen(true);
-          }
-          setRightPanel(null);
-        }}
-      />
-
-      {isLeftPanelOpen && (
-        <div className="w-72 border-r border-gray-300 bg-white">
-          <LeftPanelBody
-            activeTool={activeTool}
-            data={{
-              file: selectedFile || file,
-              view: selectedView,
-              pages,
-              pageIndex,
-              views,
-              todos,
-            }}
-            onSelectPage={(item: PageItem) => {
-              setPageIndex(item.pageNumber ?? item.index);
-              if (item.imageSrc) setCurrentSrc(item.imageSrc);
-              else setCurrentSrc(null);
-            }}
-            onSelectView={async (v) => {
-              // Xử lý khi chọn View (nếu sau này có dữ liệu views)
-              setSelectedView(v);
-              setSelectedTodo(null);
-
-              let fileData: FileItem;
-
-              // Kiểm tra xem ID là object hay string
-              if (typeof v.fileId === "object" && v.fileId !== null) {
-                fileData = v.fileId as unknown as FileItem;
-              } else {
-                // Gọi API lấy thông tin file từ ID
-                const res: any = await explorerService.getFileDetail(
-                  v.fileId as string
-                );
-                const raw = res.data || res;
-                const ver =
-                  raw.versions?.find(
-                    (x: any) => x.version === raw.currentVersion
-                  ) || raw.versions?.[0];
-
-                fileData = {
-                  _id: raw._id,
-                  name: raw.name,
-                  projectId: raw.projectId,
-                  fileUrl: ver?.location || "",
-                  fileType: ver?.mimeType?.includes("pdf") ? "PDF" : "IMAGE",
-                  previewSrc: ver?.location,
-                } as unknown as FileItem;
-              }
-
-              setSelectedFile(fileData);
-
-              const snapshot = v.previewSrc ?? null;
-              setCurrentSrc(snapshot);
-              setPages([
-                {
-                  _id: v._id,
-                  index: 1,
-                  imageSrc: snapshot ?? "",
-                  fileId: fileData._id,
-                  source: "view",
-                },
-              ]);
-
-              setPageIndex(1);
-              setRightPanel({ type: "viewDetail", data: v });
-            }}
-            onSelectTodo={(t) => {
-              setSelectedTodo(t);
-              setSelectedView(null);
-              setSelectedFile(null);
-
-              if (t.relatedImage) {
-                setCurrentSrc(t.relatedImage);
-              }
-
-              setRightPanel({ type: "todoDetail", data: t });
-            }}
-            onCreateView={() => setRightPanel({ type: "createView" })}
-            onCreateTodo={() => setRightPanel({ type: "createTodo" })}
-          />
-        </div>
-      )}
-
-      <FileViewport
-        file={selectedFile || file}
-        currentSrc={currentSrc}
-        pageIndex={pageIndex}
-        zoom={zoom}
-        rotate={rotate}
-        onZoom={(d: number) =>
-          setZoom((z) => Math.max(0.2, Math.min(3, z + d)))
-        }
-        onRotate={(d: number) => setRotate((r) => (r + d) % 360)}
-        onPrev={() => setPageIndex((p) => Math.max(1, p - 1))}
-        onNext={() => setPageIndex((p) => Math.min(pages.length, p + 1))}
-      />
-
-      {rightPanel?.type === "viewDetail" && (
-        <ViewDetailPanel
-          view={rightPanel.data}
-          onClose={() => setRightPanel(null)}
-        />
-      )}
-
-      {rightPanel?.type === "todoDetail" && (
-        <TodoDetailPanel
-          todo={rightPanel.data}
-          onClose={() => setRightPanel(null)}
-        />
-      )}
-
-      {rightPanel?.type === "createView" && (
-        <CreateViewPanel
-          onClose={() => setRightPanel(null)}
-          onSave={handleCreateView}
-        />
-      )}
-
-      {rightPanel?.type === "createTodo" && (
-        <CreateTodoPanel
-          onClose={() => setRightPanel(null)}
-          onSave={() => setRightPanel(null)}
-        />
-      )}
-    </div>
-  );
-}
+DetailView2D.displayName = "DetailView2D";
+export default DetailView2D;

@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import React from 'react';
-import Image from 'next/image';
-import { Document, Page } from 'react-pdf';
-import { Virtuoso } from 'react-virtuoso';
-import { PageItem } from '@/app/types/api';
+import React from "react";
+import Image from "next/image";
+import { Document, Page } from "react-pdf";
+import { Virtuoso } from "react-virtuoso";
+import { PageItem } from "@/types/view";
 
 interface PagesTabProps {
   pages: PageItem[];
@@ -19,7 +19,6 @@ export default function PagesTab({
   onSelectPage,
   pdfUrl,
 }: PagesTabProps) {
-  
   return (
     <div className="flex flex-col h-full bg-white border-r border-gray-200">
       <div className="p-4 ">
@@ -30,7 +29,7 @@ export default function PagesTab({
 
       <div className="flex-1 min-h-0">
         <Virtuoso
-          style={{ height: '100%' }}
+          style={{ height: "100%" }}
           data={pages}
           itemContent={(index, p) => {
             const displayNum = p.pageNumber ?? p.index;
@@ -41,7 +40,7 @@ export default function PagesTab({
                 <div
                   onClick={() => onSelectPage(p)}
                   className={`cursor-pointer rounded border p-2 flex flex-col items-center bg-white transition-all
-                    ${isActive ? 'border-blue-600 shadow-md ring-2 ring-blue-500/20' : 'border-gray-200 hover:border-gray-400'}
+                    ${isActive ? "border-blue-600 shadow-md ring-2 ring-blue-500/20" : "border-gray-200 hover:border-gray-400"}
                   `}
                 >
                   <div className="w-full h-45 bg-white flex items-center justify-center overflow-hidden border border-gray-100">
@@ -56,7 +55,7 @@ export default function PagesTab({
                     ) : pdfUrl ? (
                       <Document file={pdfUrl} loading="...">
                         <Page
-                          pageNumber={p.pageNumber || index+1}
+                          pageNumber={p.pageNumber || index + 1}
                           width={140}
                           renderTextLayer={false}
                           renderAnnotationLayer={false}
@@ -65,9 +64,10 @@ export default function PagesTab({
                     ) : (
                       <div className="text-xs text-gray-400">No preview</div>
                     )}
-
                   </div>
-                  <div className={`mt-2 text-[11px] font-bold ${isActive ? 'text-blue-600' : 'text-gray-500'}`}>
+                  <div
+                    className={`mt-2 text-[11px] font-bold ${isActive ? "text-blue-600" : "text-gray-500"}`}
+                  >
                     Trang {displayNum}
                   </div>
                 </div>
