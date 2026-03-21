@@ -5,17 +5,17 @@ const api = apiClient();
 const BASE_URL = "/views2d";
 
 export const view2DService = {
-  /**
-   * GIỮ NGUYÊN TÊN HÀM CŨ
-   */
+  
   getViewsByFile: async (fileId: string) => {
     const data = await api.get(`${BASE_URL}/file/${fileId}`);
     return data as View2DItem[];
   },
 
-  /**
-   * GIỮ NGUYÊN createView
-   */
+  getViewsByProject: async (projectId: string) => {
+    const data = await api.get(`${BASE_URL}/project/${projectId}`);
+    return data as View2DItem[];
+  },
+
   createView: async (payload: Partial<View2DItem>) => {
     const res = await api.post(BASE_URL, payload);
     return res as View2DItem;

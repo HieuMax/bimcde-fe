@@ -389,7 +389,11 @@ export default function DetailView2D({
   };
 
   // 🔥 LOGIC APPLY VỊ TRÍ KHI CLICK Ở VIEWTAB
-  const applyViewPosition = (v: ViewItem) => {
+  const applyViewPosition = (v: ViewItem, overridePages?: PageItem[], overrideFile?: IFile) => {
+
+    const activePages = overridePages || pages;
+    const activeFile = overrideFile || selectedFile || file;
+
     const targetPage = v.pageIndex && v.pageIndex > 0 ? v.pageIndex : 1;
     setPageIndex(targetPage);
 
@@ -408,7 +412,7 @@ export default function DetailView2D({
 
     const coordsMatch = v.previewSrc?.match(/#coords:(\d+),(\d+)/);
     if (coordsMatch) {
-       // Giao việc cuộn lại cho useEffect bên trên lo
+       
        setPendingScroll({
          x: parseInt(coordsMatch[1], 10),
          y: parseInt(coordsMatch[2], 10)
@@ -419,22 +423,117 @@ export default function DetailView2D({
     }
   };
 
-  const handleSelectView = (v: ViewItem) => {
+  const loadNewFileForView = async (newFileId: string, viewToApply: ViewItem) => {
+    try {
+      setIsViewLoading(true);
+      
+      // 1. Fetch data file mới
+      const raw: IFile = await explorerService.getFileDetail(newFileId);
+      
+      const hasVersions = Array.isArray(raw.versions) && raw.versions.length > 0;
+      const currentVer: IFileVersion | undefined = hasVersions
+        ? raw.versions!.find((v: IFileVersion) => v.version === raw.currentVersion) ?? raw.versions![0]
+        : undefined;
+
+      let finalUrl = raw.fileUrl || currentVer?.location || "";
+      finalUrl = finalUrl.replace(/ /g, "%20");
+      const finalMimeType = raw.mimeType || currentVer?.mimeType || "";
+      const isPdf = finalMimeType.includes("pdf") || finalUrl.toLowerCase().includes(".pdf");
+      const isWord = finalMimeType.includes("word") || finalUrl.toLowerCase().match(/\.(doc|docx)$/);
+
+      let fileType = "IMAGE"; 
+      if (isPdf) fileType = "PDF";
+      else if (isWord) fileType = "WORD";
+
+      const newFile: IFile = {
+        ...raw,
+        fileUrl: finalUrl,
+        previewSrc: raw.previewSrc || finalUrl,
+        size: currentVer?.size ?? raw.size ?? 0,
+        mimeType: finalMimeType,
+        fileType: fileType as any,
+        location: raw.location,
+      };
+
+      // Cập nhật State File
+      setSelectedFile(newFile);
+      setFile(newFile);
+
+      // 2. Tạo lại thông tin các trang (Pages) cho file mới
+      let derivedPages: PageItem[] = [];
+      if (newFile.fileType === "PDF") {
+        const total = await getPdfTotalPages(newFile.fileUrl);
+        derivedPages = Array.from({ length: total }).map((_, i) => ({
+          _id: `${newFile._id}-page-${i + 1}`,
+          index: i + 1,
+          pageNumber: i + 1,
+          fileId: newFile._id,
+          source: "pdf",
+        }));
+      } else if (newFile.fileType === "WORD") {
+        derivedPages = [{
+          _id: newFile._id, index: 1, imageSrc: "", fileId: newFile._id, source: "word",
+        }];
+      } else {
+        derivedPages = [{
+          _id: newFile._id, index: 1, imageSrc: newFile.previewSrc ?? newFile.fileUrl, fileId: newFile._id, source: "image",
+        }];
+      }
+      
+      setPages(derivedPages);
+
+      // 3. Tải lại danh sách Todo của file mới
+      try {
+        const todosData = await todo2DService.getTodosByFile(newFile._id);
+        if (Array.isArray(todosData)) setTodos(todosData);
+        else if ((todosData as any).data) setTodos((todosData as any).data);
+      } catch (err) {
+        console.warn("Lỗi tải Todo cho file mới:", err);
+      }
+
+      // 4. Áp dụng toạ độ View với dữ liệu File và Pages 
+      applyViewPosition(viewToApply, derivedPages, newFile);
+
+    } catch (error) {
+      console.error("Lỗi khi load file mới cho View:", error);
+      alert("Không thể tải file của View này.");
+      setIsViewLoading(false);
+    }
+  };
+
+  const handleSelectView = async (v: ViewItem) => {
     setIsViewLoading(true);
     setSelectedView(v);
     setSelectedTodo(null);
     setIsAutoEditView(false);
     setRightPanel({ type: "viewDetail", data: v });
-    applyViewPosition(v); // Chỉ cần gọi hàm này là đủ
+
+    const viewFileId = typeof v.fileId === 'string' ? v.fileId : (v.fileId as any)?._id;
+    const currentActiveFileId = selectedFile?._id || file?._id;
+
+    if (viewFileId && viewFileId !== currentActiveFileId) {
+      console.log("🔄 Chuyển sang file mới siêu mượt:", viewFileId);
+      await loadNewFileForView(viewFileId, v);
+    } else {
+      applyViewPosition(v); 
+    }
   };
 
-  const handleEditView = (v: ViewItem) => {
+  const handleEditView = async (v: ViewItem) => {
     setIsViewLoading(true);
     setSelectedView(v);
     setSelectedTodo(null);
     setIsAutoEditView(true); 
     setRightPanel({ type: "viewDetail", data: v });
-    applyViewPosition(v);
+
+    const viewFileId = typeof v.fileId === 'string' ? v.fileId : (v.fileId as any)?._id;
+    const currentActiveFileId = selectedFile?._id || file?._id;
+
+    if (viewFileId && viewFileId !== currentActiveFileId) {
+      await loadNewFileForView(viewFileId, v);
+    } else {
+      applyViewPosition(v);
+    }
   };
 
   // --- LOGIC TODO ---
@@ -640,14 +739,15 @@ export default function DetailView2D({
   // Load View & Todo
   useEffect(() => {
     const fetchMetadata = async () => {
-      const targetId = fileId || params.viewId;
-      if (!targetId) return;
+      if (!currentProjectId) return;
 
       try {
-        const viewsData = await view2DService.getViewsByFile(targetId);
+        // Fetch View theo Project
+        const viewsData = await view2DService.getViewsByProject(currentProjectId);
         if (Array.isArray(viewsData)) setViews(viewsData);
 
-        const todosData = await todo2DService.getTodosByFile(targetId);
+        // 🔥 CẬP NHẬT: Fetch Todo theo Project
+        const todosData = await todo2DService.getTodosByProject(currentProjectId);
         if (Array.isArray(todosData)) {
             setTodos(todosData);
         } else if ((todosData as any).data) {
@@ -658,7 +758,7 @@ export default function DetailView2D({
       }
     };
     fetchMetadata();
-  }, [fileId, params.viewId]);
+  }, [currentProjectId, fileId, params.viewId]);
 
   const handleWordLoadSuccess = (totalPages: number) => {
     if (!selectedFile) return;
@@ -797,7 +897,7 @@ export default function DetailView2D({
       {/* ===== CENTER VIEWPORT ===== */}
       <div id="file-viewport-container" className="flex-1 min-w-0 min-h-0 relative bg-neutral-800 overflow-auto">
         <FileViewport
-          // 🔥 BỎ KEY ĐỂ KHÔNG BỊ XÓA COMPONENT MỖI KHI CLICK VIEW
+          
           file={selectedFile || file}
           currentSrc={currentSrc}
           pageIndex={pageIndex}
@@ -807,7 +907,7 @@ export default function DetailView2D({
           onZoom={(d) => setZoom((z) => Math.max(0.2, Math.min(3, z + d)))}
           onPrev={handlePrevPage}
           onNext={handleNextPage}
-          onRendered={() => setIsViewLoading(false)} // BÁO HIỆU XONG LOAD ĐỂ CUỘN TRANG
+          onRendered={() => setIsViewLoading(false)} 
           onWordLoadSuccess={handleWordLoadSuccess}
           onWordThumbnailGenerated={handleWordThumbnailGenerated} 
         />
@@ -835,7 +935,7 @@ export default function DetailView2D({
                   }}
                   initialEditMode={isAutoEditView}
                   onJumpToView={() => applyViewPosition(rightPanel.data)} 
-                  onUpdateSnapshot={() => handleUpdateViewSnapshot(rightPanel.data)} /* 👈 THÊM DÒNG NÀY */
+                  onUpdateSnapshot={() => handleUpdateViewSnapshot(rightPanel.data)}
                 />
               </AnimatedPanel>
             )}

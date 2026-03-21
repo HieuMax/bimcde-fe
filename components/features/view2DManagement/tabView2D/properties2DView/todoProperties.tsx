@@ -24,13 +24,13 @@ const formatDateForInput = (dateString?: string) => {
 
 export default function TodoDetailPanel({
   todo,
-  projectId, // 👈 THÊM PROP NÀY ĐỂ TRUYỀN VÀO RECIPIENT SELECTOR
+  projectId, 
   onClose,
   onUpdateSuccess,
   initialEditMode = false
 }: {
   todo: any;
-  projectId: string; // Khai báo type
+  projectId: string;
   onClose: () => void;
   onUpdateSuccess?: (updatedTodo: any) => void;
   initialEditMode?: boolean;
@@ -94,10 +94,10 @@ export default function TodoDetailPanel({
 
   const priorityColor = (priority?: string) => {
     switch (priority) {
-      case 'Urgent': return 'bg-red-500';
-      case 'High': return 'bg-orange-500';
-      case 'Normal': return 'bg-[#005a9e]'; // Màu xanh khớp với ảnh
-      case 'Low': return 'bg-gray-400';
+      case 'Critical': return 'bg-[#d13438]'; // Đổi từ Urgent -> Critical
+      case 'High': return 'bg-[#ff8c00]';
+      case 'Normal': return 'bg-[#005a9e]'; 
+      case 'Low': return 'bg-[#00bfff]'; // Đổi từ gray -> xanh nhạt cho giống tab
       default: return 'bg-[#005a9e]';
     }
   };
@@ -208,9 +208,16 @@ export default function TodoDetailPanel({
               className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm text-gray-800 bg-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
               disabled={loading}
             >
-              <option value="Issue">Issue</option>
               <option value="Comment">Comment</option>
               <option value="Undefined">Undefined</option>
+              <option value="Issue">Issue</option>
+              <option value="Request">Request</option>
+              <option value="Fault">Fault</option>
+              <option value="Inquiry">Inquiry</option>
+              <option value="Solution">Solution</option>
+              <option value="Clash">Clash</option>
+              <option value="Remark">Remark</option>
+
             </select>
           </div>
 
@@ -225,7 +232,7 @@ export default function TodoDetailPanel({
               <option value="Low">Low</option>
               <option value="Normal">Normal</option>
               <option value="High">High</option>
-              <option value="Urgent">Urgent</option>
+              <option value="Critical">Critical</option>
             </select>
           </div>
 
@@ -241,7 +248,7 @@ export default function TodoDetailPanel({
               <option value="Open">Open</option>
               <option value="In Progress">In Progress</option>
               <option value="Done">Done</option>
-              <option value="On Hold">On Hold</option>
+              <option value="Closed">Closed</option>
             </select>
           </div>
 
@@ -352,6 +359,8 @@ export default function TodoDetailPanel({
     );
   }
 
+  const displayId = todo.code || `THEB-${(todo._id || todo.id || '').slice(-4).toUpperCase()}`;
+
   // ==========================================
   // GIAO DIỆN XEM CHI TIẾT (KHỚP VỚI ẢNH BẠN ĐƯA)
   // ==========================================
@@ -361,10 +370,10 @@ export default function TodoDetailPanel({
       <div className="p-4 border-b border-gray-200 flex items-start justify-between bg-white sticky top-0 z-30">
         <div className="flex-1 pr-4">
           <div className="text-[13px] font-semibold text-gray-500 uppercase tracking-wide mb-1">
-            {todo.code || 'THEB-16'}
+            {displayId} {/* 👈 Cập nhật biến displayId vào đây */}
           </div>
           <div className="font-semibold text-lg text-gray-800 leading-tight">
-            {todo.title || '10deg'}
+            {todo.title || 'Untitled Todo'} {/* 👈 Fallback text nếu không có title */}
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
