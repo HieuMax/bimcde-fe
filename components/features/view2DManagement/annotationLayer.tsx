@@ -591,7 +591,7 @@ const AnnotationLayer = forwardRef<AnnotationLayerHandle, AnnotationLayerProps>(
         // Kiểm tra Click vào bản thân hình khối
         const clicked = [...annotations].reverse().find((a) => {
           const center = getCenter(a);
-          const localPos = rotatePoint(pos, center, -(a.rotation || 0));
+          const localPos = rotatePoint(pos, center, -0);
           return isPointInShape(localPos, a);
         });
 
