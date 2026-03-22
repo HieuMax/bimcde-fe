@@ -32,7 +32,7 @@ interface RecipientSelectorProps {
   projectId: string;
   // [UPDATE] Nhận mảng object đầy đủ thay vì chỉ ID
   initialOptions?: RecipientOption[];
-  onChange: (selectedIds: string[]) => void;
+  onChange: (selectedIds: string[], selectedOptions?: RecipientOption[]) => void;
   disabled?: boolean;
 }
 
@@ -119,7 +119,10 @@ export function RecipientSelector({
     }
 
     setSelectedOptions(newSelected);
-    onChange(newSelected.map((item) => item.id));
+    onChange(
+      newSelected.map((item) => item.id),
+      newSelected,
+    );
   };
 
   const handleRemove = (idToRemove: string) => {
@@ -127,7 +130,10 @@ export function RecipientSelector({
       (item) => item.id !== idToRemove,
     );
     setSelectedOptions(newSelected);
-    onChange(newSelected.map((item) => item.id));
+    onChange(
+      newSelected.map((item) => item.id),
+      newSelected,
+    );
   };
 
   const userOptions = availableOptions.filter((opt) => opt.type === "USER");
