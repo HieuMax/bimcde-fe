@@ -2,10 +2,8 @@
 import {
   History,
   MessageSquare,
-  LifeBuoy,
   ClipboardCheck,
   Users,
-  Library,
   LayoutTemplate,
   ShieldCheck,
   Bell,
@@ -13,7 +11,6 @@ import {
   Ruler,
   Tag,
   Key,
-  RefreshCw,
 } from "lucide-react";
 
 export type SidebarItemConfig = {
@@ -36,20 +33,8 @@ export const MAIN_MENU_ITEMS: SidebarItemConfig[] = [
     icon: MessageSquare,
     pathSegment: "topics",
   },
-  {
-    key: "shared-model",
-    label: "Shared Model",
-    icon: LifeBuoy,
-    pathSegment: "shared-model",
-  },
   { key: "todo", label: "ToDo", icon: ClipboardCheck, pathSegment: "todo" },
   { key: "team", label: "Team", icon: Users, pathSegment: "team" },
-  {
-    key: "libs",
-    label: "Property Set Libraries",
-    icon: Library,
-    pathSegment: "property-set-libraries",
-  },
 ];
 
 export const SETTINGS_ITEMS: SidebarItemConfig[] = [
@@ -100,11 +85,5 @@ export const SETTINGS_ITEMS: SidebarItemConfig[] = [
     label: "Permissions",
     icon: Key,
     pathSegment: "settings/permissions",
-  },
-  {
-    key: "sync",
-    label: "Sync",
-    icon: RefreshCw,
-    pathSegment: "settings/sync",
-  },
+  }
 ];

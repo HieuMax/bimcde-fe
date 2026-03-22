@@ -27,7 +27,6 @@ import { ViewList } from '@/components/views/ViewList';
 import { DataTable } from '@/components/_3d/data_table/DataTable';
 import { Topics } from '@/components/_3d/topics/Topics';
 import { ClashSets } from '@/components/_3d/clash_sets/ClashSets';
-import { Organizer } from '@/components/_3d/organizer/Organizer';
 import { PropertiesDrawer } from './PropertiesDrawer';
 import { ModelPositionDrawer } from './ModelPositionDrawer';
 
@@ -1168,22 +1167,6 @@ export default function IfcViewer({
                     onRestoreView={onRestoreView}
                     onUpdateSnapshot={onUpdateSnapshot}
                   />
-                </div>
-              )}
-
-              {/* Organizer */}
-              {state == 'organizer' && (
-                <div
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    flex: 1,
-                    minHeight: 0,
-                    overflow: 'hidden',
-                    width: '100%',
-                  }}
-                >
-                  <Organizer />
                 </div>
               )}
 
