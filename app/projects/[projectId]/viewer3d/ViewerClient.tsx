@@ -122,6 +122,23 @@ export default function ViewerClient() {
     cancelClipping: () => void;
   } | null>(null);
 
+
+  // quản lý visibility control
+  const [ viewOptions, setViewOptions ] = useState({
+    annotations: true,
+    clipPlanes: true,
+    grids: true,
+    ifcTypes: true,
+    objectAttachments: true
+
+  })
+
+  const handleToggleViewOption = (key: keyof typeof viewOptions) => {
+    setViewOptions(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  }
   const [todoToEdit, setTodoToEdit] = useState<any>(null);
   const [drawerMode, setDrawerMode] = useState<"create" | "view" | "edit">(
     "create",
@@ -447,7 +464,10 @@ export default function ViewerClient() {
           setIfcUrls(urls);
           console.log("Parsed IFC URLs from params:", urls);
           sessionStorage.setItem(storageKey, JSON.stringify(urls));
-          router.replace(`/projects/${projectId}/viewer3d`);
+          // router.replace(`/projects/${projectId}/viewer3d`);
+          if (searchParams.get("urls")) {
+            router.replace(`/projects/${projectId}/viewer3d`);
+          }
         } else {
           console.error("URLs param parsed but empty:", { rawParams, decoded, parsed });
         }
@@ -465,7 +485,7 @@ export default function ViewerClient() {
       }catch { }
     }
   } 
-  }, [searchParams, projectId, router]);
+  }, [searchParams, projectId]);
 
   const handleBack = () => {
     sessionStorage.removeItem(STORAGE_TAB_KEY);
@@ -736,6 +756,16 @@ export default function ViewerClient() {
 
   const handleRestoreView = (view: IView | any) => {
     if (!view.items || !view.viewState) return;
+    const options = (view.viewState as any)?.viewOptions;
+    if (options) {
+      setViewOptions({
+        annotations: options.annotations ?? true,
+        clipPlanes: options.clipPlanes ?? true,
+        grids: options.grids ?? true,
+        ifcTypes: option.ifcTypes ?? true,
+        objectAttachments: options.objectAttachments ?? true
+      });
+    }
     const targetUrls = Array.from(
       new Set(view.items.map((i: any) => i.fileUrl) as string[]),
     );
@@ -819,6 +849,7 @@ export default function ViewerClient() {
         // Visibility control (USER)
         viewOptions={viewOptions}
         onToggleViewOption={handleToggleViewOption}
+
       />
       <div className="flex flex-1 relative overflow-hidden">
         <div className="w-10 min-h-full bg-gray-200 z-10">
