@@ -14,7 +14,22 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Loader2, Package, MoreVertical, FilterX } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { 
+  Loader2, 
+  Package, 
+  MoreVertical, 
+  FilterX, 
+  Send, 
+  Download, 
+  Trash2 
+} from "lucide-react";
 import { ReleaseStatusBadge } from "./ReleaseStatusBadge";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -109,7 +124,11 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
   };
 
   const handleRowClick = (id: string) => {
-    setSelectedIds(new Set([id]));
+    if (selectedIds.has(id) && selectedIds.size === 1) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set([id]));
+    }
   };
 
   const handleClearSelection = () => {
@@ -141,6 +160,50 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
       toast.error("Failed to rename release");
     }
   };
+
+  const handleSendRelease = async (e: React.MouseEvent, release: IRelease) => {
+    e.stopPropagation();
+    if (!confirm(`Are you sure you want to send release "${release.name}"?`)) return;
+    try {
+      await releaseService.sendRelease(release._id);
+      toast.success("Release sent successfully");
+      fetchReleases();
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to send release");
+    }
+  };
+
+  const handleDownloadRelease = async (e: React.MouseEvent, release: IRelease) => {
+    e.stopPropagation();
+    try {
+      toast.info("Download started...");
+      await releaseService.downloadRelease(release._id);
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to download release");
+    }
+  };
+
+  const handleDeleteRelease = async (e: React.MouseEvent, release: IRelease) => {
+    e.stopPropagation();
+    if (!confirm(`Are you sure you want to delete release "${release.name}"?`)) return;
+    try {
+      await releaseService.deleteRelease(release._id);
+      toast.success("Release deleted successfully");
+      // Deselect if it was selected
+      if (selectedIds.has(release._id)) {
+        const newSet = new Set(selectedIds);
+        newSet.delete(release._id);
+        setSelectedIds(newSet);
+      }
+      fetchReleases();
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to delete release");
+    }
+  };
+
   return (
     <div className="flex min-h-[93.9vh] relative overflow-hidden bg-white">
       {/* MAIN CONTENT */}
@@ -362,17 +425,46 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
                         <ReleaseStatusBadge status={release.status} />
                       </TableCell>
                       <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="opacity-0 group-hover:opacity-100"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            // Open context menu or something
-                          }}
-                        >
-                          <MoreVertical className="h-4 w-4 text-gray-500" />
-                        </Button>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <MoreVertical className="h-4 w-4 text-gray-500" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                            {release.status === "DRAFT" && (
+                              <DropdownMenuItem
+                                onClick={(e) => handleSendRelease(e, release)}
+                              >
+                                <Send className="mr-2 h-4 w-4" />
+                                <span>Send</span>
+                              </DropdownMenuItem>
+                            )}
+                            <DropdownMenuItem
+                              onClick={(e) => handleDownloadRelease(e, release)}
+                            >
+                              <Download className="mr-2 h-4 w-4" />
+                              <span>Download</span>
+                            </DropdownMenuItem>
+                            {release.status !== "SENT" && (
+                              <>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  className="text-red-600 focus:text-red-600"
+                                  onClick={(e) => handleDeleteRelease(e, release)}
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  <span>Delete</span>
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
                   );

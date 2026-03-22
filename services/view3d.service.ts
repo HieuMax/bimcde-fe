@@ -5,8 +5,13 @@ const api = apiClient();
 const BASE_URL = "/views3d";
 
 export const viewService3D = {
-    getAll: async (projectId: string) => {
-        const params = { projectId };
+    getAll: async (projectId: string, filters?: { userIds?: string[]; groupIds?: string[]; startDate?: string; endDate?: string }) => {
+        const params: Record<string, any> = { projectId };
+        if (filters?.userIds) params.userIds = filters.userIds.join(",");
+        if (filters?.groupIds) params.groupIds = filters.groupIds.join(",");
+        if (filters?.startDate) params.startDate = filters.startDate;
+        if (filters?.endDate) params.endDate = filters.endDate;
+
         const data = await api.get(BASE_URL, { params });
         return data as IView[];
     },

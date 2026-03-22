@@ -2,57 +2,41 @@
 
 import React from "react";
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import {
   Building,
   Clock,
-  Users,
   ArrowRight,
   FolderOpen,
   Camera,
-  Box,
   Calendar,
 } from "lucide-react";
+import {
+  DashboardStatsGrid,
+  useDashboardStats,
+  RecentActivitySection,
+  FileTypesChart,
+  ProjectStorageBar,
+} from "@/components/features/dashboard";
 
 const projectData = {
   name: "The Building",
   description: "Description.",
   status: "In Progress",
   lastUpdated: "2 giờ trước",
-  stats: [
-    { label: "Total Folders", value: "128", icon: FolderOpen },
-    { label: "Active Views", value: "45", icon: Camera },
-    { label: "Releases", value: "12", icon: Box },
-    { label: "Team Members", value: "24", icon: Users },
-  ],
   members: [
     { id: 1, name: "Nam Nguyen", avatar: "NN" },
     { id: 2, name: "Tuan Le", avatar: "TL" },
     { id: 3, name: "Sarah J", avatar: "SJ" },
     { id: 4, name: "Mike D", avatar: "MD" },
   ],
-  activities: [
-    {
-      user: "Nam Nguyen",
-      action: "updated",
-      target: "Floor_01_Arch.dwg",
-      time: "15 minutes ago",
-    },
-    {
-      user: "Tuan Le",
-      action: "created new",
-      target: "v1.2.0 - Foundation",
-      time: "1 hours ago",
-    },
-    {
-      user: "Sarah J",
-      action: "created new",
-      target: "Section A-A",
-      time: "3 hours ago",
-    },
-  ],
 };
 
-export default function HomePage() {
+export default function DashboardPage() {
+  const params = useParams();
+  const projectId = params?.projectId as string | undefined;
+  const { stats, loading, error } = useDashboardStats(projectId);
+
   return (
     <div className="min-h-full bg-[#F0F4F6] text-[#0F2332] p-6 md:p-8 space-y-8 animate-in fade-in duration-500">
       {/* 1. HEADER SECTION */}
@@ -82,28 +66,72 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* 2. STATS GRID */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {projectData.stats.map((stat, index) => (
-          <div
-            key={index}
-            className="bg-white p-5 rounded-lg border border-gray-200/60 shadow-sm hover:shadow-md transition-shadow group"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-2 rounded-md bg-[#F0F4F6] text-[#1D3F52] group-hover:bg-[#1D3F52] group-hover:text-white transition-colors">
-                <stat.icon size={20} />
+      {/* 2. PROJECT DETAILS + FILE TYPES (Top row) */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Project Details Card - Left */}
+        <section className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+          <h2 className="text-base font-bold text-[#0F2332] mb-4">
+            Project Details
+          </h2>
+          <div className="space-y-4">
+            <div className="flex items-start gap-3">
+              <Calendar size={18} className="text-[#1D3F52] mt-0.5" />
+              <div>
+                <div className="text-xs text-gray-400 uppercase font-bold">
+                  Start Date
+                </div>
+                <div className="text-sm font-medium text-[#0F2332]">
+                  Oct 24, 2025
+                </div>
               </div>
-              <span className="text-xs font-medium text-gray-400 uppercase tracking-wider">
-                Metric
-              </span>
             </div>
-            <div className="text-2xl font-bold text-[#0F2332]">
-              {stat.value}
+            <div className="flex items-start gap-3">
+              <Clock size={18} className="text-[#1D3F52] mt-0.5" />
+              <div>
+                <div className="text-xs text-gray-400 uppercase font-bold">
+                  Last Updated
+                </div>
+                <div className="text-sm font-medium text-[#0F2332]">
+                  {projectData.lastUpdated}
+                </div>
+              </div>
             </div>
-            <div className="text-sm text-[#0F2332]/50 mt-1">{stat.label}</div>
+            <div className="pt-4 border-t border-gray-100">
+              <div className="text-xs text-gray-400 uppercase font-bold mb-3">
+                Team Members
+              </div>
+              <div className="flex -space-x-2 overflow-hidden py-1">
+                {projectData.members.map((member) => (
+                  <div
+                    key={member.id}
+                    className="h-8 w-8 rounded-full ring-2 ring-white bg-[#E0E8EC] text-[#1D3F52] flex items-center justify-center text-xs font-bold shadow-sm"
+                    title={member.name}
+                  >
+                    {member.avatar}
+                  </div>
+                ))}
+                <div className="h-8 w-8 rounded-full ring-2 ring-white bg-[#F0F4F6] text-[#0F2332]/50 flex items-center justify-center text-xs font-bold cursor-pointer hover:bg-[#E0E8EC]">
+                  +5
+                </div>
+              </div>
+            </div>
+            <ProjectStorageBar projectId={projectId} />
           </div>
-        ))}
+        </section>
+
+        {/* File Types Pie Chart - Right */}
+        <FileTypesChart projectId={projectId} />
       </div>
+
+      {/* 3. STATS GRID */}
+      <section>
+        {error && (
+          <p className="text-sm text-red-600 mb-4">
+            {error}
+          </p>
+        )}
+        <DashboardStatsGrid stats={stats} loading={loading} />
+      </section>
 
       {/* 3. MAIN CONTENT GRID */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -117,7 +145,7 @@ export default function HomePage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Explorer Card */}
               <Link
-                href="#"
+                href={projectId ? `/projects/${projectId}/data` : "#"}
                 className="group relative overflow-hidden bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:border-[#1D3F52]/30 transition-all"
               >
                 <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
@@ -144,7 +172,7 @@ export default function HomePage() {
 
               {/* Views Card */}
               <Link
-                href="#"
+                href={projectId ? `/projects/${projectId}/viewer3d` : "#"}
                 className="group relative overflow-hidden bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:border-[#1D3F52]/30 transition-all"
               >
                 <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
@@ -172,96 +200,11 @@ export default function HomePage() {
           </section>
 
           {/* Recent Activity */}
-          <section className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="text-base font-bold text-[#0F2332]">
-                Recent Activity
-              </h2>
-              <button className="text-xs font-medium text-[#1D3F52] hover:underline">
-                View All
-              </button>
-            </div>
-            <div className="divide-y divide-gray-100">
-              {projectData.activities.map((activity, idx) => (
-                <div
-                  key={idx}
-                  className="px-6 py-4 flex items-start gap-4 hover:bg-gray-50 transition-colors"
-                >
-                  <div className="w-8 h-8 rounded-full bg-[#1D3F52] text-white flex items-center justify-center text-xs font-bold flex-shrink-0">
-                    {activity.user.charAt(0)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm text-[#0F2332]">
-                      <span className="font-semibold">{activity.user}</span>{" "}
-                      {activity.action}{" "}
-                      <span className="font-medium text-[#1D3F52]">
-                        {activity.target}
-                      </span>
-                    </p>
-                    <div className="flex items-center gap-2 mt-1 text-xs text-gray-400">
-                      <Clock size={12} />
-                      <span>{activity.time}</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </section>
+          <RecentActivitySection projectId={projectId} />
         </div>
 
         {/* RIGHT COLUMN (1/3) */}
-        {/* <div className="space-y-8"> */}
         <div className="space-y-8 h-full flex flex-col justify-end">
-          {/* Project Details Card */}
-          <section className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-            <h2 className="text-base font-bold text-[#0F2332] mb-4">
-              Project Details
-            </h2>
-            <div className="space-y-4">
-              <div className="flex items-start gap-3">
-                <Calendar size={18} className="text-[#1D3F52] mt-0.5" />
-                <div>
-                  <div className="text-xs text-gray-400 uppercase font-bold">
-                    Start Date
-                  </div>
-                  <div className="text-sm font-medium text-[#0F2332]">
-                    Oct 24, 2025
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <Clock size={18} className="text-[#1D3F52] mt-0.5" />
-                <div>
-                  <div className="text-xs text-gray-400 uppercase font-bold">
-                    Last Updated
-                  </div>
-                  <div className="text-sm font-medium text-[#0F2332]">
-                    {projectData.lastUpdated}
-                  </div>
-                </div>
-              </div>
-              <div className="pt-4 border-t border-gray-100">
-                <div className="text-xs text-gray-400 uppercase font-bold mb-3">
-                  Team Members
-                </div>
-                <div className="flex -space-x-2 overflow-hidden py-1">
-                  {projectData.members.map((member) => (
-                    <div
-                      key={member.id}
-                      className="h-8 w-8 rounded-full ring-2 ring-white bg-[#E0E8EC] text-[#1D3F52] flex items-center justify-center text-xs font-bold shadow-sm"
-                      title={member.name}
-                    >
-                      {member.avatar}
-                    </div>
-                  ))}
-                  <div className="h-8 w-8 rounded-full ring-2 ring-white bg-[#F0F4F6] text-[#0F2332]/50 flex items-center justify-center text-xs font-bold cursor-pointer hover:bg-[#E0E8EC]">
-                    +5
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-
           {/* Help / Support Mini Card */}
           <div className="bg-gradient-to-br from-[#1D3F52] to-[#2D566C] rounded-xl p-6 text-white shadow-md">
             <h3 className="font-bold mb-2">Need Help?</h3>

@@ -9,6 +9,7 @@ import {
   Camera,
   Box,
   Settings,
+  LayoutDashboard,
 } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
@@ -51,7 +52,7 @@ export default function Sidebar() {
     isExplorerActive || isViewsActive || isReleasesActive;
 
   const hasActiveSettingsChild = SETTINGS_ITEMS.some((item) =>
-    checkIsActive(item.pathSegment)
+    checkIsActive(item.pathSegment),
   );
 
   // --- RENDER 1: EXPLORER MODE ---
@@ -73,7 +74,7 @@ export default function Sidebar() {
     <aside
       className={cn(
         "bg-[#F0F4F6] text-[#0F2332] flex flex-col h-full select-none font-sans text-sm border-r border-gray-300/70 transition-all duration-300 relative z-40",
-        sidebarWidthClass
+        sidebarWidthClass,
       )}
     >
       <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-white/20 overflow-x-hidden">
@@ -83,7 +84,7 @@ export default function Sidebar() {
             href="/projects"
             className={cn(
               "flex items-center gap-3 py-5 hover:bg-white/10 transition-all duration-300 border-l-4 border-transparent overflow-hidden whitespace-nowrap",
-              isCollapsed ? "pl-[21px]" : "pl-4"
+              isCollapsed ? "pl-[21px]" : "pl-4",
             )}
             title="All Projects"
           >
@@ -91,7 +92,7 @@ export default function Sidebar() {
             <span
               className={cn(
                 "font-medium text-[15px] transition-all duration-300",
-                isCollapsed ? "opacity-0 w-0" : "opacity-100 w-auto"
+                isCollapsed ? "opacity-0 w-0" : "opacity-100 w-auto",
               )}
             >
               All Projects
@@ -100,6 +101,14 @@ export default function Sidebar() {
         </div>
 
         <nav className="py-1 space-y-0.5 pb-20">
+          {/* === DASHBOARD ITEM === */}
+          <SidebarItem
+            icon={<LayoutDashboard size={18} />}
+            label="Dashboard"
+            href={`${basePath}`}
+            isActive={pathname === basePath}
+            isCollapsed={isCollapsed}
+          />
           {/* === GROUP: DATA === */}
           <SidebarGroup
             icon={<Folder size={18} />}
@@ -126,7 +135,7 @@ export default function Sidebar() {
                       "flex items-center h-full ml-2 pl-1",
                       isExplorerActive
                         ? "border-l border-[#1D3F52]/30"
-                        : "border-l border-[#1D3F52]/20"
+                        : "border-l border-[#1D3F52]/20",
                     )}
                   >
                     <div
@@ -134,7 +143,7 @@ export default function Sidebar() {
                         "p-1 rounded cursor-pointer transition-colors flex items-center gap-0.5",
                         isExplorerActive
                           ? "text-[#1D3F52] hover:bg-[#1D3F52]/10"
-                          : "text-[#0F2332] hover:text-[#1D3F52] hover:bg-[#1D3F52]/10"
+                          : "text-[#0F2332] hover:text-[#1D3F52] hover:bg-[#1D3F52]/10",
                       )}
                       onClick={(e) => {
                         e.preventDefault();

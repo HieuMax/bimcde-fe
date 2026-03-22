@@ -9,14 +9,29 @@ export const activityService = {
     const queryParams: Record<string, string | number | boolean> = {};
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined && value !== null && value !== "") {
-        queryParams[key] = value;
+        if (key === "lightweight") {
+          queryParams[key] = value ? "true" : "false";
+        } else {
+          queryParams[key] = value;
+        }
       }
     });
 
-    const data = await api.get("/activities", {
+    const raw = await api.get("/activities", {
       params: queryParams,
     });
-    return data as ActivityResponse;
+    // BE returns { data, pagination } - normalize to ActivityResponse
+    if (raw && typeof raw === "object" && "pagination" in raw && raw.pagination) {
+      const pagination = raw.pagination as { total?: number; page?: number; limit?: number; totalPages?: number };
+      return {
+        data: (raw.data ?? []) as ActivityResponse["data"],
+        total: pagination.total ?? 0,
+        page: pagination.page ?? 1,
+        limit: pagination.limit ?? 20,
+        totalPages: pagination.totalPages ?? 0,
+      } as ActivityResponse;
+    }
+    return raw as ActivityResponse;
   },
 
   // Optional: if we need to log custom activities from FE
