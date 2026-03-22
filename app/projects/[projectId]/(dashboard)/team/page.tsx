@@ -322,296 +322,297 @@ export default function page({
   });
 
   return (
-    <div className="pt-6 space-y-6 bg-muted h-full overflow-y-hidden">
-      {/* HEADER */}
-      <div className="flex items-center justify-between px-6">
-        <h1 className="text-xl font-semibold ">Project members</h1>
-        <Button
-          onClick={handleInvitePeople}
-          className="bg-[#005a92] hover:bg-[#004a79] h-10 px-6 text-white">
-          Invite people to project
-        </Button>
-      </div>
-      {/* BODY */}
-      <div className="flex  border-t h-[calc(100%-40px)] bg-white">
-        {/* groups */}
+    <div className="flex relative w-full h-full gap-3">
+      <div className="pt-6 space-y-6 bg-muted h-full w-full overflow-y-hidden">
+        {/* HEADER */}
+        <div className="flex items-center justify-between px-6">
+          <h1 className="text-xl font-semibold ">Project members</h1>
+          <Button
+            onClick={handleInvitePeople}
+            className="bg-[#005a92] hover:bg-[#004a79] h-10 px-6 text-white">
+            Invite people to project
+          </Button>
+        </div>
+        {/* BODY */}
+        <div className="flex  border-t h-[calc(100%-40px)] bg-white">
+          {/* groups */}
 
-        <div className="max-w-72 w-full border-r">
-          <div className="h-16 flex items-center justify-between p-4 font-semibold text-lg border-b">
-            <h3>Groups</h3>
-            <Button
-              onClick={handleNewGroup}
-              className="bg-gray-200 text-black hover:bg-gray-300">
-              New Group
-            </Button>
-          </div>
-          {/* group item */}
-
-          <div className="h-full bg-white border-none ">
-            <Button
-              onClick={() => handleGroupSelection({ _id: "all" })}
-              className={`w-full flex flex-col rounded-none items-start h-14 bg-white text-gray-500 hover:bg-gray-200 border-none outline-none shadow-none ${
-                activeGroup._id === "all" ? "text-[#005f9e] bg-[#e5f0f8]" : ""
-              }`}>
-              <span> All project members</span>
-              <span className="font-normal">{memberProjectCount} Users</span>
-            </Button>
-            <div className="h-14 items-center">
-              <Button className="w-full rounded-none pointer-events-none justify-start h-14 bg-white text-gray-500 hover:bg-gray-200 border-none outline-none shadow-none">
-                CUSTOM GROUPS
+          <div className="max-w-72 w-full border-r">
+            <div className="h-16 flex items-center justify-between p-4 font-semibold text-lg border-b">
+              <h3>Groups</h3>
+              <Button
+                onClick={handleNewGroup}
+                className="bg-gray-200 text-black hover:bg-gray-300">
+                New Group
               </Button>
             </div>
-            {groupData.map((group: any) => (
-              <div key={group._id}>
-                <Button
-                  onClick={() => handleGroupSelection(group)}
-                  className={`w-full flex flex-col items-start rounded-none h-14 bg-white text-gray-500 hover:bg-gray-200 border-none outline-none shadow-none ${
-                    activeGroup._id === group._id
-                      ? "text-[#005f9e] bg-[#e5f0f8]"
-                      : ""
-                  }`}>
-                  <span> {group.name}</span>
-                  <span className="font-normal">{group.memberCount} Users</span>
+            {/* group item */}
+
+            <div className="h-full bg-white border-none ">
+              <Button
+                onClick={() => handleGroupSelection({ _id: "all" })}
+                className={`w-full flex flex-col rounded-none items-start h-14 bg-white text-gray-500 hover:bg-gray-200 border-none outline-none shadow-none ${
+                  activeGroup._id === "all" ? "text-[#005f9e] bg-[#e5f0f8]" : ""
+                }`}>
+                <span> All project members</span>
+                <span className="font-normal">{memberProjectCount} Users</span>
+              </Button>
+              <div className="h-14 items-center">
+                <Button className="w-full rounded-none pointer-events-none justify-start h-14 bg-white text-gray-500 hover:bg-gray-200 border-none outline-none shadow-none">
+                  CUSTOM GROUPS
                 </Button>
               </div>
-            ))}
+              {groupData.map((group: any) => (
+                <div key={group._id}>
+                  <Button
+                    onClick={() => handleGroupSelection(group)}
+                    className={`w-full flex flex-col items-start rounded-none h-14 bg-white text-gray-500 hover:bg-gray-200 border-none outline-none shadow-none ${
+                      activeGroup._id === group._id
+                        ? "text-[#005f9e] bg-[#e5f0f8]"
+                        : ""
+                    }`}>
+                    <span> {group.name}</span>
+                    <span className="font-normal">
+                      {group.memberCount} Users
+                    </span>
+                  </Button>
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
 
-        {/* table */}
+          {/* table */}
 
-        <div className=" w-full">
-          {/* filter table */}
-          <div className="  border-b h-16 w-full">
-            <div className="flex justify-between p-4 pr-28 items-center h-full">
-              <h3 className="font-semibold text-lg">All project members</h3>
-              <div className="flex items-center">
-                {!isSearch && (
-                  <div>
-                    {" "}
-                    <CustomDropdown
-                      type="checkbox"
-                      icon={<ChevronDown></ChevronDown>}
-                      label="Role"
-                      items={[
-                        {
-                          label: "User",
-                          checked: roleFilter.user,
-                          onCheckedChange: (checked) =>
-                            handleCheckedChange("user", checked),
-                        },
-                        {
-                          label: "Admin",
-                          checked: roleFilter.admin,
-                          onCheckedChange: (checked) =>
-                            handleCheckedChange("admin", checked),
-                        },
-                      ]}
-                    />
-                    {activeGroup._id !== "all" && projectIdStorage && (
-                      <AddPeopleToGroup
-                        projectId={projectIdStorage}
-                        groupId={activeGroup._id}
-                        memberProject={memberPorject}
-                        memberGroup={memberGroup}></AddPeopleToGroup>
+          <div className=" w-full">
+            {/* filter table */}
+            <div className="  border-b h-16 w-full">
+              <div className="flex justify-between p-4 pr-28 items-center h-full">
+                <h3 className="font-semibold text-lg">All project members</h3>
+                <div className="flex items-center">
+                  {!isSearch && (
+                    <div>
+                      {" "}
+                      <CustomDropdown
+                        type="checkbox"
+                        icon={<ChevronDown></ChevronDown>}
+                        label="Role"
+                        items={[
+                          {
+                            label: "User",
+                            checked: roleFilter.user,
+                            onCheckedChange: (checked) =>
+                              handleCheckedChange("user", checked),
+                          },
+                          {
+                            label: "Admin",
+                            checked: roleFilter.admin,
+                            onCheckedChange: (checked) =>
+                              handleCheckedChange("admin", checked),
+                          },
+                        ]}
+                      />
+                      {activeGroup._id !== "all" && projectIdStorage && (
+                        <AddPeopleToGroup
+                          projectId={projectIdStorage}
+                          groupId={activeGroup._id}
+                          memberProject={memberPorject}
+                          memberGroup={memberGroup}></AddPeopleToGroup>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Search */}
+                  <div
+                    className={`flex items-center ${
+                      isSearch
+                        ? "border w-[450px] border-b-4 border-b-blue-900"
+                        : ""
+                    }`}>
+                    <Button
+                      variant="ghost"
+                      className=""
+                      onClick={() => setIsSearch(true)}>
+                      <Search className="!h-full  !w-full" size={23} />
+                    </Button>
+                    {isSearch && (
+                      <Input
+                        className="focus-visible:ring-0 border-none "
+                        placeholder="Tìm kiếm..."
+                        value={searchText}
+                        onChange={(e) => setSearchText(e.target.value)}
+                        autoFocus
+                        onBlur={onSearchBlur}
+                      />
                     )}
                   </div>
-                )}
 
-                {/* Search */}
-                <div
-                  className={`flex items-center ${
-                    isSearch
-                      ? "border w-[450px] border-b-4 border-b-blue-900"
-                      : ""
-                  }`}>
-                  <Button
-                    variant="ghost"
-                    className=""
-                    onClick={() => setIsSearch(true)}>
-                    <Search className="!h-full  !w-full" size={23} />
-                  </Button>
-                  {isSearch && (
-                    <Input
-                      className="focus-visible:ring-0 border-none "
-                      placeholder="Tìm kiếm..."
-                      value={searchText}
-                      onChange={(e) => setSearchText(e.target.value)}
-                      autoFocus
-                      onBlur={onSearchBlur}
-                    />
-                  )}
+                  {/* Excel */}
+
+                  <CustomDropdown
+                    icon={<EllipsisVertical></EllipsisVertical>}
+                    type="item"
+                    items={[
+                      {
+                        label: "Export to Excel",
+                        onClick: () => handleExcel("export"),
+                      },
+                      {
+                        label: "Import from Excel",
+                        onClick: () => handleExcel("import"),
+                      },
+
+                      ...(activeGroup._id !== "all"
+                        ? [
+                            {
+                              label: "Rename Group",
+                              onClick: () => onModifiedGroup("edit"),
+                            },
+                            {
+                              className: "border-t mt-2",
+                              label: "Delete Group",
+                              onClick: () => onModifiedGroup("delete"),
+                            },
+                          ]
+                        : []),
+                    ]}
+                  />
                 </div>
-
-                {/* Excel */}
-
-                <CustomDropdown
-                  icon={<EllipsisVertical></EllipsisVertical>}
-                  type="item"
-                  items={[
-                    {
-                      label: "Export to Excel",
-                      onClick: () => handleExcel("export"),
-                    },
-                    {
-                      label: "Import from Excel",
-                      onClick: () => handleExcel("import"),
-                    },
-
-                    ...(activeGroup._id !== "all"
-                      ? [
-                          {
-                            label: "Rename Group",
-                            onClick: () => onModifiedGroup("edit"),
-                          },
-                          {
-                            className: "border-t mt-2",
-                            label: "Delete Group",
-                            onClick: () => onModifiedGroup("delete"),
-                          },
-                        ]
-                      : []),
-                  ]}
-                />
               </div>
             </div>
+
+            {/* data table */}
+            <DataTable
+              columns={columnsTable}
+              data={filteredData}
+              isDrawer={isOpenDrawer}
+              onRowSelectionChange={handleRowSelectionChange}></DataTable>
           </div>
-
-          {/* data table */}
-          <DataTable
-            columns={columnsTable}
-            data={filteredData}
-            isDrawer={isOpenDrawer}
-            onRowSelectionChange={handleRowSelectionChange}></DataTable>
         </div>
-      </div>
-      {/* DIALOG */}
-      <Dialog
-        open={!!dialog}
-        onOpenChange={(open) => {
-          if (!open) {
-            oncloseDialog();
-          }
-        }}>
-        {" "}
-        <DialogContent
-          aria-describedby={undefined}
-          className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>{titleDialog}</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid gap-2">
-              <Label htmlFor="name" className="text-gray-500">
-                {labelDialog}
-              </Label>
+        {/* DIALOG */}
+        <Dialog
+          open={!!dialog}
+          onOpenChange={(open) => {
+            if (!open) {
+              oncloseDialog();
+            }
+          }}>
+          {" "}
+          <DialogContent
+            aria-describedby={undefined}
+            className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>{titleDialog}</DialogTitle>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="name" className="text-gray-500">
+                  {labelDialog}
+                </Label>
 
-              {!isInvite && (
-                <Input
-                  className="border-b-2 border-b-blue-700 focus-visible:ring-0"
-                  id="name"
-                  value={dialogInput || ""}
-                  onChange={(e) => setDialogInput(e.target.value)}
-                  // onKeyDown={(e) => e.key === "Enter" && handleSaveEdit()}
-                />
-              )}
-            </div>
-            {isInvite && (
-              <div className="flex flex-col justify-start gap-4">
-                <Select
-                  onValueChange={(e) => onHandleInviteSelect("member", e)}>
-                  <SelectTrigger className="w-full border-b-2 border-b-blue-700 focus-visible:outline-none focus:ring-0">
-                    <SelectValue placeholder="Select people" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {listUserData.length > 0 ? (
-                      listUserData.map((user: any) => (
-                        <SelectItem key={user._id} value={user._id}>
-                          {user.fullName} ({user.email})
-                        </SelectItem>
-                      ))
-                    ) : (
-                      <p>No users available to add project</p>
-                    )}
-                  </SelectContent>
-                </Select>
-                <Button
-                  onClick={() => setIsDialogAddToGroup(true)}
-                  className="w-fit bg-gray-100 hover:bg-gray-300 text-gray-500 focus-visible:ring-0">
-                  Add to a group
-                </Button>
-                {isDialogAddToGroup && (
+                {!isInvite && (
+                  <Input
+                    className="border-b-2 border-b-blue-700 focus-visible:ring-0"
+                    id="name"
+                    value={dialogInput || ""}
+                    onChange={(e) => setDialogInput(e.target.value)}
+                    // onKeyDown={(e) => e.key === "Enter" && handleSaveEdit()}
+                  />
+                )}
+              </div>
+              {isInvite && (
+                <div className="flex flex-col justify-start gap-4">
                   <Select
-                    onValueChange={(e) => onHandleInviteSelect("group", e)}>
+                    onValueChange={(e) => onHandleInviteSelect("member", e)}>
                     <SelectTrigger className="w-full border-b-2 border-b-blue-700 focus-visible:outline-none focus:ring-0">
-                      <SelectValue placeholder="Select group" />
+                      <SelectValue placeholder="Select people" />
                     </SelectTrigger>
                     <SelectContent>
-                      {groupData.length > 0 ? (
-                        groupData.map((gr: any) => (
-                          <SelectItem key={gr._id} value={gr._id}>
-                            {gr.name}
+                      {listUserData.length > 0 ? (
+                        listUserData.map((user: any) => (
+                          <SelectItem key={user._id} value={user._id}>
+                            {user.fullName} ({user.email})
                           </SelectItem>
                         ))
                       ) : (
-                        <p>No groups available to add project</p>
+                        <p>No users available to add project</p>
                       )}
                     </SelectContent>
                   </Select>
-                )}
-                <div>
-                  <h3 className="text-sm font-medium text-gray-500">Role</h3>
+                  <Button
+                    onClick={() => setIsDialogAddToGroup(true)}
+                    className="w-fit bg-gray-100 hover:bg-gray-300 text-gray-500 focus-visible:ring-0">
+                    Add to a group
+                  </Button>
+                  {isDialogAddToGroup && (
+                    <Select
+                      onValueChange={(e) => onHandleInviteSelect("group", e)}>
+                      <SelectTrigger className="w-full border-b-2 border-b-blue-700 focus-visible:outline-none focus:ring-0">
+                        <SelectValue placeholder="Select group" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {groupData.length > 0 ? (
+                          groupData.map((gr: any) => (
+                            <SelectItem key={gr._id} value={gr._id}>
+                              {gr.name}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <p>No groups available to add project</p>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-500">Role</h3>
+                  </div>
+                  <RadioGroup
+                    className="flex items-center text-black"
+                    value={roleDialog.id}
+                    onValueChange={(value) => handleRoleDialog(value)}>
+                    {roleRadio.map((item) => (
+                      <div key={item.id} className="flex items-center gap-3 ">
+                        <Label>{item.label}</Label>
+                        <RadioGroupItem
+                          value={item.id}
+                          id={item.id}></RadioGroupItem>
+                      </div>
+                    ))}
+                  </RadioGroup>
                 </div>
-                <RadioGroup
-                  className="flex items-center text-black"
-                  value={roleDialog.id}
-                  onValueChange={(value) => handleRoleDialog(value)}>
-                  {roleRadio.map((item) => (
-                    <div key={item.id} className="flex items-center gap-3 ">
-                      <Label>{item.label}</Label>
-                      <RadioGroupItem
-                        value={item.id}
-                        id={item.id}></RadioGroupItem>
-                    </div>
-                  ))}
-                </RadioGroup>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => oncloseDialog()}>
-              Cancel
-            </Button>
-            <Button
-              onClick={handleSubmitDialog}
-              disabled={
-                loading ||
-                (!dialogInput && !isInvite) ||
-                (!selectedUser && isInvite)
-              }>
-              {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Save Changes
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      ;{/* CONFIRM DELETE GROUP */}
-      <ConfirmDeleteGroup
-        open={isOpenConfirmDelete}
-        groupName={activeGroup?.name || ""}
-        onConfirm={() => handleDeleteGroup(activeGroup?._id)}
-        onCancel={() => onCloseConfirmDelete()}
-      />
-      <div className="hidden">
-        {" "}
-        <TeamDrawer
-          isOpen={isOpenDrawer}
-          onClose={onCloseDrawer}
-          data={rowSelection}
-          groupData={groupData}
-          activeGroup={activeGroup}></TeamDrawer>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => oncloseDialog()}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSubmitDialog}
+                disabled={
+                  loading ||
+                  (!dialogInput && !isInvite) ||
+                  (!selectedUser && isInvite)
+                }>
+                {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Save Changes
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+        ;{/* CONFIRM DELETE GROUP */}
+        <ConfirmDeleteGroup
+          open={isOpenConfirmDelete}
+          groupName={activeGroup?.name || ""}
+          onConfirm={() => handleDeleteGroup(activeGroup?._id)}
+          onCancel={() => onCloseConfirmDelete()}
+        />
       </div>
+      <TeamDrawer
+        isOpen={isOpenDrawer}
+        onClose={onCloseDrawer}
+        data={rowSelection}
+        groupData={groupData}
+        activeGroup={activeGroup}></TeamDrawer>
     </div>
   );
 }
@@ -664,7 +665,7 @@ const CustomDropdown = ({ label, items, type, icon }: DropdownProps) => {
               className={`cursor-pointer h-12 ${item.className}`}>
               {item.label}
             </DropdownMenuItem>
-          )
+          ),
         )}
       </DropdownMenuContent>
     </DropdownMenu>
