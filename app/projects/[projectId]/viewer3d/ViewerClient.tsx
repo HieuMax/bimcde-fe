@@ -462,10 +462,9 @@ export default function ViewerClient() {
           console.log("Parsed IFC URLs from params F5:", parsed);
 
           setIfcUrls((prev) => (areArraysEqual(prev, parsed) ? prev : parsed));
-      }catch {
-      
+      }catch { }
     }
-    } 
+  } 
   }, [searchParams, projectId, router]);
 
   const handleBack = () => {
