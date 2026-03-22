@@ -15,7 +15,10 @@ import {
   ChevronRight,
   Info,
   EllipsisVertical,
-  Menu, Search, Check
+  Menu, Search, Check,
+  Settings2,
+  Footprints,
+  Move
 } from 'lucide-react';
 import './ifc.css';
 import LoadingBar from '../LoadingBar';
@@ -26,6 +29,7 @@ import { Topics } from '@/components/_3d/topics/Topics';
 import { ClashSets } from '@/components/_3d/clash_sets/ClashSets';
 import { Organizer } from '@/components/_3d/organizer/Organizer';
 import { PropertiesDrawer } from './PropertiesDrawer';
+import { ModelPositionDrawer } from './ModelPositionDrawer';
 
 export default function IfcViewer({
   ifcUrls,
@@ -40,11 +44,24 @@ export default function IfcViewer({
   onOpenViewDrawer,
   onRestoreView,
   onUpdateSnapshot,
+  modelOpacity,
+  onOpacityChange,
+  onOpenNewClashDrawer,
+  clashResults,
+  autoExpandedClashSetId,
+  onRestoreClashSet,
+  cameraMode,
+  selectionMode,
+  activeTool,
+  onToolChange
 }) {
   const canvasRef = useRef(null);
   const loaderRef = useRef(null);
   const sceneRef = useRef(null);
-
+  const threeSceneRef = useRef(null);
+  const requestRef = useRef();
+  const selectedItemsRef = useRef([]);
+  const selectionModeRef = useRef(selectionMode)
   const modelUrlMap = useRef({})
 
   const [isLoading, setIsLoading] = useState(false);
@@ -81,6 +98,85 @@ export default function IfcViewer({
   // DATA TABLE
   const isDataTable = state === 'data-table';
 
+
+  // --- STATE POSITION DRAWER ---
+  const [isPosDrawerOpen, setIsPosDrawerOpen] = useState(false);
+  const [posDrawerModel, setPosDrawerModel] = useState(null);
+  const [posDrawerData, setPosDrawerData] = useState(null);
+
+  // --- HANDLER ---
+  const handleOpenPositionSettings = (model) => {
+    if (!loaderRef.current) return;
+
+    const transform = loaderRef.current.getModelTransform(model.ifcModelID);
+
+    setPosDrawerModel({ id: model.ifcModelID, name: model.name });
+    setPosDrawerData(transform);
+    setOpenMenuKey(null);
+    setIsPosDrawerOpen(true);
+  };
+
+  const handleSavePosition = (modelId, data) => {
+    if (loaderRef.current) {
+      loaderRef.current.setModelTransform(modelId, data);
+    }
+  };
+
+  const animateClipping = () => {
+    if (loaderRef.current) {
+      loaderRef.current.updateClippingPlanes();
+    }
+    requestRef.current = requestAnimationFrame(animateClipping);
+  };
+
+  useEffect(() => {
+    // Start loop
+    requestRef.current = requestAnimationFrame(animateClipping);
+    return () => cancelAnimationFrame(requestRef.current);
+  }, []);
+
+
+  useEffect(() => {
+    if (!loaderRef.current || !sceneRef.current) return;
+    const renderer = sceneRef.current.getRenderer();
+    const camera = sceneRef.current.getCamera();
+    const controls = sceneRef.current.controls;
+
+    if (activeTool === 'clipping') {
+      loaderRef.current.toggleClipping(true, camera, renderer);
+      renderer.clippingPlanes = loaderRef.current.clippingPlanes;
+
+      if (loaderRef.current.transformControls) {
+        loaderRef.current.transformControls.addEventListener('dragging-changed', (event) => {
+          controls.enabled = !event.value;
+        });
+      }
+    } else {
+      loaderRef.current.toggleClipping(false, camera, renderer);
+      controls.enabled = true;
+    }
+  }, [activeTool]);
+
+
+  const activeToolRef = useRef(activeTool);
+  useEffect(() => {
+    activeToolRef.current = activeTool;
+  }, [activeTool]);
+
+  useEffect(() => {
+    selectedItemsRef.current = selectedItems;
+  }, [selectedItems]);
+
+  useEffect(() => {
+    selectionModeRef.current = selectionMode;
+  }, [selectionMode]);
+
+  useEffect(() => {
+    if (threeSceneRef.current && cameraMode) {
+      threeSceneRef.current.setCameraMode(cameraMode);
+    }
+  }, [cameraMode]);
+
   useEffect(() => {
     if (!ifcUrls?.length || !canvasRef.current) return;
 
@@ -92,6 +188,7 @@ export default function IfcViewer({
       if (!loaderRef.current) {
         const scene = new ThreeScene(canvasRef.current);
         sceneRef.current = scene;
+        threeSceneRef.current = scene;
         loaderRef.current = new IfcManager(scene.scene, []);
 
         canvas.addEventListener('mousedown', (e) => {
@@ -111,23 +208,119 @@ export default function IfcViewer({
         /** ONLY PICK IF NOT DRAGGING */
         canvas.addEventListener('mouseup', (event) => {
           if (!isDragging.current) {
+            const isClippingMode = activeToolRef.current === 'clipping';
+
+            const camera = scene.getCamera();
+            const renderer = scene.getRenderer();
+
+            if (isClippingMode) {
+              if (loaderRef.current) {
+                loaderRef.current.handleClippingClick(event, camera, renderer);
+                renderer.clippingPlanes = loaderRef.current.clippingPlanes;
+              }
+              return;
+            }
+
+            if (loaderRef.current) {
+              const clickedPlane = loaderRef.current.pickClipPlane(event, camera, renderer);
+
+              if (clickedPlane) {
+                console.log("Click trúng Icon -> Edit Plane");
+
+                loaderRef.current.editPlane(clickedPlane);
+
+                if (onToolChange) {
+                  onToolChange('clipping');
+                }
+
+                return;
+              }
+            }
+
+
             const result = loaderRef.current.pick(event, scene.getCamera(), scene.getRenderer());
+            const currentMode = selectionModeRef.current || 'single';
+
+            const prevSelected = selectedItemsRef.current;
+            let newSelection = [];
 
             if (result) {
               const sourceUrl = modelUrlMap.current[result.modelID]
               const enrichedItem = { ...result, fileUrl: sourceUrl }
-              if (setSelectdItemsForNavbar) {
-                setSelectdItemsForNavbar([enrichedItem]);
+              // if (setSelectdItemsForNavbar) {
+              //   setSelectdItemsForNavbar([enrichedItem]);
+              // }
+              // setSelectedItems([result]);
+              if (currentMode === 'single') {
+                // Single: Thay thế hoàn toàn
+                newSelection = [enrichedItem];
+              } else {
+                // Multiple: Toggle
+                const exists = prevSelected.find(
+                  item => item.modelID === result.modelID && item.expressID === result.expressID
+                );
+
+                if (exists) {
+                  // Remove
+                  newSelection = prevSelected.filter(item => item !== exists);
+                } else {
+                  // Add
+                  newSelection = [...prevSelected, enrichedItem];
+                }
               }
-              setSelectedItems([result]);
+              loaderRef.current.highlightItems(newSelection)
             } else {
-              setSelectedItems([]);
-              if (setSelectdItemsForNavbar) {
-                setSelectdItemsForNavbar([]);
-              }
+              // setSelectedItems([]);
+              // if (setSelectdItemsForNavbar) {
+              //   setSelectdItemsForNavbar([]);
+              // }
+              newSelection = [];
+              loaderRef.current.removeHighlight();
+            }
+
+
+            // Update Local State
+            setSelectedItems(newSelection);
+
+            if (setSelectdItemsForNavbar) {
+              setSelectdItemsForNavbar(newSelection);
             }
           }
         });
+
+
+        if (onRegisterCapture) {
+          onRegisterCapture({
+            capture: getSnapshot,
+            restore: restoreState,
+            getContext: getContext,
+            runClashTest: runClashTest,
+            setCameraMode: (mode) => {
+              if (threeSceneRef.current) {
+                threeSceneRef.current.setCameraMode(mode);
+              }
+            },
+            setView: (viewType) => {
+              if (threeSceneRef.current) threeSceneRef.current.setView(viewType);
+            },
+            saveClipping: () => {
+              if (loaderRef.current) {
+                loaderRef.current.saveCurrentClipping();
+                if (sceneRef.current) {
+                  sceneRef.current.getRenderer().clippingPlanes = loaderRef.current.clippingPlanes;
+                }
+              }
+            },
+            cancelClipping: () => {
+              if (loaderRef.current) {
+                loaderRef.current.cancelCurrentClipping();
+                if (sceneRef.current) {
+                  sceneRef.current.getRenderer().clippingPlanes = loaderRef.current.clippingPlanes;
+                }
+              }
+            }
+          });
+        }
       }
 
       //
@@ -138,28 +331,33 @@ export default function IfcViewer({
 
         modelUrlMap.current = {};
 
-        const loadPromises = ifcUrls.map(url => loaderRef.current.loadIfcUrl(url));
+        // const loadPromises = ifcUrls.map(url => loaderRef.current.loadIfcUrl(url));
 
-        const loadedModels = await Promise.all(loadPromises);
         const newModels = [];
 
-        for (let i = 0; i < loadedModels.length; i++) {
-          const model = loadedModels[i];
+        for (let i = 0; i < ifcUrls.length; i++) {
           const url = ifcUrls[i];
-          const modelID = model.modelID;
+          console.log(`[Viewer] Loading model ${i + 1}/${ifcUrls.length}: ${url}`);
 
-          modelUrlMap.current[modelID] = url;
+          try {
+            const model = await loaderRef.current.loadIfcUrl(url);
+            const modelID = model.modelID;
+            modelUrlMap.current[modelID] = url;
 
-          const { tree, layers } = await loaderRef.current.getSpatialTree(modelID);
-          newModels.push({
-            id: i,
-            ifcModelID: modelID,
-            name: url.split('/').pop(),
-            tree,
-            layers,
-            mesh: model.mesh,
-            visible: true,
-          });
+            const { tree, layers } = await loaderRef.current.getSpatialTree(modelID);
+
+            newModels.push({
+              id: i,
+              ifcModelID: modelID,
+              name: url.split('/').pop(),
+              tree,
+              layers,
+              mesh: model.mesh,
+              visible: true,
+            });
+          } catch (err) {
+            console.error(`Error loading model ${url}:`, err);
+          }
         }
         setModels(newModels);
         if (onLoaded) onLoaded();
@@ -238,33 +436,18 @@ export default function IfcViewer({
   const isLayerVisible = (modelID, typeId) => !hiddenLayers.has(layerKey(modelID, typeId));
 
 
-  // Related to camera state
-  const captureCurrentState = () => {
-    if (!sceneRef.current || !loaderRef.current) return null;
-
-    const cameraState = sceneRef.current.getCameraState();
-
-    const hiddenState = loaderRef.current.getVisibilityState();
-
-    const selectionState = selectedItems.map(item => ({
-      modelID: item.modelID,
-      expressID: item.expressID,
-      fileUrl: item.fileUrl
-    }));
-
-    const thumbnail = sceneRef.current.getScreenshot();
-
-    return {
-      camera: cameraState,
-      visibility: hiddenState,
-      selection: selectionState,
-      thumbnail: thumbnail
-    };
-  };
-
   // === RESTORE STATE ===
   const restoreState = async (viewState, todoItems = []) => {
     if (!viewState || !sceneRef.current || !loaderRef.current) return;
+
+    if (onOpacityChange) {
+      const savedOpacity = viewState.modelOpacity !== undefined ? viewState.modelOpacity : 1;
+      onOpacityChange(savedOpacity);
+    }
+
+    if (viewState.modelTransforms) {
+      loaderRef.current.restoreAllModelsTransform(viewState.modelTransforms);
+    }
 
     // ---------------------------------------------------------
     // 1. PREPARE MAPPING (URL <-> Model ID)
@@ -368,6 +551,13 @@ export default function IfcViewer({
       });
     }
 
+
+    if (viewState.clippingPlanes) {
+      loaderRef.current.restoreClippingState(viewState.clippingPlanes);
+    } else {
+      loaderRef.current.deleteAllPlanes();
+    }
+
     if (itemsToHighlight.length > 0) {
       // Highlight items
       loaderRef.current.highlightItems(itemsToHighlight);
@@ -381,15 +571,6 @@ export default function IfcViewer({
       if (setSelectdItemsForNavbar) setSelectdItemsForNavbar([]);
     }
   };
-
-  useEffect(() => {
-    if (onRegisterCapture) {
-      onRegisterCapture({
-        capture: captureCurrentState,
-        restore: restoreState
-      });
-    }
-  }, [onRegisterCapture, selectedItems]);
 
 
   // Helper
@@ -408,23 +589,33 @@ export default function IfcViewer({
   };
 
   useEffect(() => {
-    if (onRegisterCapture) {
-      onRegisterCapture({
-        // capture: () => loaderRef.current?.getSnapshot(),
-        capture: getSnapshot,
-        restore: restoreState,
-        getContext: getContext
-        // --------------------
-      });
+    if (loaderRef.current) {
+      console.log("Unmounting Viewer - Disposing Manager");
+      loaderRef.current.dispose();
     }
+  }, [])
 
-    return () => {
-      if (loaderRef.current) {
-        console.log("Unmounting Viewer - Disposing Manager");
-        loaderRef.current.dispose();
-      }
-    };
-  }, []);
+
+  // --- WRAPPER CLASH TEST ---
+  const runClashTest = async (modelIDs, tolerance) => {
+    if (!loaderRef.current) return 0;
+    return await loaderRef.current.runClashTest(modelIDs, tolerance);
+  };
+
+
+  const handleSelectClashItem = (item1, item2) => {
+    if (!loaderRef.current) return;
+
+    const itemsToHighlight = [
+      { modelID: item1.modelID, expressID: item1.expressID },
+      { modelID: item2.modelID, expressID: item2.expressID }
+    ];
+
+    loaderRef.current.highlightItems(itemsToHighlight);
+
+    // Zoom camera  (Optional)
+    // loaderRef.current.zoomToItems(itemsToHighlight); 
+  };
 
   const getSnapshot = () => {
     if (!loaderRef.current || !sceneRef.current) return null;
@@ -454,11 +645,17 @@ export default function IfcViewer({
 
     const thumbnail = sceneRef.current.getScreenshot();
 
+    const modelTransforms = loaderRef.current.getAllModelsTransform();
+
+    const clippingPlanes = loaderRef.current.getClippingState();
     return {
       camera,
       visibility: safeVisibility,
       selection: safeSelection,
-      thumbnail
+      thumbnail,
+      modelOpacity: modelOpacity,
+      modelTransforms: modelTransforms,
+      clippingPlanes: clippingPlanes
     };
   };
 
@@ -488,6 +685,17 @@ export default function IfcViewer({
       handleShowProperties();
     }
   }, [selectedItems]);
+
+
+
+
+
+  // --- EFFECT: UPDATE OPACITY ---
+  useEffect(() => {
+    if (loaderRef.current) {
+      loaderRef.current.setModelOpacity(modelOpacity);
+    }
+  }, [modelOpacity])
 
 
   const Loading = () => {
@@ -679,6 +887,30 @@ export default function IfcViewer({
                               }}
                             >
                               {m.name}
+                            </span>
+
+                            <span
+                              style={{ cursor: 'pointer', marginLeft: 'auto', marginTop: "4px" }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenMenuKey(openMenuKey === `model-${m.id}` ? null : `model-${m.id}`);
+                              }}
+                            >
+                              <EllipsisVertical size={20} />
+
+                              {openMenuKey === `model-${m.id}` && (
+                                <div className="absolute bg-white border shadow-lg z-50 rounded-md py-1 right-2 w-40">
+                                  <div
+                                    className="px-3 py-2 hover:bg-gray-100 text-sm cursor-pointer flex items-center gap-2"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenPositionSettings(m);
+                                    }}
+                                  >
+                                    <Settings2 size={14} /> Position Settings
+                                  </div>
+                                </div>
+                              )}
                             </span>
                           </div>
                           <div className="">
@@ -999,7 +1231,14 @@ export default function IfcViewer({
                     width: '100%',
                   }}
                 >
-                  <ClashSets />
+                  <ClashSets
+                    onOpenNewClashDrawer={onOpenNewClashDrawer}
+                    projectId={projectId}
+                    onSelectClashItem={handleSelectClashItem}
+                    clashResults={clashResults}
+                    onRestoreClashSet={onRestoreClashSet}
+                    autoExpandedSetId={autoExpandedClashSetId}
+                  />
                 </div>
               )}
             </div>
@@ -1024,6 +1263,49 @@ export default function IfcViewer({
               display: 'block',
             }}
           />
+
+          {cameraMode === 'walk' && (
+            <div className="absolute top-4 right-4 z-30 animate-in fade-in slide-in-from-top-2 duration-500 pointer-events-none select-none">
+              <div className="bg-black/60 backdrop-blur-sm text-white p-3 rounded-lg shadow-lg border border-white/10 w-auto min-w-[200px]">
+
+                {/* Header Compact */}
+                <div className="flex items-center gap-2 mb-2 pb-2 border-b border-white/10 text-blue-400">
+                  <Footprints className="h-4 w-4" />
+                  <span className="font-bold text-[10px] uppercase tracking-wider">Fly Mode Controls</span>
+                </div>
+
+                <div className="grid grid-cols-[1fr_auto] gap-y-2 gap-x-4 text-[11px] items-center">
+
+                  {/* Movement */}
+                  <span className="text-slate-300 font-medium">Move</span>
+                  <div className="flex gap-1 justify-end">
+                    <Kbd>W</Kbd><Kbd>A</Kbd><Kbd>S</Kbd><Kbd>D</Kbd>
+                  </div>
+
+                  {/* Elevation */}
+                  <span className="text-slate-300 font-medium">Elevation</span>
+                  <div className="flex gap-1 justify-end">
+                    <Kbd>R</Kbd>
+                    <span className="text-slate-500 self-center text-[10px]">/</span>
+                    <Kbd>T</Kbd>
+                  </div>
+
+                  {/* Speed */}
+                  <span className="text-slate-300 font-medium">Sprint</span>
+                  <div className="flex gap-1 justify-end">
+                    <Kbd>Shift</Kbd>
+                  </div>
+
+                  {/* Look */}
+                  <span className="text-slate-300 font-medium">Look</span>
+                  <div className="flex items-center justify-end gap-1 text-slate-300">
+                    <Move className="h-3 w-3" /> Mouse
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          )}
 
           {/* Selected Item Information */}
           {selectedItems.length > 0 && (
@@ -1062,20 +1344,44 @@ export default function IfcViewer({
                   className="hover:text-blue-400 transition"
                   title="Toggle visibility"
                   onClick={() => {
-                    const item = selectedItems[0];
-                    const key = `${item.modelID}-${item.expressID}`;
+                    const firstItem = selectedItems[0];
+                    const firstKey = `${firstItem.modelID}-${firstItem.expressID}`;
+                    const isFirstHidden = hiddenItems[firstKey];
+                    const shouldHide = !isFirstHidden;
+
                     setHiddenItems((prev) => {
                       const updated = { ...prev };
-                      if (updated[key]) {
-                        delete updated[key];
-                      } else {
-                        updated[key] = true;
-                      }
+                      selectedItems.forEach(item => {
+                        const key = `${item.modelID}-${item.expressID}`;
+                        if (shouldHide) {
+                          updated[key] = true;
+                        } else {
+                          delete updated[key];
+                        }
+                      });
                       return updated;
                     });
-                    loaderRef.current.toggleItemVisibility(item.modelID, item.expressID);
+
+                    selectedItems.forEach(item => {
+                      const key = `${item.modelID}-${item.expressID}`;
+                      const isItemCurrentlyHidden = hiddenItems[key];
+
+                      if (shouldHide && !isItemCurrentlyHidden) {
+                        loaderRef.current.toggleItemVisibility(item.modelID, item.expressID);
+                      }
+                      else if (!shouldHide && isItemCurrentlyHidden) {
+                        loaderRef.current.toggleItemVisibility(item.modelID, item.expressID);
+                      }
+                    });
+
+                    if (shouldHide) {
+                      loaderRef.current.removeHighlight();
+                    } else {
+                      loaderRef.current.highlightItems(selectedItems);
+                    }
                   }}
                 >
+                  {/* Icon */}
                   {hiddenItems[`${selectedItems[0]?.modelID}-${selectedItems[0]?.expressID}`] ? (
                     <EyeOff />
                   ) : (
@@ -1108,6 +1414,27 @@ export default function IfcViewer({
         data={propertiesData}
         loading={isLoadingProps}
       />
+
+
+
+      {/* RENDER MODEL POSITION DRAWER */}
+      <ModelPositionDrawer
+        open={isPosDrawerOpen}
+        onOpenChange={setIsPosDrawerOpen}
+        modelId={posDrawerModel?.id ?? null}
+        modelName={posDrawerModel?.name ?? ""}
+        initialData={posDrawerData}
+        onSave={handleSavePosition}
+      />
     </div>
+  );
+}
+
+
+function Kbd({ children }) {
+  return (
+    <kbd className="bg-white/10 px-1.5 py-0.5 rounded text-slate-100 font-mono font-bold border-b border-white/10 min-w-[20px] text-center text-[10px] inline-block shadow-sm">
+      {children}
+    </kbd>
   );
 }

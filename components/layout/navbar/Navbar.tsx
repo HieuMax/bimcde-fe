@@ -2,27 +2,32 @@
 
 import {
     ArrowLeft,
-    SquareDashed,
     MousePointer,
     CopyPlusIcon,
     MessageCircleDashed,
     CameraIcon,
     SquareScissors,
-    Rotate3D,
     Box,
     ClipboardCheck,
     MoreVertical,
-    Camera,
     Settings,
     Fullscreen,
     Eye,
-    Lock,
     Download,
     LucideIcon,
     Ruler,
     Grid3x3,
     RotateCcw,
     ChevronDown,
+    Ghost,
+    Move, // Icon Pan
+    Orbit, // Icon Rotate
+    Footprints,
+    Check,
+    ArrowRight,
+    ArrowDown,
+    ArrowUp,
+    Trash2, // Icon Walk
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -32,12 +37,33 @@ import {
     TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { cn } from '@/lib/utils';
+import { useMemo } from 'react';
+
+export type CameraMode = 'orbit' | 'pan' | 'look-around' | 'walk';
+export type ActiveToolType = 'todo' | 'view' | 'measurement' | 'clipping' | 'properties' | null;
+export type SelectionMode = 'single' | 'multiple';
+export type ViewOptionType = 'axon' | 'top' | 'front' | 'left' | 'right' | 'back' | 'bottom';
 
 interface NavbarProps {
     onBack?: () => void;
     onRefresh?: () => void;
     onAction?: () => void;
     onAddTodo?: () => void;
+    onAddView: () => void;
+    modelOpacity?: number;
+    onOpacityChange?: (value: number) => void;
+    activeTool?: ActiveToolType;
+    onToolSelect?: (tool: ActiveToolType) => void;
+    cameraMode?: CameraMode;
+    onCameraModeChange?: (mode: CameraMode) => void;
+    selectionMode?: SelectionMode;
+    onSelectionModeChange?: (mode: SelectionMode) => void;
+    activeView?: ViewOptionType;
+    onViewChange?: (view: ViewOptionType) => void;
+    onClipSave?: () => void;
+    onClipCancel?: () => void;
+    onToolChange?: (tool: ActiveToolType) => void;
 }
 
 // Helper component to render a button with a tooltip to avoid code repetition
@@ -45,18 +71,25 @@ interface NavButtonProps {
     icon: LucideIcon;
     label: string;
     onClick?: () => void;
+    isActive?: boolean;
     className?: string;
 }
 
-function NavIconButton({ icon: Icon, label, onClick, className }: NavButtonProps) {
+function NavIconButton({ icon: Icon, label, onClick, isActive, className }: NavButtonProps) {
     return (
         <Tooltip>
             <TooltipTrigger asChild>
                 <Button
                     variant="ghost"
                     size="sm"
-                    className={`h-8 w-8 p-0 hover:bg-accent ${className || ''}`}
                     onClick={onClick}
+                    className={cn(
+                        "h-9 w-9 transition-colors",
+                        isActive
+                            ? "bg-blue-100 text-blue-600 hover:bg-blue-200 hover:text-blue-700 border-blue-200"
+                            : "hover:text-foreground hover:bg-accent",
+                        className
+                    )}
                 >
                     <Icon className="h-6 w-6" />
                     <span className="sr-only">{label}</span>
@@ -69,7 +102,76 @@ function NavIconButton({ icon: Icon, label, onClick, className }: NavButtonProps
     )
 }
 
-export function Navbar({ onBack, onRefresh, onAction, onAddTodo }: NavbarProps) {
+export function Navbar({
+    onBack,
+    onRefresh,
+    onAction,
+    onAddTodo,
+    activeTool,
+    modelOpacity = 1,
+    onOpacityChange,
+    onAddView,
+    cameraMode = 'orbit',
+    onCameraModeChange,
+    selectionMode = 'single',
+    onSelectionModeChange,
+    activeView,
+    onViewChange,
+    onToolSelect,
+    onToolChange,
+    onClipSave,
+    onClipCancel,
+}: NavbarProps) {
+
+    const CurrentCameraIcon = useMemo(() => {
+        switch (cameraMode) {
+            case 'pan': return Move;
+            case 'look-around': return Eye;
+            case 'walk': return Footprints;
+            default: return Orbit;
+        }
+    }, [cameraMode]);
+
+
+    if (activeTool === 'clipping') {
+        return (
+            <TooltipProvider delayDuration={300}>
+                <nav className="sticky top-0 z-50 bg-background border-b border-border shadow-sm flex-none">
+                    <div className="flex items-center h-16 px-4 gap-1 justify-between bg-blue-50/50">
+
+                        {/* Left: Message */}
+                        <div className="flex items-center gap-2 text-sm text-blue-700 font-medium animate-pulse">
+                            <SquareScissors className="h-5 w-5" />
+                            <span>Clipping Mode: Click on model to place cut</span>
+                        </div>
+
+                        {/* Right: Actions */}
+                        <div className="flex items-center gap-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-red-600 hover:bg-red-50 border-red-200 gap-2"
+                                onClick={onClipCancel}
+                            >
+                                <Trash2 className="h-4 w-4" /> Cancel
+                            </Button>
+
+                            <Button
+                                variant="default"
+                                size="sm"
+                                className="bg-blue-600 hover:bg-blue-700 gap-2"
+                                onClick={onClipSave}
+                            >
+                                <Check className="h-4 w-4" /> Save Plane
+                            </Button>
+                        </div>
+                    </div>
+                </nav>
+            </TooltipProvider>
+        );
+    }
+
+
     return (
         <TooltipProvider delayDuration={300}>
             <nav className="sticky top-0 z-50 bg-background border-b border-border shadow-sm flex-none">
@@ -94,45 +196,41 @@ export function Navbar({ onBack, onRefresh, onAction, onAddTodo }: NavbarProps) 
                         </Tooltip>
 
                         <div className="w-px h-6 bg-border mx-1" />
-                        {/* Camera Controls */}
-                        <DropdownMenu>
-                            <Tooltip>
-                                <TooltipTrigger asChild>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-8 w-12"
-                                        >
-                                            <Box />
-                                            <ChevronDown className="h-2 w-2 ml-0.5" />
-                                        </Button>
-                                    </DropdownMenuTrigger>
-                                </TooltipTrigger>
-                                <TooltipContent side="bottom">Camera Controls</TooltipContent>
-                            </Tooltip>
 
-                            <DropdownMenuContent align="start" className="w-40">
-                                <DropdownMenuItem>
-                                    <RotateCcw className="mr-2 h-4 w-4" />
-                                    Rotate
+                        {/* --- CAMERA CONTROLS DROPDOWN --- */}
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className={cn(
+                                        "h-9 w-9",
+                                        cameraMode !== 'orbit'
+                                            ? "bg-blue-100 text-blue-600 hover:bg-blue-200"
+                                            : "text-muted-foreground"
+                                    )}
+                                >
+                                    <CurrentCameraIcon className="h-5 w-5" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="center">
+                                <DropdownMenuItem onClick={() => onCameraModeChange?.('orbit')}>
+                                    <Orbit className="mr-2 h-4 w-4" /> Orbit (Rotate)
+                                    {cameraMode === 'orbit' && <Check className="ml-auto h-4 w-4" />}
                                 </DropdownMenuItem>
-                                <DropdownMenuItem>
-                                    <Eye className="mr-2 h-4 w-4" />
-                                    Pan
+                                <DropdownMenuItem onClick={() => onCameraModeChange?.('pan')}>
+                                    <Move className="mr-2 h-4 w-4" /> Pan Only
+                                    {cameraMode === 'pan' && <Check className="ml-auto h-4 w-4" />}
                                 </DropdownMenuItem>
-                                <DropdownMenuItem>
-                                    <Grid3x3 className="mr-2 h-4 w-4" />
-                                    Look around
+                                <DropdownMenuItem onClick={() => onCameraModeChange?.('look-around')}>
+                                    <Eye className="mr-2 h-4 w-4" /> Look Around
+                                    {cameraMode === 'look-around' && <Check className="ml-auto h-4 w-4" />}
                                 </DropdownMenuItem>
-                                {/* <DropdownMenuItem>
-                                    <Grid3x3 className="mr-2 h-4 w-4 rotate-90" />
-                                    Walk mode
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem onClick={() => onCameraModeChange?.('walk')}>
+                                    <Footprints className="mr-2 h-4 w-4" /> Walk Mode (WASD)
+                                    {cameraMode === 'walk' && <Check className="ml-auto h-4 w-4" />}
                                 </DropdownMenuItem>
-                                <DropdownMenuItem>
-                                    <Grid3x3 className="mr-2 h-4 w-4 rotate-90" />
-                                    Path navigation
-                                </DropdownMenuItem> */}
                             </DropdownMenuContent>
                         </DropdownMenu>
 
@@ -140,66 +238,93 @@ export function Navbar({ onBack, onRefresh, onAction, onAddTodo }: NavbarProps) 
                         <div className="w-px h-6 bg-border mx-1" />
 
                         {/* Layout Tools */}
-                        <NavIconButton icon={MousePointer} label="Single Selection mode" />
-                        <NavIconButton icon={SquareDashed} label="Area Selection mode" />
-                        <NavIconButton icon={CopyPlusIcon} label="Multiple-select mode" />
+                        {/* --- SELECTION TOOLS --- */}
+
+                        {/* Single Select */}
+                        <NavIconButton
+                            icon={MousePointer}
+                            label="Single Selection"
+                            isActive={selectionMode === 'single'}
+                            onClick={() => onSelectionModeChange?.('single')}
+                        />
+
+                        {/* Multiple Select */}
+                        <NavIconButton
+                            icon={CopyPlusIcon}
+                            label="Multiple Selection"
+                            isActive={selectionMode === 'multiple'}
+                            onClick={() => onSelectionModeChange?.('multiple')}
+                        />
 
                         <div className="w-px h-6 bg-border mx-1" />
 
                         <NavIconButton icon={Ruler} label="Measurement option" />
                         <NavIconButton icon={MessageCircleDashed} label="Add markup" />
-                        <NavIconButton icon={SquareScissors} label="Clip plane" />
-                        <NavIconButton icon={CameraIcon} label="Add view" />
-                        <NavIconButton icon={ClipboardCheck} label="Add todo" onClick={onAddTodo} />
+
+                        <NavIconButton
+                            icon={SquareScissors}
+                            label="Add Clip Plane"
+                            onClick={() => onToolSelect?.('clipping')}
+                        />
+
+                        <NavIconButton icon={CameraIcon} label="Add view" onClick={onAddView} isActive={activeTool === 'view'} />
+                        <NavIconButton icon={ClipboardCheck} label="Add todo" onClick={onAddTodo} isActive={activeTool === 'todo'} />
 
                         {/* Divider */}
                         <div className="w-px h-6 bg-border mx-1" />
 
+                        {/* --- VIEW OPTIONS DROPDOWN --- */}
                         <DropdownMenu>
                             <Tooltip>
                                 <TooltipTrigger asChild>
                                     <DropdownMenuTrigger asChild>
-                                        <Button
-                                            variant="ghost"
-                                            size="icon"
-                                            className="h-8 w-12"
-                                        >
-                                            <Box />
+                                        <Button variant="ghost" size="icon" className="h-8 w-12">
+                                            <Box className="h-5 w-5" />
                                             <ChevronDown className="h-2 w-2 ml-0.5" />
                                         </Button>
                                     </DropdownMenuTrigger>
                                 </TooltipTrigger>
-                                <TooltipContent side="bottom">Perform action</TooltipContent>
+                                <TooltipContent side="bottom">View Options</TooltipContent>
                             </Tooltip>
 
                             <DropdownMenuContent align="start" className="w-40">
-                                <DropdownMenuItem>
-                                    <RotateCcw className="mr-2 h-4 w-4" />
-                                    Axon View
+                                <DropdownMenuItem onClick={() => onViewChange?.('axon')}>
+                                    <RotateCcw className="mr-2 h-4 w-4" /> Axon View
+                                    {activeView === 'axon' && <Check className="ml-auto h-4 w-4" />}
                                 </DropdownMenuItem>
-                                <DropdownMenuItem>
-                                    <Eye className="mr-2 h-4 w-4" />
-                                    Top view
+
+                                <DropdownMenuSeparator />
+
+                                <DropdownMenuItem onClick={() => onViewChange?.('top')}>
+                                    <ArrowDown className="mr-2 h-4 w-4" /> Top View
+                                    {activeView === 'top' && <Check className="ml-auto h-4 w-4" />}
                                 </DropdownMenuItem>
-                                <DropdownMenuItem>
-                                    <Grid3x3 className="mr-2 h-4 w-4" />
-                                    Front View
+
+                                <DropdownMenuItem onClick={() => onViewChange?.('bottom')}>
+                                    <ArrowUp className="mr-2 h-4 w-4" /> Bottom View
+                                    {activeView === 'bottom' && <Check className="ml-auto h-4 w-4" />}
                                 </DropdownMenuItem>
-                                <DropdownMenuItem>
-                                    <Grid3x3 className="mr-2 h-4 w-4 rotate-90" />
-                                    Left View
+
+                                <DropdownMenuSeparator />
+
+                                <DropdownMenuItem onClick={() => onViewChange?.('front')}>
+                                    <Box className="mr-2 h-4 w-4" /> Front View
+                                    {activeView === 'front' && <Check className="ml-auto h-4 w-4" />}
                                 </DropdownMenuItem>
-                                <DropdownMenuItem>
-                                    <Grid3x3 className="mr-2 h-4 w-4 rotate-90" />
-                                    Back View
+
+                                <DropdownMenuItem onClick={() => onViewChange?.('back')}>
+                                    <Box className="mr-2 h-4 w-4 opacity-50" /> Back View
+                                    {activeView === 'back' && <Check className="ml-auto h-4 w-4" />}
                                 </DropdownMenuItem>
-                                <DropdownMenuItem>
-                                    <Grid3x3 className="mr-2 h-4 w-4 rotate-90" />
-                                    Right View
+
+                                <DropdownMenuItem onClick={() => onViewChange?.('left')}>
+                                    <ArrowLeft className="mr-2 h-4 w-4" /> Left View
+                                    {activeView === 'left' && <Check className="ml-auto h-4 w-4" />}
                                 </DropdownMenuItem>
-                                <DropdownMenuItem>
-                                    <Grid3x3 className="mr-2 h-4 w-4 rotate-90" />
-                                    Bottom View
+
+                                <DropdownMenuItem onClick={() => onViewChange?.('right')}>
+                                    <ArrowRight className="mr-2 h-4 w-4" /> Right View
+                                    {activeView === 'right' && <Check className="ml-auto h-4 w-4" />}
                                 </DropdownMenuItem>
                             </DropdownMenuContent>
                         </DropdownMenu>
@@ -250,22 +375,49 @@ export function Navbar({ onBack, onRefresh, onAction, onAddTodo }: NavbarProps) 
                         </DropdownMenu>
 
                         <div className="w-px h-6 bg-border mx-1" />
-                        <NavIconButton icon={MoreVertical} label="More options" />
 
-                    </div>
 
-                    {/* Spacer */}
-                    <div className="flex-1" />
+                        {/* --- BUTTON TRANSPARENCY --- */}
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className={`h-9 w-9 ${modelOpacity < 1 ? "bg-blue-100 text-blue-600" : ""}`}
+                                >
+                                    <Ghost className="h-4 w-4" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent className="w-56 p-4" align="start">
+                                <div className="flex flex-col gap-3">
+                                    <div className="flex justify-between items-center">
+                                        <span className="text-sm font-medium">Model Opacity</span>
+                                        <span className="text-xs text-muted-foreground">{Math.round(modelOpacity * 100)}%</span>
+                                    </div>
 
-                    {/* Right Section */}
-                    <div className="flex items-center gap-1">
-                        {/* Divider */}
+                                    <div className="flex items-center h-5">
+                                        <input
+                                            type="range"
+                                            min="0.2"
+                                            max="1"
+                                            step="0.01"
+                                            value={modelOpacity}
+                                            onChange={(e) => onOpacityChange?.(parseFloat(e.target.value))}
+                                            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+                                        />
+                                    </div>
+                                </div>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+
+                        {/* <div className="w-px h-6 bg-border mx-1" />
+                        <NavIconButton icon={MoreVertical} label="More options" /> */}
+
                         <div className="w-px h-6 bg-border mx-1" />
 
                         {/* Settings & Actions */}
-                        <NavIconButton icon={Download} label="Download" />
-                        <NavIconButton icon={Settings} label="Settings" />
                         <NavIconButton icon={Fullscreen} label="Fullscreen" />
+
                     </div>
                 </div>
             </nav>
