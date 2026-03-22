@@ -7,6 +7,7 @@ import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format } from "date-fns";
 import { CalendarIcon, Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -45,21 +46,32 @@ import { Calendar } from "@/components/ui/calendar";
 /* =======================
    Schema
 ======================= */
-const projectSchema = z.object({
-  name: z.string().min(1, "Project name is required"),
-  description: z.string().optional(),
-  startDate: z.coerce.date().optional().nullable(),
-  endDate: z.coerce.date().optional().nullable(),
-  thumbnail: z.string().optional(),
-  createdAt: z.string().optional(),
-  createdBy: z.object({ fullName: z.string() }).optional(),
-  modifiedBy: z.object({ fullName: z.string() }).optional(),
-  lastModifiedOn: z.string().optional(),
-  size: z.string().optional(),
-  folderCount: z.number().optional(),
-  filesCount: z.number().optional(),
-  userCount: z.number().optional(),
-});
+const projectSchema = z
+  .object({
+    name: z.string().min(1, "Project name is required"),
+    description: z.string().optional(),
+    startDate: z.date().optional().nullable(),
+    endDate: z.date().optional().nullable(),
+    thumbnail: z.string().optional(),
+    createdAt: z.string().optional(),
+    createdBy: z.object({ fullName: z.string() }).optional(),
+    modifiedBy: z.object({ fullName: z.string() }).optional(),
+    lastModifiedOn: z.string().optional(),
+    size: z.string().optional(),
+    folderCount: z.number().optional(),
+    filesCount: z.number().optional(),
+    userCount: z.number().optional(),
+  })
+  .refine(
+    (data) => {
+      if (!data.startDate || !data.endDate) return true;
+      return data.endDate >= data.startDate;
+    },
+    {
+      message: "End date must be on or after start date",
+      path: ["endDate"],
+    }
+  );
 
 type ProjectFormData = z.infer<typeof projectSchema>;
 /* =======================
@@ -166,8 +178,15 @@ export default function ProjectDetailsPage({
     if (!projectId) return;
 
     setActionLoading(true);
-    console.log("SAVE:", data);
-    await put(`/projects/updateProject/${projectId}`, data);
+
+    // Format dates to yyyy-MM-dd format for API
+    const payload = {
+      ...data,
+      startDate: data.startDate ? format(data.startDate, "yyyy-MM-dd") : null,
+      endDate: data.endDate ? format(data.endDate, "yyyy-MM-dd") : null,
+    };
+
+    await put(`/projects/updateProject/${projectId}`, payload);
     setActionLoading(false);
   };
 
@@ -187,11 +206,16 @@ export default function ProjectDetailsPage({
   };
 
   const deleteProject = async () => {
-    const id = localStorage.getItem("selectedProjectId");
-    if (!id) return;
+    const projectId = (await params).projectId;
+    if (!projectId) return;
     setActionLoading(true);
-    const response = await del(`/projects/deleteProject/${id}`);
-    window.location.href = "/pages/projects";
+    const response = await del(`/projects/deleteProject/${projectId}`);
+    if (response.success) {
+      window.location.href = "/projects";
+    } else {
+      alert(response.error);
+    }
+    setActionLoading(false);
   };
 
   const formatDateTimeBy = (value?: string, name?: string) => {
@@ -220,12 +244,13 @@ export default function ProjectDetailsPage({
   return (
     <Form {...form}>
       <form onSubmit={handleSubmit(onSubmit)}>
-        <div className="p-8 bg-[#f4f5f8] min-h-screen space-y-6">
+        <div className="px-4 py-6 md:p-8 bg-[#f4f5f8] min-h-screen space-y-6">
           {/* HEADER */}
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h1 className="text-xl font-semibold">Project Details</h1>
             <Button
               type="submit"
+              className="w-full sm:w-auto"
               disabled={!formState.isDirty || actionLoading}>
               {actionLoading && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -256,7 +281,7 @@ export default function ProjectDetailsPage({
                     )}
                   />
 
-                  <div className="flex items-center gap-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                     <Image
                       src={
                         thumbnail ||
@@ -268,7 +293,7 @@ export default function ProjectDetailsPage({
                       className="rounded border"
                       loading="eager"
                     />
-                    <div className="flex items-center gap-4">
+                    <div className="flex flex-wrap sm:flex-nowrap items-center gap-3">
                       {/* Button Upload new */}
                       <Button
                         className="hover:bg-blue-200 text-blue-500 hover:no-underline"
@@ -308,61 +333,113 @@ export default function ProjectDetailsPage({
                 <CardHeader>
                   <CardTitle>Project Settings</CardTitle>
                 </CardHeader>
-                <CardContent className="grid grid-cols-2 gap-4">
-                  {(["startDate", "endDate"] as const).map((name) => (
-                    <FormField
-                      key={name}
-                      control={control}
-                      name={name}
-                      render={({ field }) => {
-                        return (
-                          <FormItem className="flex flex-col">
-                            <FormLabel>
-                              {name === "startDate" ? "Start date" : "End date"}
-                            </FormLabel>
-                            <Popover>
-                              <PopoverTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  className="justify-start text-left font-normal">
-                                  <CalendarIcon className="mr-2 h-4 w-4" />
-                                  {(() => {
-                                    // Logic kiểm tra và ép kiểu nhanh ngay tại chỗ
-                                    const dateValue =
-                                      field.value instanceof Date
-                                        ? field.value
-                                        : field.value
-                                        ? new Date(field.value as string)
-                                        : null;
+                <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField
+                    control={control}
+                    name="startDate"
+                    render={({ field }) => {
+                      const dateValue = field.value instanceof Date
+                        ? field.value
+                        : field.value
+                          ? new Date(field.value as string)
+                          : null;
 
-                                    if (
-                                      dateValue &&
-                                      !isNaN(dateValue.getTime())
-                                    ) {
-                                      return format(dateValue, "MMM dd, yyyy");
-                                    }
-                                    return "Pick a date";
-                                  })()}
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="p-0">
-                                <Calendar
-                                  mode="single"
-                                  selected={
-                                    field.value instanceof Date
-                                      ? field.value
-                                      : undefined
+                      const isValidDate = dateValue && !isNaN(dateValue.getTime());
+
+                      return (
+                        <FormItem className="flex flex-col">
+                          <FormLabel>Start date</FormLabel>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                className={cn(
+                                  "w-full justify-start text-left font-normal",
+                                  !isValidDate && "text-muted-foreground"
+                                )}>
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {isValidDate ? (
+                                  format(dateValue, "PPP")
+                                ) : (
+                                  <span>Pick a date</span>
+                                )}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={isValidDate ? dateValue : undefined}
+                                onSelect={(date) => {
+                                  field.onChange(date);
+                                  // If endDate exists and is before new startDate, clear it
+                                  const endDateValue = form.getValues("endDate");
+                                  if (date && endDateValue && endDateValue < date) {
+                                    form.setValue("endDate", null);
                                   }
-                                  onSelect={field.onChange} // QUAN TRỌNG: Phải có field.onChange
-                                  initialFocus
-                                />
-                              </PopoverContent>
-                            </Popover>
-                          </FormItem>
-                        );
-                      }}
-                    />
-                  ))}
+                                }}
+                                initialFocus
+                              />
+                            </PopoverContent>
+                          </Popover>
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }}
+                  />
+
+                  <FormField
+                    control={control}
+                    name="endDate"
+                    render={({ field }) => {
+                      const dateValue = field.value instanceof Date
+                        ? field.value
+                        : field.value
+                          ? new Date(field.value as string)
+                          : null;
+
+                      const isValidDate = dateValue && !isNaN(dateValue.getTime());
+                      const startDateValue = form.getValues("startDate");
+
+                      return (
+                        <FormItem className="flex flex-col">
+                          <FormLabel>End date</FormLabel>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant="outline"
+                                className={cn(
+                                  "w-full justify-start text-left font-normal",
+                                  !isValidDate && "text-muted-foreground"
+                                )}>
+                                <CalendarIcon className="mr-2 h-4 w-4" />
+                                {isValidDate ? (
+                                  format(dateValue, "PPP")
+                                ) : (
+                                  <span>Pick a date</span>
+                                )}
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                              <Calendar
+                                mode="single"
+                                selected={isValidDate ? dateValue : undefined}
+                                disabled={(date) => {
+                                  if (!startDateValue) return false;
+                                  const startDate = startDateValue instanceof Date
+                                    ? startDateValue
+                                    : new Date(startDateValue as string);
+                                  return date < startDate;
+                                }}
+                                onSelect={field.onChange}
+                                initialFocus
+                              />
+                            </PopoverContent>
+                          </Popover>
+                          <FormMessage />
+                        </FormItem>
+                      );
+                    }}
+                  />
 
                   <FormField
                     control={control}
@@ -381,7 +458,7 @@ export default function ProjectDetailsPage({
             </div>
 
             {/* RIGHT */}
-            <div className="grid grid-cols-2 gap-4 h-fit">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 h-fit">
               <Card>
                 <CardHeader>
                   <CardTitle>Storage</CardTitle>
@@ -406,7 +483,7 @@ export default function ProjectDetailsPage({
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button
-                    className="border border-gray-300 bg-whie"
+                    className="w-full border border-gray-300 bg-whie"
                     variant="secondary">
                     Leave project
                   </Button>
@@ -430,7 +507,7 @@ export default function ProjectDetailsPage({
               {/* DELETE */}
               <AlertDialog>
                 <AlertDialogTrigger asChild>
-                  <Button className="bg-red-600 hover:bg-red-700">
+                  <Button className="w-full bg-red-600 hover:bg-red-700">
                     Delete project
                   </Button>
                 </AlertDialogTrigger>

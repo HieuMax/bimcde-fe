@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import {
   Dialog,
   DialogContent,
@@ -17,7 +18,9 @@ import {
   PopoverTrigger,
   PopoverContent,
 } from "@/components/ui/popover";
-import { List, Grid, Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
+import { List, Grid, Loader2, CalendarIcon } from "lucide-react";
 import { Project } from "@/app/types/projectTypes";
 import { useApi } from "@/app/hooks/useApi";
 import { useRouter } from "next/navigation";
@@ -130,13 +133,14 @@ function PopoverProject() {
 // ========================
 function NewProjectDialog({ onCreated }: { onCreated: () => void }) {
   const [open, setOpen] = useState(false);
-  const { post } = useApi();
+  const { post } = useApi(); 
+  const [dateError, setDateError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     name: "",
     description: "",
-    startDate: "",
-    endDate: "",
+    startDate: undefined as Date | undefined,
+    endDate: undefined as Date | undefined,
     thumbnail: null as string | null,
   });
 
@@ -162,40 +166,46 @@ function NewProjectDialog({ onCreated }: { onCreated: () => void }) {
   }
 
   async function handleSubmit() {
-    const newProject = {
+    if (!formData.startDate || !formData.endDate) {
+      setDateError("Please select both start date and end date.");
+      return;
+    }
+
+    if (formData.endDate < formData.startDate) {
+      setDateError("End date must be on or after start date.");
+      return;
+    }
+
+    setDateError(null);
+
+    const newProject: Project = {
       name: formData.name,
       thumbnail: formData.thumbnail ?? DEFAULT_THUMBNAIL,
-
       lastAccessed: new Date().toString(),
       lastModifiedOn: new Date().toString(),
-      startDate: formData.startDate,
-      endDate: formData.endDate,
+      startDate: format(formData.startDate, "yyyy-MM-dd"),
+      endDate: format(formData.endDate, "yyyy-MM-dd"),
       description: formData.description,
     };
 
-    console.log("📤 Sending project data:", newProject);
-
     try {
       const res = await post("/projects/createProject", newProject);
-      console.log("📥 Response from server:", res);
 
       if (res.success) {
-        console.log("✅ Project created successfully:", res.result);
         setOpen(false);
         setFormData({
           name: "",
           description: "",
-          startDate: "",
-          endDate: "",
+          startDate: undefined,
+          endDate: undefined,
           thumbnail: null,
         });
+        setDateError(null);
         onCreated();
       } else {
-        console.error("❌ Failed to create project:", res.error || res.message);
         alert(`Error: ${res.error || res.message}`);
       }
     } catch (e) {
-      console.error("❌ Failed to create project:", e);
       alert(`Error: ${e instanceof Error ? e.message : "Unknown error"}`);
     }
   }
@@ -206,22 +216,19 @@ function NewProjectDialog({ onCreated }: { onCreated: () => void }) {
         <Button className="bg-[#0f6cbd] text-white px-5">New</Button>
       </DialogTrigger>
 
-      {/* 🔑 FIX: dialog scroll nội bộ */}
       <DialogContent className="max-w-xl max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>New Project</DialogTitle>
         </DialogHeader>
 
         <div className="flex flex-col gap-4">
+          {/* Name */}
           <div>
             <label className="text-sm">Name</label>
-            <Input
-              name="name"
-              value={formData.name}
-              onChange={handleChange}
-            />
+            <Input name="name" value={formData.name} onChange={handleChange} />
           </div>
 
+          {/* Thumbnail */}
           <div>
             <label className="text-sm font-medium">Project Thumbnail</label>
             <Input type="file" accept="image/*" onChange={handleUpload} />
@@ -231,6 +238,7 @@ function NewProjectDialog({ onCreated }: { onCreated: () => void }) {
             />
           </div>
 
+          {/* Description */}
           <div>
             <label className="text-sm">Description</label>
             <Textarea
@@ -240,27 +248,82 @@ function NewProjectDialog({ onCreated }: { onCreated: () => void }) {
             />
           </div>
 
+          {/* Dates */}
           <div className="flex gap-3">
+            {/* Start */}
             <div className="flex-1">
               <label className="text-sm">Start date</label>
-              <Input
-                type="date"
-                name="startDate"
-                value={formData.startDate}
-                onChange={handleChange}
-              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !formData.startDate && "text-muted-foreground"
+                    )}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {formData.startDate
+                      ? format(formData.startDate, "PPP")
+                      : "Pick a date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar
+                    mode="single"
+                    selected={formData.startDate}
+                    onSelect={(date) => {
+                      setFormData((prev) => {
+                        const next = { ...prev, startDate: date };
+                        if (date && prev.endDate && prev.endDate < date) {
+                          next.endDate = undefined;
+                        }
+                        return next;
+                      });
+                    }}
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
+
+            {/* End */}
             <div className="flex-1">
               <label className="text-sm">End date</label>
-              <Input
-                type="date"
-                name="endDate"
-                value={formData.endDate}
-                onChange={handleChange}
-              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !formData.endDate && "text-muted-foreground"
+                    )}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {formData.endDate
+                      ? format(formData.endDate, "PPP")
+                      : "Pick a date"}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0">
+                  <Calendar
+                    mode="single"
+                    selected={formData.endDate}
+                    disabled={(date) =>
+                      !!formData.startDate && date < formData.startDate
+                    }
+                    onSelect={(date) =>
+                      setFormData((prev) => ({ ...prev, endDate: date }))
+                    }
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
 
+          {/* Error */}
+          {dateError && (
+            <p className="text-sm text-red-600">{dateError}</p>
+          )}
+
+          {/* Submit */}
           <Button
             onClick={handleSubmit}
             className="bg-[#0f6cbd] text-white w-24 ml-auto">

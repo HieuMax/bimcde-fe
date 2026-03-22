@@ -70,7 +70,7 @@ export const releaseService = {
       // Lưu ý: Nếu `api.get` của bạn trả về `res.data` trực tiếp thì `response` chính là blob.
       // Nếu `api.get` trả về trọn bộ AxiosResponse, bạn cần dùng `response.data`.
       // Ở đây tôi giả định wrapper trả về data trực tiếp.
-      const blob = new Blob([response as any], { type: "application/zip" });
+      const blob = new Blob([response as BlobPart], { type: "application/zip" });
 
       // Tạo URL tạm thời
       const url = window.URL.createObjectURL(blob);
@@ -100,6 +100,13 @@ export const releaseService = {
     return data as IRelease;
   },
 
+  removeFilesFromRelease: async (releaseId: string, fileIds: string[]) => {
+    const data = await api.delete(`/releases/${releaseId}/items`, {
+      data: { fileIds },
+    });
+    return data as IRelease;
+  },
+
   downloadFile: async (fileId: string, version: number, fileName: string) => {
     try {
       const response = await api.get(
@@ -108,7 +115,7 @@ export const releaseService = {
           responseType: "blob",
         },
       );
-      const blob = new Blob([response as any]); // Presuming response is blob
+      const blob = new Blob([response as BlobPart]); // Presuming response is blob
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
