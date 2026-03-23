@@ -63,7 +63,7 @@ const areArraysEqual = (arr1: string[], arr2: string[]) => {
   return sorted1.every((value, index) => value === sorted2[index]);
 };
 
-export type MeasureType = 'perpendicular' | 'single-point' | 'angle' | 'slope' | null;
+// export type MeasureType = 'perpendicular' | 'single-point' | 'angle' | 'slope' | null;
 
 export default function ViewerClient() {
   const router = useRouter();
@@ -133,20 +133,20 @@ export default function ViewerClient() {
 
   })
 
-  const handleToggleViewOption = (key: keyof typeof viewOptions) => {
-    setViewOptions(prev => ({
-      ...prev,
-      [key]: !prev[key]
-    }));
-  }
+  // const handleToggleViewOption = (key: keyof typeof viewOptions) => {
+  //   setViewOptions(prev => ({
+  //     ...prev,
+  //     [key]: !prev[key]
+  //   }));
+  // }
   const [todoToEdit, setTodoToEdit] = useState<any>(null);
   const [drawerMode, setDrawerMode] = useState<"create" | "view" | "edit">(
     "create",
   );
 
-  const [measureType, setMeasureType] = useState<MeasureType>(null);
-  const [measureColor, setMeasureColor] = useState('#D81B60');
-  const [isMeasureActive, setIsMeasureActive] = useState(false);
+  // const [measureType, setMeasureType] = useState<MeasureType>(null);
+  // const [measureColor, setMeasureColor] = useState('#D81B60');
+  // const [isMeasureActive, setIsMeasureActive] = useState(false);
 
   const [isViewDrawerOpen, setIsViewDrawerOpen] = useState(false);
   const [viewToEdit, setViewToEdit] = useState<any>(null);
@@ -160,7 +160,7 @@ export default function ViewerClient() {
 
   const [modelOpacity, setModelOpacity] = useState(1);
 
-  const [baseSelectionMode, setBaseSelectionMode] = useState<'single' | 'area'>('single');
+  // const [baseSelectionMode, setBaseSelectionMode] = useState<'single' | 'area'>('single');
   const [multiSelectEnabled, setMultiSelectEnabled] = useState(false);
 
   const [activeTool, setActiveTool] = useState<ActiveToolType>(null);
@@ -464,10 +464,10 @@ export default function ViewerClient() {
           setIfcUrls(urls);
           console.log("Parsed IFC URLs from params:", urls);
           sessionStorage.setItem(storageKey, JSON.stringify(urls));
-          // router.replace(`/projects/${projectId}/viewer3d`);
-          if (searchParams.get("urls")) {
-            router.replace(`/projects/${projectId}/viewer3d`);
-          }
+          router.replace(`/projects/${projectId}/viewer3d`);
+          // if (searchParams.get("urls")) {
+          //   router.replace(`/projects/${projectId}/viewer3d`);
+          // }
         } else {
           console.error("URLs param parsed but empty:", { rawParams, decoded, parsed });
         }
@@ -755,17 +755,18 @@ export default function ViewerClient() {
   };
 
   const handleRestoreView = (view: IView | any) => {
-    if (!view.items || !view.viewState) return;
-    const options = (view.viewState as any)?.viewOptions;
-    if (options) {
-      setViewOptions({
-        annotations: options.annotations ?? true,
-        clipPlanes: options.clipPlanes ?? true,
-        grids: options.grids ?? true,
-        ifcTypes: option.ifcTypes ?? true,
-        objectAttachments: options.objectAttachments ?? true
-      });
-    }
+    // if (!view.items || !view.viewState) return;
+    // const options = (view.viewState as any)?.viewOptions;
+    // if (options) {
+    //   setViewOptions({
+    //     annotations: options.annotations ?? true,
+    //     clipPlanes: options.clipPlanes ?? true,
+    //     grids: options.grids ?? true,
+    //     ifcTypes: option.ifcTypes ?? true,
+    //     objectAttachments: options.objectAttachments ?? true
+    //   });
+    // }
+    
     const targetUrls = Array.from(
       new Set(view.items.map((i: any) => i.fileUrl) as string[]),
     );
@@ -793,12 +794,7 @@ export default function ViewerClient() {
       );
     }
   };
-  
-  const clearMeasureRef = useRef<null | ((cb: () => void) => void)>(null);
 
-  const handleRegisterMeasurementClear = (fn: () => void) => {
-    clearMeasureRef.current = fn;
-  };
 
   const safeState = !viewOptions.ifcTypes && state === 'layers' ? 'models' : state;
 
@@ -818,8 +814,8 @@ export default function ViewerClient() {
         cameraMode={cameraMode}
         onCameraModeChange={handleCameraModeChange}
         
-        selectionMode={baseSelectionMode}
-        onChangeSelectionMode={(mode) => setBaseSelectionMode(mode)}
+        // selectionMode={baseSelectionMode}
+        // onChangeSelectionMode={(mode) => setBaseSelectionMode(mode)}
         multiSelectEnabled={multiSelectEnabled}
         onToggleMultiSelect={() => setMultiSelectEnabled(v => !v)}
         
@@ -829,26 +825,26 @@ export default function ViewerClient() {
         
         onClipSave={handleClipSave}
         onClipCancel={handleClipCancel}
-        onToolChange={(tool) => setActiveTool(tool)}
+        // onToolChange={(tool) => setActiveTool(tool)}
 
         // Measurement (USER)
-        measureType={measureType}
-        onMeasureTypeChange={setMeasureType}
-        measureColor={measureColor}
-        onMeasureColorChange={setMeasureColor}
-        isMeasureActive={isMeasureActive}
-        onMeasureActiveChange={setIsMeasureActive}
-        onClearAllMeasurements={() => {
-          setMeasureType(null);
-          setIsMeasureActive(false);
-          if (clearMeasureRef.current) {
-            clearMeasureRef.current(() => {}); 
-          }
-        }}
+        // measureType={measureType}
+        // onMeasureTypeChange={setMeasureType}
+        // measureColor={measureColor}
+        // onMeasureColorChange={setMeasureColor}
+        // isMeasureActive={isMeasureActive}
+        // onMeasureActiveChange={setIsMeasureActive}
+        // onClearAllMeasurements={() => {
+        //   setMeasureType(null);
+        //   setIsMeasureActive(false);
+        //   if (clearMeasureRef.current) {
+        //     clearMeasureRef.current(() => {}); 
+        //   }
+        // }}
 
         // Visibility control (USER)
-        viewOptions={viewOptions}
-        onToggleViewOption={handleToggleViewOption}
+        // viewOptions={viewOptions}
+        // onToggleViewOption={handleToggleViewOption}
 
       />
       <div className="flex flex-1 relative overflow-hidden">
@@ -872,7 +868,7 @@ export default function ViewerClient() {
 
             {ctaBtn.map((item, index) => {
               const isActive = safeState == item.label;
-              const isDisabled = item.label === 'layers' && !viewOptions.ifcTypes;
+              // const isDisabled = item.label === 'layers' && !viewOptions.ifcTypes;
 
               return (
                 <span
@@ -943,20 +939,20 @@ export default function ViewerClient() {
 
               // Custom user selection
               selectionMode={multiSelectEnabled ? 'multi' : 'single'}
-              areaSelectEnabled={baseSelectionMode === 'area'}
+              // areaSelectEnabled={baseSelectionMode === 'area'}
 
               // Measurement (USER)
               // @ts-expect-error JSX component props not typed in JS file
-              measureType={measureType}
-              measureColor={measureColor}
-              isMeasureActive={isMeasureActive}
+              // measureType={measureType}
+              // measureColor={measureColor}
+              // isMeasureActive={isMeasureActive}
               // @ts-expect-error JSX component props not typed in JS file
-              onClearMeasurements={handleRegisterMeasurementClear}
+              // onClearMeasurements={handleRegisterMeasurementClear}
               
               // Visibility control (USER)
-              viewOptions={viewOptions}
+              // viewOptions={viewOptions}
 
-              // Dev features
+              //  features
               onOpenNewClashDrawer={() => setIsClashDrawerOpen(true)}
               clashResults={clashResults}
               onRestoreClashSet={handleRestoreClashSet}
