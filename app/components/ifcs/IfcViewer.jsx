@@ -57,17 +57,10 @@ export default function IfcViewer({
   onRestoreClashSet,
   cameraMode,
   activeTool,
-  onToolChange,
+  // onToolChange,
 
   // --- USER PROPS ---
   selectionMode = 'single',
-  areaSelectEnabled = false,
-  
-  // measurement
-  measureType = null,
-  measureColor = '#D81B60',
-  isMeasureActive = false,
-  onClearMeasurements = null,
   
   // visibility control
   viewOptions = {
@@ -87,15 +80,6 @@ export default function IfcViewer({
   const selectionModeRef = useRef(selectionMode);
   const modelUrlMap = useRef({});
 
-  useEffect(() => {
-    selectionModeRef.current = selectionMode;
-  }, [selectionMode]);
-
-  const areaSelectEnabledRef = useRef(areaSelectEnabled);
-  useEffect(() => {
-    areaSelectEnabledRef.current = areaSelectEnabled;
-  }, [areaSelectEnabled]);
-
   const [isLoading, setIsLoading] = useState(false);
   const [selectedModelIndex, setSelectedModelIndex] = useState(null);
   const [openModel, setOpenModel] = useState({});
@@ -105,7 +89,7 @@ export default function IfcViewer({
   const [openMenuKey, setOpenMenuKey] = useState(null);
   const [selectedLayer, setSelectedLayer] = useState([]);
   
-  const [sortBy, setSortBy] = useState("date-modified");
+  const [sortBy, setSortBy] = useState("date-modified");  
   const [showSearch, setShowSearch] = useState(false);
   const [statusFilter, setStatusFilter] = useState(undefined);
   const [searchQuery, setSearchQuery] = useState("");
@@ -172,15 +156,6 @@ export default function IfcViewer({
   const mouseDownPos = useRef({ x: 0, y: 0 });
   const isDragging = useRef(false);
 
-  useEffect(() => {
-    if (!setSelectdItemsForNavbar) return;
-    const payload = (selectedItems || []).map(item => ({
-      ...item,
-      fileUrl: item.fileUrl || modelUrlMap.current[item.modelID],
-    }));
-    setSelectdItemsForNavbar(payload);
-  }, [selectedItems, setSelectdItemsForNavbar]);
-
   const [models, setModels] = useState([]);
   const modelsRef = useRef(models);
   useEffect(() => {
@@ -190,184 +165,6 @@ export default function IfcViewer({
   const [hiddenLayers, setHiddenLayers] = useState(new Set());
 
   const isDataTable = state === 'data-table';
-
-  const [selectionRect, setSelectionRect] = useState(null);
-  const selectionRectRef = useRef(null);
-  const areaDragRef = useRef({ active: false, startX: 0, startY: 0 });
-
-  // =====================================================
-  // MEASUREMENT 
-  // =====================================================
-  const [measurementPoints, setMeasurementPoints] = useState([]); 
-  const [measurements, setMeasurements] = useState([]); 
-  
-
-  const measurementsRef = useRef(measurements);
-  useEffect(() => {
-    measurementsRef.current = measurements;
-  }, [measurements]);
-  const modelOpacityRef = useRef(modelOpacity);
-    useEffect(() => {
-      modelOpacityRef.current = modelOpacity;
-  }, [modelOpacity]);
-
-  useEffect(() => {
-    measurementModeRef.current = measureType;
-  }, [measureType]);  
-
-  const measurementGroupRef = useRef(new THREE.Group());
-  const measurementModeRef = useRef(measureType);
-  // =====================================================
-  // 1. MŨI TÊN ĐO LƯỜNG (TRIMBLE STYLE)
-  // =====================================================
-  const drawArrowHead = (position, direction, color) => {
-    const arrowLength = 0.5; 
-    const arrowRadius = 0.1; 
-
-    const geometry = new THREE.ConeGeometry(arrowRadius, arrowLength, 13);
-
-    geometry.translate(0, -arrowLength / 2, 0);
-
-    const material = new THREE.MeshBasicMaterial({ 
-      color: new THREE.Color(color), 
-      depthTest: false,  
-      depthWrite: false 
-    });
-    
-    const arrow = new THREE.Mesh(geometry, material);
-    arrow.position.copy(position);
-    arrow.renderOrder = 999; 
-
-    const axis = new THREE.Vector3(0, 1, 0);
-    const quaternion = new THREE.Quaternion().setFromUnitVectors(axis, direction.clone().normalize());
-    arrow.setRotationFromQuaternion(quaternion);
-
-    measurementGroupRef.current.add(arrow);
-    
-    return arrow;
-  };
-
-  // =====================================================
-  // 2. NHÃN KÍCH THƯỚC (BOX ĐEN, VIỀN DÀY MÀU)
-  // =====================================================
-  const createMeasurementLabel = (point, text, color) => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 70; // Hạ chiều cao để box dẹt hơn, giống hình
-    const ctx = canvas.getContext('2d');
-
-    // Box nền xám đậm (gần đen)
-    ctx.fillStyle = '#222222';
-    ctx.fillRect(4, 4, canvas.width - 8, canvas.height - 8);
-    
-    // Viền box dày, màu bám theo đường line
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 4;
-    ctx.strokeRect(4, 4, canvas.width - 8, canvas.height - 8);
-
-    // Chữ màu trắng, in đậm, căn giữa
-    ctx.fillStyle = '#ffffff'; 
-    ctx.font = 'bold 40px Arial, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(text, canvas.width / 2, canvas.height / 2 + 2); 
-
-    const texture = new THREE.CanvasTexture(canvas);
-    const material = new THREE.SpriteMaterial({
-      map: texture,
-      depthTest: false,
-      depthWrite: false, 
-      sizeAttenuation: true,
-    });
-
-    const label = new THREE.Sprite(material);
-    label.position.copy(point);
-    label.scale.set(2.4, 0.65, 1);
-    label.renderOrder = 1000; 
-    
-    measurementGroupRef.current.add(label);
-    return label;
-  };
-
-  const drawAngleArc = (center, p1, p3, color, radius = 1.5) => {
-    const v1 = new THREE.Vector3().subVectors(p1, center).normalize();
-    const v2 = new THREE.Vector3().subVectors(p3, center).normalize();
-
-    const segments = 24;
-    const points = [];
-    const angleRad = v1.angleTo(v2);
-    const normal = new THREE.Vector3().crossVectors(v1, v2).normalize();
-
-    for (let i = 0; i <= segments; i++) {
-      const theta = (i / segments) * angleRad;
-      const rotatedVec = v1.clone().applyAxisAngle(normal, theta).multiplyScalar(radius);
-      points.push(new THREE.Vector3().addVectors(center, rotatedVec));
-    }
-
-    const geometry = new THREE.BufferGeometry().setFromPoints(points);
-    const material = new THREE.LineBasicMaterial({ 
-      color: new THREE.Color(color), 
-      linewidth: 2,
-      depthTest: false, 
-      depthWrite: false
-    });
-    
-    const arc = new THREE.Line(geometry, material);
-    arc.renderOrder = 999;
-    
-    measurementGroupRef.current.add(arc);
-    
-    const midIndex = Math.floor(points.length / 2);
-    return points[midIndex];
-  };
-
-  const drawMeasurementPoint = (point, color) => {
-    const geometry = new THREE.SphereGeometry(0.1, 12, 12);
-    const material = new THREE.MeshBasicMaterial({ 
-      color: new THREE.Color(color),
-      depthTest: false, 
-      depthWrite: false, 
-    });
-    const sphere = new THREE.Mesh(geometry, material);
-    sphere.position.copy(point);
-    sphere.renderOrder = 999; 
-    
-    measurementGroupRef.current.add(sphere);
-    return sphere;
-  };
-
-  const drawMeasurementLine = (point1, point2, color) => {
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.BufferAttribute(
-      new Float32Array([point1.x, point1.y, point1.z, point2.x, point2.y, point2.z]),
-      3
-    ));
-    const material = new THREE.LineBasicMaterial({ 
-      color: new THREE.Color(color),
-      linewidth: 3,
-      depthTest: false, 
-      depthWrite: false, 
-    });
-    const line = new THREE.Line(geometry, material);
-    line.renderOrder = 999;
-    
-    measurementGroupRef.current.add(line);
-    return line;
-  };
-
-  const clearMeasurements = useCallback(() => {
-    while (measurementGroupRef.current.children.length > 0) {
-      measurementGroupRef.current.remove(measurementGroupRef.current.children[0]);
-    }
-    setMeasurementPoints([]);
-    setMeasurements([]);
-  }, []);
-
-  useEffect(() => {
-    if (onClearMeasurements) {
-      onClearMeasurements(clearMeasurements);
-    }
-  }, [clearMeasurements, onClearMeasurements]);
 
   // MARKER ĐÁNH DẤU THỨ TỰ TỪNG CLIP
   const createSectionMarker = (point, index) => {
@@ -408,199 +205,24 @@ export default function IfcViewer({
     return sprite;
   };
 
-
   // =====================================================
-  // EVENT LISTENER: MEASUREMENT
-  // =====================================================
-  useEffect(() => {
-    if (!isMeasureActive || !measureType || !canvasRef.current || !sceneRef.current) return;
-
-    const canvas = canvasRef.current;
-    const raycaster = new THREE.Raycaster();
-    const mouse = new THREE.Vector2();
-
-    const onMeasurementClick = (e) => {
-      const rect = canvas.getBoundingClientRect();
-      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-
-      raycaster.setFromCamera(mouse, sceneRef.current.getCamera());
-      const meshes = modelsRef.current.map(m => m.mesh).filter(Boolean);
-      const hits = raycaster.intersectObjects(meshes, true);
-
-      if (hits.length === 0) return;
-
-      const hitPoint = hits[0].point;
-
-      if (measureType === 'single-point') {
-        drawMeasurementPoint(hitPoint, measureColor);
-        const text = `X: ${hitPoint.x.toFixed(2)}\nY: ${hitPoint.y.toFixed(2)}\nZ: ${hitPoint.z.toFixed(2)}`;
-        const labelPos = hitPoint.clone().add(new THREE.Vector3(0, 0.5, 0));
-        createMeasurementLabel(labelPos, text, measureColor);
-
-        // setMeasurements(prev => [
-        //   ...prev,
-        //   { start: { x: hitPoint.x, y: hitPoint.y, z: hitPoint.z }, end: { x: hitPoint.x, y: hitPoint.y, z: hitPoint.z }, value: 0 }
-        // ]);
-        setMeasurements(prev => [
-          ...prev,
-          { type: 'single-point', points: [{ x: hitPoint.x, y: hitPoint.y, z: hitPoint.z }], value: 0 }
-        ]);
-        
-        setMeasurementPoints([]); 
-      }
-      else if (measureType === 'perpendicular') {
-        const newPoints = [...measurementPoints, hitPoint];
-        setMeasurementPoints(newPoints);
-        drawMeasurementPoint(hitPoint, measureColor); 
-
-        if (newPoints.length === 2) {
-          const p1 = newPoints[0];
-          const p2 = newPoints[1];
-          const distance = p1.distanceTo(p2);
-          
-          // setMeasurements(prev => [
-          //   ...prev,
-          //   { start: { x: p1.x, y: p1.y, z: p1.z }, end: { x: p2.x, y: p2.y, z: p2.z }, value: distance }
-          // ]);
-          setMeasurements(prev => [
-            ...prev,
-            { type: 'perpendicular', points: [{ x: p1.x, y: p1.y, z: p1.z }, { x: p2.x, y: p2.y, z: p2.z }], value: distance }
-          ]);
-
-          drawMeasurementLine(p1, p2, measureColor);
-
-          const dir1 = new THREE.Vector3().subVectors(p2, p1).normalize();
-          const dir2 = new THREE.Vector3().subVectors(p1, p2).normalize();
-          
-          drawArrowHead(p2, dir1, measureColor); 
-          drawArrowHead(p1, dir2, measureColor); 
-
-          const midpoint = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
-          createMeasurementLabel(midpoint, `${distance.toFixed(2)} m`, measureColor);
-
-          setMeasurementPoints([]); 
-        }
-      }
-      else if (measureType === 'slope') {
-        const newPoints = [...measurementPoints, hitPoint];
-        setMeasurementPoints(newPoints);
-        drawMeasurementPoint(hitPoint, measureColor);
-
-        if (newPoints.length === 2) {
-          const p1 = newPoints[0]; 
-          const p2 = newPoints[1]; 
-          
-          drawMeasurementLine(p1, p2, measureColor);
-          
-          const direction = new THREE.Vector3().subVectors(p2, p1).normalize();
-          drawArrowHead(p2, direction, measureColor);
-
-          const distance = p1.distanceTo(p2);
-
-          // setMeasurements(prev => [
-          //   ...prev,
-          //   { start: { x: p1.x, y: p1.y, z: p1.z }, end: { x: p2.x, y: p2.y, z: p2.z }, value: distance }
-          // ]);
-          setMeasurements(prev => [
-            ...prev,
-            { type: 'slope', points: [{ x: p1.x, y: p1.y, z: p1.z }, { x: p2.x, y: p2.y, z: p2.z }], value: distance }
-          ]);
-
-          createMeasurementLabel(p2, `L: ${distance.toFixed(2)}`, measureColor);
-
-          setMeasurementPoints([]);
-        }
-      }
-      else if (measureType === 'angle') {
-        const newPoints = [...measurementPoints, hitPoint];
-        setMeasurementPoints(newPoints);
-        drawMeasurementPoint(hitPoint, measureColor);
-
-        if (newPoints.length === 3) {
-          const p1 = newPoints[0];
-          const p2 = newPoints[1]; 
-          const p3 = newPoints[2];
-
-          drawMeasurementLine(p2, p1, measureColor);
-          drawMeasurementLine(p2, p3, measureColor);
-
-          const v1 = new THREE.Vector3().subVectors(p1, p2).normalize();
-          const v2 = new THREE.Vector3().subVectors(p3, p2).normalize();
-          const angleRad = v1.angleTo(v2);
-          const angleDeg = angleRad * (180 / Math.PI);
-
-          // setMeasurements(prev => [
-          //   ...prev,
-          //   { start: { x: p1.x, y: p1.y, z: p1.z }, end: { x: p3.x, y: p3.y, z: p3.z }, value: angleDeg }
-          // ]);
-          setMeasurements(prev => [
-            ...prev,
-            { type: 'angle', points: [{ x: p1.x, y: p1.y, z: p1.z }, { x: p2.x, y: p2.y, z: p2.z }, { x: p3.x, y: p3.y, z: p3.z }], value: angleDeg }
-          ]);
-
-          const minLen = Math.min(p1.distanceTo(p2), p3.distanceTo(p2));
-          const arcRadius = Math.min(1.5, minLen * 0.4); 
-          
-          const labelPos = drawAngleArc(p2, p1, p3, measureColor, arcRadius);
-
-          createMeasurementLabel(labelPos, `${angleDeg.toFixed(1)}°`, measureColor);
-
-          setMeasurementPoints([]);
-        }
-      }
-    };
-
-    canvas.addEventListener('click', onMeasurementClick);
-
-    return () => {
-      canvas.removeEventListener('click', onMeasurementClick);
-    };
-  }, [isMeasureActive, measureType, measureColor, measurementPoints]);
-
-
-  // =====================================================
-  // INIT GROUPS (SAFE CLEANUP)
+  // INIT GROUPS 
   // =====================================================
   useEffect(() => {
     if (!sceneRef.current) return;
     const scene = sceneRef.current.scene;
-    const measurementGroup = measurementGroupRef.current;
     const topicMarkerGroup = topicMarkerGroupRef.current;
 
-    scene.add(measurementGroup);
     scene.add(topicMarkerGroup);
 
     return () => {
-      scene.remove(measurementGroup);
       scene.remove(topicMarkerGroup);
-      measurementGroup.clear();
       topicMarkerGroup.clear();
     };
   }, [models]);
 
   // =====================================================
-  // VISIBILITY CONTROL
-  // =====================================================
-  useEffect(() => {
-    if (!sceneRef.current) return;
-
-    // Toggle Annotations & Measurement
-    if (measurementGroupRef.current) {
-      measurementGroupRef.current.visible = !!viewOptions?.annotations;
-    }
-    if (topicMarkerGroupRef.current) {
-      topicMarkerGroupRef.current.visible = !!viewOptions?.annotations;
-    }
-
-    // Toggle Dev Branch Clipping Helpers
-    if (loaderRef.current) {
-        loaderRef.current.setClipHelperVisibility(!!viewOptions?.clipPlanes);
-    }
-  }, [viewOptions]);
-
-  // =====================================================
-  // STATE POSITION DRAWER (DEV)
+  // STATE POSITION DRAWER
   // =====================================================
   const [isPosDrawerOpen, setIsPosDrawerOpen] = useState(false);
   const [posDrawerModel, setPosDrawerModel] = useState(null);
@@ -685,122 +307,6 @@ export default function IfcViewer({
         threeSceneRef.current = scene;
         loaderRef.current = new IfcManager(scene.scene, []);
 
-        // --- AREA SELECTION handlers (registered once, driven by refs) ---
-        const getCanvasLocal = (ev) => {
-          const rect = canvas.getBoundingClientRect();
-          return { x: ev.clientX - rect.left, y: ev.clientY - rect.top, rect };
-        };
-
-        const onAreaMouseDown = (ev) => {
-          if (!areaSelectEnabledRef.current) return;
-          if (ev.button !== 0) return;
-          const { x, y } = getCanvasLocal(ev);
-          areaDragRef.current.active = true;
-          areaDragRef.current.startX = x;
-          areaDragRef.current.startY = y;
-          const r0 = { x, y, w: 0, h: 0 };
-          selectionRectRef.current = r0;
-          setSelectionRect(r0);
-          ev.preventDefault();
-          ev.stopPropagation();
-        };
-
-        const onAreaMouseMove = (ev) => {
-          if (!areaDragRef.current.active) return;
-          const { x, y } = getCanvasLocal(ev);
-          const sx = areaDragRef.current.startX;
-          const sy = areaDragRef.current.startY;
-          const left = Math.min(sx, x);
-          const top = Math.min(sy, y);
-          const w = Math.abs(x - sx);
-          const h = Math.abs(y - sy);
-          const r = { x: left, y: top, w, h };
-          selectionRectRef.current = r;
-          setSelectionRect(r);
-          ev.preventDefault();
-          ev.stopPropagation();
-        };
-
-        const onAreaMouseUp = () => {
-          if (!areaDragRef.current.active) return;
-          areaDragRef.current.active = false;
-
-          const rectData = selectionRectRef.current;
-          setSelectionRect(null);
-          selectionRectRef.current = null;
-
-          if (!rectData || rectData.w < 5 || rectData.h < 5) return;
-          if (!sceneRef.current || !loaderRef.current) return;
-
-          const bounds = canvas.getBoundingClientRect();
-          const raycaster = new THREE.Raycaster();
-          const mouse = new THREE.Vector2();
-
-          const stepPx = 35;
-          const nx = Math.max(3, Math.min(24, Math.floor(rectData.w / stepPx)));
-          const ny = Math.max(3, Math.min(24, Math.floor(rectData.h / stepPx)));
-
-          const meshes = models.map(m => m.mesh).filter(Boolean);
-          const foundMap = new Map();
-
-          for (let ix = 0; ix < nx; ix++) {
-            for (let iy = 0; iy < ny; iy++) {
-              const px = rectData.x + (rectData.w * (ix + 0.5)) / nx;
-              const py = rectData.y + (rectData.h * (iy + 0.5)) / ny;
-
-              mouse.x = (px / bounds.width) * 2 - 1;
-              mouse.y = -(py / bounds.height) * 2 + 1;
-
-              raycaster.setFromCamera(mouse, sceneRef.current.getCamera());
-              const hits = raycaster.intersectObjects(meshes, true);
-              if (!hits.length) continue;
-
-              const hit = hits.find(h => !h.object?.userData?.isClipHelper && !h.object?.parent?.userData?.isClipHelper);
-              if (!hit) continue;
-
-              const faceIndex = hit.faceIndex;
-              const geometry = hit.object.geometry;
-              const expressID = loaderRef.current.ifcLoader.ifcManager.getExpressId(geometry, faceIndex);
-              const modelID = hit.object.modelID;
-              if (modelID == null || expressID == null) continue;
-
-              const key = `${modelID}:${expressID}`;
-              if (!foundMap.has(key)) {
-                foundMap.set(key, {
-                  modelID,
-                  expressID,
-                  fileUrl: modelUrlMap.current[modelID],
-                });
-              }
-            }
-          }
-
-          const picked = Array.from(foundMap.values());
-          if (picked.length === 0) return;
-          
-          const multi = selectionModeRef.current === 'multi';
-          setSelectedItems(prev => {
-            const prevArr = Array.isArray(prev) ? prev : [];
-            const base = multi ? prevArr : [];
-            const merged = [...base];
-
-            const seen = new Set(base.map(i => `${i.modelID}:${i.expressID}`));
-            picked.forEach(p => {
-              const k = `${p.modelID}:${p.expressID}`;
-              if (!seen.has(k)) {
-                merged.push(p);
-                seen.add(k);
-              }
-            });
-
-            if (loaderRef.current?.highlightItems) {
-              void loaderRef.current.highlightItems(merged);
-            }
-
-            return merged;
-          });
-        };
-
         canvas.addEventListener('mousedown', (e) => {
           mouseDownPos.current = { x: e.clientX, y: e.clientY };
           isDragging.current = false;
@@ -814,12 +320,12 @@ export default function IfcViewer({
           }
         });
 
-        canvas.addEventListener('mousedown', onAreaMouseDown, true);
-        canvas.addEventListener('mousemove', onAreaMouseMove, true);
-        window.addEventListener('mouseup', onAreaMouseUp, true);
+        // canvas.addEventListener('mousedown', onAreaMouseDown, true);
+        // canvas.addEventListener('mousemove', onAreaMouseMove, true);
+        // window.addEventListener('mouseup', onAreaMouseUp, true);
 
         canvas.addEventListener('mouseup', (event) => {
-          if (areaSelectEnabledRef.current) return;
+          // if (areaSelectEnabledRef.current) return;
           
           if (!isDragging.current) {
             // Check Marker
@@ -911,7 +417,7 @@ export default function IfcViewer({
                   newSelection = [...prevSelected, enrichedItem];
                 }
               }
-              loaderRef.current.highlightItems(newSelection);
+              // loaderRef.current.highlightItems(newSelection);
             } else {
               newSelection = [];
               loaderRef.current.removeHighlight();
@@ -1062,138 +568,6 @@ export default function IfcViewer({
 
   const isLayerVisible = (modelID, typeId) => !hiddenLayers.has(layerKey(modelID, typeId));
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !loaderRef.current || !sceneRef.current) return;
-
-    const onHover = (e) => {
-      if (isDragging.current) return;
-      if (areaDragRef.current && areaDragRef.current.active) return;
-      
-      loaderRef.current.highlight(e, canvas);
-    };
-
-    canvas.addEventListener('mousemove', onHover);
-
-    return () => {
-      canvas.removeEventListener('mousemove', onHover);
-    };
-  }, []); 
-
-  // const restoreMeasurements = (measurementData) => {
-  //   clearMeasurements();
-
-  //   if (!measurementData || !measurementData.length) return;
-
-  //   const rebuilt = [];
-
-  //   measurementData.forEach(m => {
-  //     const p1 = new THREE.Vector3(m.start.x, m.start.y, m.start.z);
-  //     const p2 = new THREE.Vector3(m.end.x, m.end.y, m.end.z);
-
-  //     const isSinglePoint =
-  //       m.value === 0 &&
-  //       Math.abs(p1.x - p2.x) < 1e-6 &&
-  //       Math.abs(p1.y - p2.y) < 1e-6 &&
-  //       Math.abs(p1.z - p2.z) < 1e-6;
-
-  //     if (isSinglePoint) {
-  //       drawMeasurementPoint(p1, measureColor);
-  //       const labelPos = p1.clone().add(new THREE.Vector3(0, 0.5, 0));
-  //       const text = `X: ${p1.x.toFixed(2)}\nY: ${p1.y.toFixed(2)}\nZ: ${p1.z.toFixed(2)}`;
-  //       createMeasurementLabel(labelPos, text, measureColor);
-  //     } else {
-  //       drawMeasurementPoint(p1, measureColor);
-  //       drawMeasurementPoint(p2, measureColor);
-  //       drawMeasurementLine(p1, p2, measureColor);
-
-  //       const midpoint = new THREE.Vector3()
-  //         .addVectors(p1, p2)
-  //         .multiplyScalar(0.5);
-
-  //       createMeasurementLabel(midpoint, `${m.value}`, measureColor);
-  //     }
-
-  //     rebuilt.push(m);
-  //   });
-
-  //   setMeasurements(rebuilt);
-  // };
-  const restoreMeasurements = (measurementData) => {
-    clearMeasurements();
-    if (!measurementData || !measurementData.length) return;
-
-    const rebuilt = [];
-
-    measurementData.forEach(m => {
-      // Tương thích ngược với các file save cũ
-      if (!m.type) {
-        const p1 = new THREE.Vector3(m.start.x, m.start.y, m.start.z);
-        const p2 = new THREE.Vector3(m.end.x, m.end.y, m.end.z);
-        drawMeasurementPoint(p1, measureColor);
-        drawMeasurementPoint(p2, measureColor);
-        drawMeasurementLine(p1, p2, measureColor);
-        const midpoint = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
-        createMeasurementLabel(midpoint, `${m.value}`, measureColor);
-        rebuilt.push(m);
-        return;
-      }
-
-      // Restore cấu trúc mới
-      const pts = m.points.map(p => new THREE.Vector3(p.x, p.y, p.z));
-
-      if (m.type === 'single-point') {
-        const p1 = pts[0];
-        drawMeasurementPoint(p1, measureColor);
-        const text = `X: ${p1.x.toFixed(2)}\nY: ${p1.y.toFixed(2)}\nZ: ${p1.z.toFixed(2)}`;
-        const labelPos = p1.clone().add(new THREE.Vector3(0, 0.5, 0));
-        createMeasurementLabel(labelPos, text, measureColor);
-      } 
-      else if (m.type === 'perpendicular') {
-        const [p1, p2] = pts;
-        drawMeasurementPoint(p1, measureColor);
-        drawMeasurementPoint(p2, measureColor);
-        drawMeasurementLine(p1, p2, measureColor);
-
-        const dir1 = new THREE.Vector3().subVectors(p2, p1).normalize();
-        const dir2 = new THREE.Vector3().subVectors(p1, p2).normalize();
-        drawArrowHead(p2, dir1, measureColor); 
-        drawArrowHead(p1, dir2, measureColor); 
-
-        const midpoint = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
-        createMeasurementLabel(midpoint, `${m.value.toFixed(2)} m`, measureColor);
-      }
-      else if (m.type === 'slope') {
-        const [p1, p2] = pts;
-        drawMeasurementPoint(p1, measureColor);
-        drawMeasurementPoint(p2, measureColor);
-        drawMeasurementLine(p1, p2, measureColor);
-
-        const direction = new THREE.Vector3().subVectors(p2, p1).normalize();
-        drawArrowHead(p2, direction, measureColor);
-        createMeasurementLabel(p2, `L: ${m.value.toFixed(2)}`, measureColor);
-      }
-      else if (m.type === 'angle') {
-        const [p1, p2, p3] = pts;
-        drawMeasurementPoint(p1, measureColor);
-        drawMeasurementPoint(p2, measureColor);
-        drawMeasurementPoint(p3, measureColor);
-
-        drawMeasurementLine(p2, p1, measureColor);
-        drawMeasurementLine(p2, p3, measureColor);
-
-        const minLen = Math.min(p1.distanceTo(p2), p3.distanceTo(p2));
-        const arcRadius = Math.min(1.5, minLen * 0.4); 
-        const labelPos = drawAngleArc(p2, p1, p3, measureColor, arcRadius);
-        createMeasurementLabel(labelPos, `${m.value.toFixed(1)}°`, measureColor);
-      }
-
-      rebuilt.push(m);
-    });
-
-    setMeasurements(rebuilt);
-  };
-
   const restoreState = async (viewState, todoItems = []) => {
     if (!viewState || !sceneRef.current || !loaderRef.current) return;
 
@@ -1204,25 +578,6 @@ export default function IfcViewer({
 
     if (viewState.modelTransforms) {
       loaderRef.current.restoreAllModelsTransform(viewState.modelTransforms);
-    }
-
-    // 0. RESTORE CLIPPING & MEASUREMENTS
-    if (viewState.clippingPlanes) {
-      loaderRef.current.restoreClippingState(viewState.clippingPlanes);
-    } else {
-      loaderRef.current.deleteAllPlanes();
-    }
-
-    if (viewState.measurements) {
-      restoreMeasurements(viewState.measurements);
-    } else {
-      clearMeasurements && clearMeasurements();
-    }
-    
-    if (viewState.marker) {
-      drawTopicMarker(new THREE.Vector3(viewState.marker.x, viewState.marker.y, viewState.marker.z));
-    } else {
-      clearTopicMarker();
     }
 
     // 1. PREPARE MAPPING
@@ -1394,12 +749,6 @@ export default function IfcViewer({
     }));
 
     const thumbnail = sceneRef.current.getScreenshot();
-    const markerSprite = topicMarkerGroupRef.current.children[0];
-    const currentMarker = markerSprite ? {
-      x: markerSprite.position.x,
-      y: markerSprite.position.y,
-      z: markerSprite.position.z
-    } : null;
     
     const modelTransforms = loaderRef.current.getAllModelsTransform();
     const clippingPlanes = loaderRef.current.getClippingState();
@@ -1409,13 +758,9 @@ export default function IfcViewer({
       visibility: safeVisibility,
       selection: safeSelection,
       thumbnail,
-      // modelOpacity: modelOpacity,
-      modelOpacity: modelOpacityRef.current,
       modelTransforms: modelTransforms,
       clippingPlanes: clippingPlanes, 
-      // measurements: measurements,
-      measurements: measurementsRef.current,
-      marker: currentMarker
+      
     };
   };
 
@@ -1609,8 +954,8 @@ export default function IfcViewer({
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><Menu className="h-4 w-4" /></Button></DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => setSortBy("name")}>Name {sortBy === "name" && <Check className="ml-2 h-4 w-4" />}</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setSortBy("date-created")}>Date created {sortBy === "date-created" && <Check className="ml-2 h-4 w-4" />}</DropdownMenuItem>
+                            <DropdownMenuItem >Name </DropdownMenuItem>
+                            <DropdownMenuItem >Date created </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowSearch(!showSearch)}><Search className="h-4 w-4" /></Button>
@@ -1844,11 +1189,11 @@ export default function IfcViewer({
           <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block', outline: 'none', }} />
 
           {/* Area selection rectangle overlay */}
-          {selectionRect && (
+          {/* {selectionRect && (
             <div className="absolute z-50 pointer-events-none"
               style={{ left: selectionRect.x, top: selectionRect.y, width: selectionRect.w, height: selectionRect.h, border: '2px solid #2563eb', background: 'rgba(37, 99, 235, 0.12)', borderRadius: 6, }}
             />
-          )}
+          )} */}
 
           {cameraMode === 'walk' && (
             <div className="absolute top-4 right-4 z-30 animate-in fade-in slide-in-from-top-2 duration-500 pointer-events-none select-none">
