@@ -32,7 +32,6 @@ interface RecipientSelectorProps {
   projectId: string;
   // [UPDATE] Nhận mảng object đầy đủ thay vì chỉ ID
   initialOptions?: RecipientOption[];
-  // onChange: (selectedIds: string[]) => void;
   onChange: (selectedIds: string[], selectedOptions?: RecipientOption[]) => void;
   disabled?: boolean;
 }
@@ -57,7 +56,7 @@ export function RecipientSelector({
     React.useState<RecipientOption[]>(initialOptions);
 
   const [loading, setLoading] = React.useState(false);
-  console.log("🔥 Kiểm tra projectId truyền vào RecipientSelector:", projectId); // Thêm dòng này
+
   // Sync nếu initialOptions thay đổi từ bên ngoài (optional)
   React.useEffect(() => {
     if (initialOptions.length > 0 && selectedOptions.length === 0) {
@@ -120,7 +119,6 @@ export function RecipientSelector({
     }
 
     setSelectedOptions(newSelected);
-    onChange(newSelected.map((item) => item.id), newSelected);
     onChange(
       newSelected.map((item) => item.id),
       newSelected,
@@ -132,7 +130,6 @@ export function RecipientSelector({
       (item) => item.id !== idToRemove,
     );
     setSelectedOptions(newSelected);
-    // onChange(newSelected.map((item) => item.id), newSelected);
     onChange(
       newSelected.map((item) => item.id),
       newSelected,

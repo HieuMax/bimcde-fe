@@ -1,16 +1,22 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
-import { X, Loader2, FileWarning, Copy, Check, Mail } from "lucide-react";
+import { useState } from "react";
+import { X, Loader2 } from "lucide-react";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -18,314 +24,219 @@ import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { httpClient } from "@/lib/http-client";
 
-/* ===================== TYPES ===================== */
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  file: { _id: string; name: string; mimeType?: string } | null;
+  file: { _id: string; name: string } | null;
 }
 
 type ShareType = "SPECIFIC" | "INTERNAL_LINK" | "PUBLIC_LINK";
-type AccessLevel = "VIEW" | "DOWNLOAD";
-type Recipient = { _id?: string; email: string };
 
-/* ===================== COMPONENT ===================== */
 export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
-  const params = useParams();
-  const projectId = params?.projectId as string;
-
-  /* --- STATE --- */
   const [shareType, setShareType] = useState<ShareType>("PUBLIC_LINK");
   const [emailInput, setEmailInput] = useState("");
-  const [recipients, setRecipients] = useState<Recipient[]>([]);
+  const [recipients, setRecipients] = useState<string[]>([]);
   const [note, setNote] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
-  const [accessLevel, setAccessLevel] = useState<AccessLevel>("VIEW");
-  const [showLatest, setShowLatest] = useState(true);
-  const [shareLink, setShareLink] = useState<string | null>(null);
+  const [accessLevel, setAccessLevel] = useState("VIEW");
+  const [showLatest, setShowLatest] = useState(false);
 
-  // Check Folder
-  const isFolder = file && (!file.mimeType || file.mimeType === "folder");
-
-  /* --- RESET ON OPEN --- */
-  useEffect(() => {
-    if (open) {
-      setShareLink(null);
-      setShareType("PUBLIC_LINK");
-      setAccessLevel("VIEW");
-      setRecipients([]);
+  const handleAddRecipient = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && emailInput.trim()) {
+      e.preventDefault();
+      if (!recipients.includes(emailInput.trim())) {
+        setRecipients([...recipients, emailInput.trim()]);
+      }
       setEmailInput("");
-      setNote("");
-      setExpiresAt("");
-    }
-  }, [open, file]);
-
-  /* --- EMAIL HANDLERS --- */
-  const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-
-  // Hàm thêm email vào danh sách
-  const handleAddEmail = () => {
-    const email = emailInput.trim();
-    if (!email) return;
-    
-    if (!isValidEmail(email)) {
-      toast.error("Địa chỉ email không hợp lệ");
-      return;
-    }
-    
-    // Kiểm tra trùng
-    if (!recipients.some(r => r.email === email)) {
-      setRecipients([...recipients, { email }]);
-      setEmailInput(""); // Reset ô nhập sau khi thêm thành công
-    } else {
-      setEmailInput(""); // Nếu trùng cũng xóa đi cho gọn
     }
   };
 
-  const handleRemoveEmail = (email: string) => {
-    setRecipients(recipients.filter(r => r.email !== email));
+  const removeRecipient = (email: string) => {
+    setRecipients(recipients.filter((r) => r !== email));
   };
 
-  const handleClose = () => {
-    setShareLink(null);
-    onOpenChange(false);
-  };
-
-  /* --- MUTATION (GỌI API) --- */
+  // Mutation
   const shareMutation = useMutation({
     mutationFn: async () => {
-      // 1. Validate
-      if (isFolder) throw new Error("Không hỗ trợ chia sẻ thư mục.");
-      
-      const finalRecipients = recipients.map(r => r.email);
-      const pendingEmail = emailInput.trim()
-
-      if (pendingEmail && isValidEmail(pendingEmail) && !finalRecipients.includes(pendingEmail)){
-        finalRecipients.push(pendingEmail)
-      } 
-      // Nếu chọn chế độ "Specific" -> Bắt buộc phải có ít nhất 1 email
-      if (shareType === "SPECIFIC" && recipients.length === 0) {
-        throw new Error("Chế độ 'Người cụ thể' yêu cầu phải nhập ít nhất một email.");
-      }
-
-      // 2. Gọi API
-      // Backend sẽ tự động: Tạo Token + Gửi Mail (nếu mảng recipients có dữ liệu)
-      const res = await httpClient.post<{ token?: string, shareToken?: string }>("/share", {
+      return await httpClient.post("/files/share", {
         fileId: file?._id,
-        projectId,
         type: shareType,
-        // recipients: recipients.map(r => r.email), 
-        recipients: finalRecipients,
+        recipients,
         note,
         expiresAt: expiresAt ? new Date(expiresAt) : null,
         accessLevel,
         showLatestVersion: showLatest,
+        userId: "CURRENT_USER_ID",
       });
-      return res.data;
     },
-    onSuccess: (data: any) => {
-      const token = data.token || data.shareToken || data?.share?.token;
-      if (!token) {
-        toast.error("Lỗi server: Không nhận được token.");
-        return;
-      }
-
-      const clientUrl =
-        process.env.NEXT_PUBLIC_CLIENT_URL || window.location.origin;
-      // Tạo đường dẫn
-      const link = `${clientUrl}/share/${token}`;
-      setShareLink(link);
-      
-      // Hiển thị thông báo phù hợp
-      if (recipients.length > 0) {
-        toast.success(`Link created and email sent successfully to ${recipients.length} people!`);
-      } else {
-        toast.success("Link created successfully!");
-      }
+    onSuccess: () => {
+      toast.success("File shared successfully");
+      onOpenChange(false);
+      // Reset form
+      setRecipients([]);
+      setNote("");
     },
-    onError: (err: any) => {
-      toast.error(err?.response?.data?.message || "Error when performing sharing");
-    }
+    onError: () => toast.error("Failed to share file"),
   });
 
-  // Logic enable nút submit
-  // Cho phép submit nếu: Có file + Không phải Folder + (Nếu là Specific thì phải có người nhận)
-  const canSubmit = !!file && !isFolder && (shareType !== "SPECIFIC" || recipients.length > 0);
+  if (!file) return null;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-[500px] p-0 bg-white gap-0 overflow-hidden">
-        <DialogHeader className="p-4 pb-2 border-b">
-          <DialogTitle>Share Data</DialogTitle>
-          <DialogDescription className="truncate">{file?.name}</DialogDescription>
+      <DialogContent className="max-w-[500px] p-0 gap-0 overflow-hidden bg-white">
+        <DialogHeader className="p-4 pb-2">
+          <DialogTitle className="text-xl font-semibold text-slate-800">
+            Share data
+          </DialogTitle>
         </DialogHeader>
 
-        {isFolder ? (
-           <div className="m-4 p-4 bg-amber-50 border border-amber-200 rounded-md flex gap-3 items-center">
-              <FileWarning className="text-amber-600 h-6 w-6" />
-              <div>
-                 <p className="font-medium text-amber-800">Unable to share folder</p>
-                 <p className="text-xs text-amber-600">Please select the specific file.</p>
+        <div className="p-4 pt-0 space-y-4">
+          {/* 1. Share With (Dropdown) */}
+          <div className="space-y-1.5">
+            <Label className="text-xs text-slate-500 font-normal">
+              Share with
+            </Label>
+            <Select
+              value={shareType}
+              onValueChange={(val) => setShareType(val as ShareType)}
+            >
+              <SelectTrigger className="h-10 border-slate-300">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="SPECIFIC">
+                  Specific members of the project
+                </SelectItem>
+                <SelectItem value="INTERNAL_LINK">
+                  Signed in users with the link
+                </SelectItem>
+                <SelectItem value="PUBLIC_LINK">
+                  Any users with the link
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* 2. People (Email Input with Chips) */}
+          <div className="space-y-1.5">
+            <Label className="text-xs text-slate-500 font-normal">People</Label>
+            <div className="border border-slate-300 rounded-md p-2 min-h-[80px] bg-white focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500">
+              <div className="flex flex-wrap gap-2 mb-2">
+                {recipients.map((email) => (
+                  <span
+                    key={email}
+                    className="bg-slate-200 text-slate-700 text-sm px-2 py-0.5 rounded-full flex items-center gap-1"
+                  >
+                    {email}
+                    <button
+                      onClick={() => removeRecipient(email)}
+                      className="hover:text-slate-900 rounded-full p-0.5"
+                    >
+                      <X size={12} />
+                    </button>
+                  </span>
+                ))}
               </div>
-           </div>
-        ) : (
-          
-          <div className="p-4 space-y-4">
+              <input
+                className="w-full outline-none text-sm text-slate-700 placeholder:text-slate-400 placeholder:italic"
+                placeholder={
+                  recipients.length > 0
+                    ? ""
+                    : "Please enter valid email address"
+                }
+                value={emailInput}
+                onChange={(e) => setEmailInput(e.target.value)}
+                onKeyDown={handleAddRecipient}
+              />
+            </div>
+          </div>
+
+          {/* 3. Note */}
+          {shareType !== "PUBLIC_LINK" && (
+            <div className="space-y-1.5 animate-in fade-in zoom-in-95 duration-200">
+              <Label className="text-xs text-slate-500 font-normal">Note</Label>
+              <Textarea
+                placeholder="Add a message"
+                className="resize-none h-20 text-sm border-slate-300"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+              />
+            </div>
+          )}
+
+          {/* 4. Link Options (Expire + Access) */}
+          <div className="grid grid-cols-2 gap-4">
+            {/* Expire Date */}
             <div className="space-y-1.5">
-              <Label className="text-xs text-slate-500">Share with</Label>
-              <Select value={shareType} onValueChange={(v: any) => setShareType(v)}>
-                <SelectTrigger>
+              <Label className="text-xs text-slate-500 font-normal">
+                Link expires on (in UTC Time Zone)
+              </Label>
+              <Input
+                type="date"
+                className="text-sm border-slate-300"
+                value={expiresAt}
+                onChange={(e) => setExpiresAt(e.target.value)}
+              />
+            </div>
+
+            {/* Access Level */}
+            <div className="space-y-1.5">
+              <Label className="text-xs text-slate-500 font-normal">
+                Access
+              </Label>
+              <Select value={accessLevel} onValueChange={setAccessLevel}>
+                <SelectTrigger className="h-10 border-slate-300">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="SPECIFIC">
-                    Specific members of the project
-                  </SelectItem>
-                  <SelectItem value="INTERNAL_LINK">
-                    Signed in users with the link
-                  </SelectItem>
-                  <SelectItem value="PUBLIC_LINK">
-                    Any users with the link
-                  </SelectItem>
+                  <SelectItem value="VIEW">View only</SelectItem>
+                  <SelectItem value="DOWNLOAD">View & Download</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-
-            <div className="space-y-1.5">
-              <Label className="text-xs text-slate-500">
-                People {shareType === "SPECIFIC" && <span className="text-red-500">*</span>}
-              </Label>
-
-              <div className="border rounded-md p-2 bg-slate-50 min-h-[46px] transition-all focus-within:ring-2 focus-within:ring-blue-100 focus-within:border-blue-400">
-                <div className="flex flex-wrap gap-2 mb-1">
-                  {recipients.map(r => (
-                    <span
-                      key={r.email}
-                      className="bg-white border text-xs px-2 py-1 rounded-full flex items-center gap-1 shadow-sm"
-                    >
-                      <Mail size={10} className="text-slate-400" />
-                      {r.email}
-                      <X
-                        size={12}
-                        className="cursor-pointer hover:text-red-500 ml-1"
-                        onClick={() => handleRemoveEmail(r.email)}
-                      />
-                    </span>
-                  ))}
-
-                  <input
-                    className="flex-1 bg-transparent text-sm outline-none min-w-[150px] h-6"
-                    placeholder="Please enter valid email address"
-                    value={emailInput}
-                    onChange={e => setEmailInput(e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        handleAddEmail();
-                      }
-                    }}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {(shareType === "SPECIFIC" || shareType === "INTERNAL_LINK") && (
-              <div className="space-y-1.5">
-                <Label className="text-xs text-slate-500">Note</Label>
-                <Textarea
-                  className="h-20 resize-none"
-                  placeholder="Add a message"
-                  value={note}
-                  onChange={e => setNote(e.target.value)}
-                />
-              </div>
-            )}
-
-            {(shareType === "INTERNAL_LINK" || shareType === "PUBLIC_LINK") && (
-              <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs text-slate-500">
-                  Link expires on (in UTC)
-                </Label>
-                <Input
-                  type="date"
-                  value={expiresAt}
-                  onChange={e => setExpiresAt(e.target.value)}
-                />
-              </div>
-
-              <div className="space-y-1.5">
-                <Label className="text-xs text-slate-500">Access</Label>
-                <Select
-                  value={accessLevel}
-                  onValueChange={(v: any) => setAccessLevel(v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="VIEW">View only</SelectItem>
-                    <SelectItem value="DOWNLOAD">View & download</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            )}
-
-            {(shareType === "INTERNAL_LINK" || shareType === "PUBLIC_LINK") && (
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  checked={showLatest}
-                  onCheckedChange={c => setShowLatest(c as boolean)}
-                />
-                <Label className="text-sm cursor-pointer">
-                  Show latest version
-                </Label>
-              </div>
-            )}
-
-            {shareType === "SPECIFIC" && (
-              <div className="border-t border-slate-200 pt-3 text-xs text-slate-500">
-                Note: Any access restrictions placed on the files are removed when the files are shared.
-              </div>
-            )}
           </div>
 
-        )}
+          {/* 5. Show Latest Version Checkbox */}
+          <div className="flex items-center gap-2 pt-1">
+            <Checkbox
+              id="latest"
+              checked={showLatest}
+              onCheckedChange={(c) => setShowLatest(c as boolean)}
+              className="border-slate-400 data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600"
+            />
+            <Label
+              htmlFor="latest"
+              className="text-sm text-slate-600 font-normal cursor-pointer"
+            >
+              Show latest version
+            </Label>
+          </div>
 
-        {/* FOOTER */}
-        <div className="p-4 border-t bg-slate-50">
-           {shareLink ? (
-              <div className="space-y-3 animate-in fade-in zoom-in-95 duration-200">
-                 <div className="flex items-center gap-2 text-green-600 text-sm font-medium">
-                    <Check size={16}/> Sharing success!
-                 </div>
-                 <div className="flex gap-2">
-                    <Input value={shareLink} readOnly className="bg-white font-mono text-xs" />
-                    <Button size="icon" onClick={() => { navigator.clipboard.writeText(shareLink); toast.success("Đã copy!"); }}>
-                       <Copy size={16}/>
-                    </Button>
-                 </div>
-                 <Button variant="outline" className="w-full" onClick={handleClose}>Close</Button>
-              </div>
-           ) : (
-              <div className="flex justify-end gap-2">
-                 {isFolder ? (
-                    <Button variant="outline" onClick={handleClose}>Close</Button>
-                 ) : (
-                    <>
-                       <Button variant="ghost" onClick={handleClose}>Cancel</Button>
-                       <Button onClick={() => shareMutation.mutate()} disabled={!canSubmit || shareMutation.isPending}>
-                          {shareMutation.isPending ? <Loader2 className="animate-spin mr-2 h-4 w-4"/> : (
-                              recipients.length > 0 ? "Create a Link and Send an Email" : "Create a Share Link"
-                          )}
-                       </Button>
-                    </>
-                 )}
-              </div>
-           )}
+          {/* Note footer text */}
+          {shareType === "SPECIFIC" && (
+            <div className="border-t border-slate-200 pt-3 mt-2">
+              <p className="text-xs text-slate-500">
+                Note : Any access restrictions placed on the files are removed
+                when the files are shared.
+              </p>
+            </div>
+          )}
         </div>
 
+        {/* Footer Buttons */}
+        <div className="p-4 border-t border-slate-100 flex justify-end bg-white">
+          <Button
+            className="bg-[#005F9E] hover:bg-[#004B7D] text-white min-w-[100px]"
+            onClick={() => shareMutation.mutate()}
+            disabled={shareMutation.isPending}
+          >
+            {shareMutation.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              "Share"
+            )}
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );
