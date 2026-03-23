@@ -17,14 +17,14 @@ export default function LeftPanelTool({
   ];
 
   return (
-    <div className="w-12 h-full bg-slate-200 flex flex-col shrink-0">
+    <div className="w-12 bg-slate-200 flex flex-col">
       {tools.map(t => (
         
         <button
           key={t.key}
           title={t.label}
           onClick={() => onClick(t.key)}
-          className={`h-12 flex items-center justify-center 
+          className={`h-10 flex items-center justify-center 
             ${activeKey === t.key ? 'bg-white text-blue-900 font-extrabold' : 'hover:bg-gray-100'}`}
         >
           {t.icon}

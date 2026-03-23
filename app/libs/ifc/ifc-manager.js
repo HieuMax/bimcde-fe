@@ -159,6 +159,9 @@ export class IfcManager {
     return ifcModel;
   }
 
+  /**
+   * Here we support import 1 model at a time -> maybe extend later
+   */
   async clearModels() {
     console.log("Clearing IFC models...");
     if (this.layerMap) this.layerMap.clear();
@@ -193,6 +196,8 @@ export class IfcManager {
           subset.material.dispose();
         }
       }
+      // subset.geometry.dispose();
+      // if (subset.material) subset.material.dispose();
     });
     this.hiddenSubsets.clear();
 
@@ -269,6 +274,7 @@ export class IfcManager {
     const modelID = found.object.modelID;
 
     this.highlightItems([{ modelID, expressID }]);
+    this.highlight(modelID, expressID);
 
     return { modelID, expressID };
   }
@@ -302,6 +308,9 @@ export class IfcManager {
       return await this.ifcLoader.ifcManager.getItemProperties(modelID, node.expressID, false);
     };
 
+    /**
+     * Optimize by limiting depth of property fetching -> can be adjusted
+     */
     async function enrichNode(node, depth = 0, maxDepth = 5) {
       let properties = null;
 
@@ -322,12 +331,18 @@ export class IfcManager {
 
     const tree = await enrichNode(rawTree);
     const layers = this.buildLayersFromTree(tree);
+    // console.log('Spatial Tree with flags:', tree);
 
     return {
       tree,
       layers,
     };
+    // return tree;
   }
+
+  /**
+   * HIGHLIGHT MANAGEMENT
+   */
 
   highlightModelID = null;
   highlightExpressID = null;
@@ -402,11 +417,16 @@ export class IfcManager {
     this.highlightMeshes.push(edgesMesh);
   }
 
+  async highlight(modelID, expressID) {
+    await this.highlightItems([{ modelID, expressID }]);
+  }
+
   async highlightItems(items) {
 
     this.removeHighlight();
 
     if (!items || items.length === 0) return;
+
 
     const itemsByModel = {};
 
@@ -420,6 +440,7 @@ export class IfcManager {
         itemsByModel[mId].push(eId);
       }
     });
+
 
     for (const modelIDStr in itemsByModel) {
       const modelID = parseInt(modelIDStr);
@@ -523,6 +544,12 @@ export class IfcManager {
     const hiddenSet = this.hiddenExpressIDs.get(modelID);
     const isModelHidden = this.modelHidden.get(modelID) === true;
 
+    // const oldSubset = this.hiddenSubsets.get(modelID);
+    // if (oldSubset) {
+    //   this.scene.remove(oldSubset);
+    //   oldSubset.geometry.dispose();
+    //   this.hiddenSubsets.delete(modelID);
+    // }
     const oldSubset = this.hiddenSubsets.get(modelID);
     if (oldSubset) {
       this.scene.remove(oldSubset);
@@ -687,6 +714,14 @@ export class IfcManager {
     this.modelHidden.clear()
 
     modelsToReset.forEach(modelID => this.rebuildSubset(modelID));
+
+    // if (!savedState || !Array.isArray(savedState)) return;
+
+    // for (const item of savedState) {
+    //   const { modelID, ids } = item;
+    //   this.hiddenExpressIDs.set(modelID, new Set(ids));
+    //   this.rebuildSubset(modelID);
+    // }
 
     modelsToReset.forEach(modelID => {
       const model = this.ifcModels.find(m => m.modelID === modelID);
@@ -891,6 +926,8 @@ export class IfcManager {
       if (!subset || !subset.geometry) return {};
 
       // 1. Calculate Bounding Box
+      subset.geometry.computeBoundingBox();
+      const bbox = subset.geometry.boundingBox;
       const size = new THREE.Vector3();
       bbox.getSize(size);
 
@@ -1064,6 +1101,16 @@ export class IfcManager {
     return "N/A";
   }
 
+
+
+
+
+
+
+
+
+
+
   // --------------------------------
   // DATA TABLE
   // --------------------------------
@@ -1131,6 +1178,8 @@ export class IfcManager {
     return results;
   }
 
+
+
   async getAllUniquePropertyNames(visibleItems) {
     const uniqueKeys = new Set();
 
@@ -1138,6 +1187,7 @@ export class IfcManager {
     uniqueKeys.add("Presentation Layers.Layer");
     uniqueKeys.add("Reference Object.Name");
     uniqueKeys.add("Reference Object.File Name");
+
 
     const sampleSize = Math.min(visibleItems.length, 15);
     const step = Math.floor(visibleItems.length / sampleSize) || 1;
@@ -1161,6 +1211,10 @@ export class IfcManager {
 
     return Array.from(uniqueKeys).sort();
   }
+
+
+
+
 
   /**
    * --- MODEL TRANSPARENCY ---
@@ -1205,6 +1259,12 @@ export class IfcManager {
       });
     });
   }
+
+
+
+
+
+
 
   /**
    * --- MODEL TRANSFORM (Move / Rotate / Scale) ---
@@ -1350,6 +1410,7 @@ export class IfcManager {
     // Validation
     const maxDim = Math.max(size.x, size.y, size.z);
     const minDim = Math.min(size.x, size.y, size.z);
+
 
     if (bbox.isEmpty() || maxDim < 0.001 || maxDim > 10000.0) return null;
 
@@ -1562,6 +1623,8 @@ export class IfcManager {
     return confirmedClashes;
   }
 
+
+
   // =========================================================================
   // CLIPPING
   // =========================================================================
@@ -1571,6 +1634,7 @@ export class IfcManager {
       if (model.mesh && model.mesh.material) {
         const materials = Array.isArray(model.mesh.material) ? model.mesh.material : [model.mesh.material];
         materials.forEach(mat => {
+          mat.clippingPlanes = this.planes;
           mat.needsUpdate = true;
         });
       }
@@ -1578,6 +1642,7 @@ export class IfcManager {
   }
 
   toggleClipping(active, camera, renderer) {
+    // renderer.localClippingEnabled = active;
     renderer.localClippingEnabled = true;
 
     if (active) {
@@ -1585,12 +1650,14 @@ export class IfcManager {
         if (typeof TransformControls === 'undefined') return;
         this.transformControls = new TransformControls(camera, renderer.domElement);
         this.transformControls.addEventListener('change', () => this.updateClippingPlanes());
+        // ViewerClient handle dragging-changed
         this.transformControls.addEventListener('dragging-changed', (event) => { });
         this.scene.add(this.transformControls);
       }
 
       if (this.pendingPlaneMesh) {
         this.transformControls.attach(this.pendingPlaneMesh);
+        this.transformControls.visible = true;
       }
     } else {
       if (this.transformControls) {
@@ -1644,6 +1711,7 @@ export class IfcManager {
     const constant = -intersection.point.dot(normal);
 
     const plane = new THREE.Plane(normal, constant);
+    // this.clippingPlanes.push(plane);
     this.planes.push(plane);
     this.updateModelClipPlanes();
 
@@ -1684,7 +1752,7 @@ export class IfcManager {
 
     const icon = this.createCanvasIcon();
     icon.position.copy(visualPosition);
-    icon.visible = false; 
+    icon.visible = false;
 
     mesh.userData.linkedIcon = icon;
     mesh.userData.icon = icon;
@@ -1703,9 +1771,11 @@ export class IfcManager {
 
     if (this.transformControls) {
       this.transformControls.attach(mesh);
+      this.transformControls.visible = true;
     }
   }
 
+  // --- LOGIC SAVE ---
   saveCurrentClipping() {
     if (this.pendingPlaneMesh) {
       const mesh = this.pendingPlaneMesh;
@@ -1718,15 +1788,19 @@ export class IfcManager {
 
       mesh.material.visible = false;
 
+      if (icon) icon.visible = true;
+
       this.pendingPlaneMesh = null;
     }
   }
 
+  // --- LOGIC EDIT ---
   editPlane(mesh) {
     this.cancelCurrentClipping();
 
     const icon = mesh.userData.linkedIcon;
 
+    mesh.visible = true;
     mesh.material.opacity = 0.3;
     mesh.material.visible = true;
 
@@ -1736,9 +1810,11 @@ export class IfcManager {
 
     if (this.transformControls) {
       this.transformControls.attach(mesh);
+      this.transformControls.visible = true;
     }
   }
 
+  // --- LOGIC CLICK ---
   pickClipPlane(event, camera, renderer) {
     const bounds = renderer.domElement.getBoundingClientRect();
     this.mouse.x = ((event.clientX - bounds.left) / bounds.width) * 2 - 1;
@@ -1824,6 +1900,7 @@ export class IfcManager {
 
     const plane = mesh.userData.plane;
     if (plane) {
+      // this.clippingPlanes = this.clippingPlanes.filter(p => p !== plane);
       this.planes = this.planes.filter(p => p !== plane);
       this.updateModelClipPlanes();
     }
@@ -1839,10 +1916,24 @@ export class IfcManager {
     this.planeObjects = [];
     this.iconObjects = [];
     this.scissorIcons = [];
+    // this.clippingPlanes = [];
     this.planes = [];
     this.pendingPlaneMesh = null;
     this.updateModelClipPlanes();
     if (this.transformControls) this.transformControls.detach();
+  }
+
+  getClippingState() {
+    // if (this.clippingPlanes.length === 0) return null;
+    // return this.clippingPlanes.map(p => ({
+    //   normal: p.normal.toArray(),
+    //   constant: p.constant
+    // }));
+    if (this.planes.length === 0) return null;
+    return this.planes.map(p => ({
+      normal: p.normal.toArray(),
+      constant: p.constant
+    }));
   }
 
   restoreClippingState(planesData) {
@@ -1856,11 +1947,13 @@ export class IfcManager {
 
   createClippingPlane(normal, constant) {
     const plane = new THREE.Plane(normal, constant);
+    // this.clippingPlanes.push(plane);
     this.planes.push(plane);
     this.updateModelClipPlanes();
     const size = 30;
     const geom = new THREE.PlaneGeometry(size, size);
 
+    // SAVED: material.visible = false
     const mat = new THREE.MeshBasicMaterial({
       color: 0xffff00,
       side: THREE.DoubleSide,
@@ -1900,6 +1993,7 @@ export class IfcManager {
 
     const icon = this.createCanvasIcon();
     icon.position.copy(visualPosition);
+    icon.visible = true;
 
     // Link
     mesh.userData.linkedIcon = icon;
