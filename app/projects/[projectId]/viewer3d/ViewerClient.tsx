@@ -425,7 +425,6 @@ export default function ViewerClient() {
     { icon: <Layers />, label: "layers" },
     { icon: <ClipboardCheck />, label: "todos" },
     { icon: <Camera />, label: "views" },
-    { icon: <FolderTree />, label: "organizer" },
     { icon: <Sheet />, label: "data-table" },
     { icon: <BookText />, label: "topics" },
     { icon: <BadgeInfo />, label: "clash-sets" },
@@ -877,11 +876,10 @@ export default function ViewerClient() {
               return (
                 <span
                   key={index}
-                  className={`flex justify-center cursor-pointer py-3 mb-2 p-3 ${
-                    isActive
-                      ? "bg-slate-600 text-white"
-                      : "text-black hover:bg-slate-600 hover:text-white"
-                  }`}
+                  className={`flex justify-center cursor-pointer py-3 mb-2 p-3 ${isActive
+                    ? "bg-slate-600 text-white"
+                    : "text-black hover:bg-slate-600 hover:text-white"
+                    }`}
                   onClick={() => setState(item.label)}
                 >
                   {item.icon}
@@ -1005,7 +1003,7 @@ export default function ViewerClient() {
         availableModels={availableModelsForClash}
         onRunTest={runAnalysis}
         projectId={projectId as string}
-        onClashSetCreated={() => {}}
+        onClashSetCreated={() => { }}
       />
     </div>
   );
