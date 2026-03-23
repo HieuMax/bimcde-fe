@@ -1,3 +1,4 @@
+// bimcde-fe\components\features\explorer\properties\components\views\DetailsView.tsx
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { X, Pencil } from "lucide-react";

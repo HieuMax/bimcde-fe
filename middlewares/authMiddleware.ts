@@ -13,11 +13,17 @@ export function authMiddleware(request: NextRequest, callBack?: (request: NextRe
   const path = request.nextUrl.pathname;
   const token = getTokenFromCookies(request);
 
+  const hasShareToken = request.nextUrl.searchParams.has("shareToken");
+
   if (token && isPublicPath(path)) {
     return NextResponse.redirect(new URL("/", request.url));
   }
 
+  
   if (!token && !isPublicPath(path)) {
+    if(hasShareToken ){
+      return callBack ? callBack(request):NextResponse.next();
+    }
     const redirectUrl = new URL(LOGIN_PAGE, request.url);
     redirectUrl.searchParams.set("next", path);
     return NextResponse.redirect(redirectUrl);
@@ -25,3 +31,5 @@ export function authMiddleware(request: NextRequest, callBack?: (request: NextRe
 
   return callBack?.(request)
 }
+
+// bimcde-be\src\middlewares\authMiddlewares.ts

@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams, useRouter, useParams } from "next/navigation";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import IfcViewer from "@/app/components/ifcs/IfcViewer";
 import {
   Box,
@@ -31,11 +31,13 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { NewClashDrawer } from "@/components/_3d/clash_sets/NewClashDrawer";
 import { CreateClashSetDto } from "@/types/clash";
 import { clashService } from "@/services/clash.service";
+import { ITodo } from "@/types/todo3d";
+import { IView } from "@/types/view";
 
 interface SelectedItem {
-  modelID?: string;
+  modelID?: string | number;
   fileUrl?: string;
-  expressID?: string;
+  expressID?: string | number;
 }
 
 interface NewTodoInitialData {
@@ -45,7 +47,14 @@ interface NewTodoInitialData {
     expressId: string[];
   }[];
   title?: string;
+  viewState?: any;
 }
+
+type ContextItem = {
+  fileUrl: string;
+  modelId: string;
+  expressId: string[];
+};
 
 const areArraysEqual = (arr1: string[], arr2: string[]) => {
   if (arr1.length !== arr2.length) return false;
@@ -53,6 +62,8 @@ const areArraysEqual = (arr1: string[], arr2: string[]) => {
   const sorted2 = [...arr2].sort();
   return sorted1.every((value, index) => value === sorted2[index]);
 };
+
+export type MeasureType = 'perpendicular' | 'single-point' | 'angle' | 'slope' | null;
 
 export default function ViewerClient() {
   const router = useRouter();
@@ -74,7 +85,6 @@ export default function ViewerClient() {
 
   const handleCameraModeChange = (mode: CameraMode) => {
     setCameraMode(mode);
-
     if (viewerActions.current?.setCameraMode) {
       viewerActions.current.setCameraMode(mode);
     }
@@ -85,18 +95,15 @@ export default function ViewerClient() {
     useState<NewTodoInitialData | null>(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
-  // --- CONSTANTS STORAGE KEYS ---
   const STORAGE_TAB_KEY = `bimcde_viewer_tab_${projectId}`;
   const STORAGE_PENDING_CLASH = `bimcde_pending_clash_${projectId}`;
   const STORAGE_PENDING_TODO = `bimcde_pending_todo_${projectId}`;
 
-  // const [pendingTodo, setPendingTodo] = useState<{
-  //   todo: any;
-  //   mode: "view" | "edit" | "create";
-  //   type?: "todo" | "view";
-  // } | null>(null);
-
-  const [pendingTodo, setPendingTodo] = useState<any>(null);
+  const [pendingTodo, setPendingTodo] = useState<{
+    todo: ITodo | IView | any;
+    mode: "view" | "edit" | "create";
+    type?: "todo" | "view";
+  } | null>(null);
 
   const queryClient = useQueryClient();
 
@@ -115,12 +122,32 @@ export default function ViewerClient() {
     cancelClipping: () => void;
   } | null>(null);
 
+
+  // quản lý visibility control
+  const [ viewOptions, setViewOptions ] = useState({
+    annotations: true,
+    clipPlanes: true,
+    grids: true,
+    ifcTypes: true,
+    objectAttachments: true
+
+  })
+
+  const handleToggleViewOption = (key: keyof typeof viewOptions) => {
+    setViewOptions(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  }
   const [todoToEdit, setTodoToEdit] = useState<any>(null);
   const [drawerMode, setDrawerMode] = useState<"create" | "view" | "edit">(
     "create",
   );
 
-  // --- STATES VIEW ---
+  const [measureType, setMeasureType] = useState<MeasureType>(null);
+  const [measureColor, setMeasureColor] = useState('#D81B60');
+  const [isMeasureActive, setIsMeasureActive] = useState(false);
+
   const [isViewDrawerOpen, setIsViewDrawerOpen] = useState(false);
   const [viewToEdit, setViewToEdit] = useState<any>(null);
   const [viewDrawerMode, setViewDrawerMode] = useState<
@@ -133,7 +160,39 @@ export default function ViewerClient() {
 
   const [modelOpacity, setModelOpacity] = useState(1);
 
+  const [baseSelectionMode, setBaseSelectionMode] = useState<'single' | 'area'>('single');
+  const [multiSelectEnabled, setMultiSelectEnabled] = useState(false);
+
   const [activeTool, setActiveTool] = useState<ActiveToolType>(null);
+
+  useEffect(() => {
+    if (!projectId) return;
+    try {
+      const key = `bimcde_view_options_${projectId}`;
+      const raw = window.localStorage.getItem(key);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      setViewOptions(prev => ({
+        annotations: parsed.annotations ?? prev.annotations,
+        clipPlanes: parsed.clipPlanes ?? prev.clipPlanes,
+        grids: parsed.grids ?? prev.grids,
+        ifcTypes: parsed.ifcTypes ?? prev.ifcTypes,
+        objectAttachments: parsed.objectAttachments ?? prev.objectAttachments,
+      }));
+    } catch (e) {
+      console.warn("Failed to restore viewOptions from storage", e);
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    if (!projectId) return;
+    try {
+      const key = `bimcde_view_options_${projectId}`;
+      window.localStorage.setItem(key, JSON.stringify(viewOptions));
+    } catch (e) {
+      console.warn("Failed to persist viewOptions to storage", e);
+    }
+  }, [projectId, viewOptions]);
 
   const handleClipSave = () => {
     if (viewerActions.current?.saveClipping) {
@@ -149,12 +208,6 @@ export default function ViewerClient() {
     }
     setActiveTool(null);
   };
-
-  // const activeTool: ActiveToolType = useMemo(() => {
-  //   if (isDrawerOpen) return 'todo';
-  //   if (isViewDrawerOpen) return 'view';
-  //   return null;
-  // }, [isDrawerOpen, isViewDrawerOpen]);
 
   const handleToolSelect = (tool: ActiveToolType) => {
     if (activeTool === tool) {
@@ -209,7 +262,6 @@ export default function ViewerClient() {
     null,
   );
 
-  // --- MODELS FOR CLASH ---
   const availableModelsForClash = useMemo(() => {
     return ifcUrls.map((url, idx) => ({
       id: idx,
@@ -225,7 +277,6 @@ export default function ViewerClient() {
     }
   };
 
-  // --- SAVE CLASH MUTATION ---
   const saveClashMutation = useMutation({
     mutationFn: (data: CreateClashSetDto) => clashService.create(data),
     onSuccess: (newSet) => {
@@ -242,7 +293,6 @@ export default function ViewerClient() {
     },
   });
 
-  // --- RUN ANALYSIS FLOW ---
   const runAnalysis = async (setupData: any) => {
     if (!viewerActions.current?.runClashTest) return;
     setIsRunningClash(true);
@@ -250,7 +300,6 @@ export default function ViewerClient() {
 
     try {
       const { models, tolerance, name, type, ignoreSameType } = setupData;
-
       const modelIDs = models.map((m: any) => m.modelId);
 
       const detectedClashes = await viewerActions.current.runClashTest(
@@ -299,17 +348,12 @@ export default function ViewerClient() {
     const isContextMatch = areArraysEqual(ifcUrls, targetUrls);
 
     if (isContextMatch) {
-      console.log("Context match. Expanding set...");
       setPendingClashSetId(clashSet._id);
     } else {
       console.log("Context mismatch. Switching models for Clash...");
       switchContextAndReload(targetUrls, clashSet._id, "clash");
     }
   };
-
-  // ==============================================================================================
-  // STATE PERSISTENCE
-  // ==============================================================================================
 
   useEffect(() => {
     const savedTab = sessionStorage.getItem(STORAGE_TAB_KEY);
@@ -331,11 +375,11 @@ export default function ViewerClient() {
       setPendingClashSetId(savedClashId);
       sessionStorage.removeItem(STORAGE_PENDING_CLASH);
     }
-  }, [projectId]);
+  }, [projectId, STORAGE_PENDING_CLASH, STORAGE_PENDING_TODO, STORAGE_TAB_KEY]);
 
   useEffect(() => {
     if (state) sessionStorage.setItem(STORAGE_TAB_KEY, state);
-  }, [state, projectId]);
+  }, [state, projectId, STORAGE_TAB_KEY]);
 
   const handleOpenTodoDrawer = (
     todo: any,
@@ -357,21 +401,17 @@ export default function ViewerClient() {
       targetUrls.length === 0 || areArraysEqual(ifcUrls, targetUrls);
 
     if (isContextMatch) {
-      console.log("Context match, opening drawer...");
       setTodoToEdit(todo);
       setDrawerMode(mode);
       setDrawerInitialData(null);
       setIsDrawerOpen(true);
 
       if (todo.viewState && viewerActions.current?.restore) {
-        viewerActions.current.restore(todo.viewState, todo.items);
+        viewerActions.current.restore(todo.viewState, todo.items ?? []);
       }
     } else {
-      console.log("Context mismatch, switching models...", targetUrls);
-
       setIsDrawerOpen(false);
-
-      setPendingTodo({ todo, mode });
+      setPendingTodo({ todo, mode, type: 'todo' });
 
       const newUrlsParams = JSON.stringify(targetUrls);
       router.push(
@@ -379,7 +419,7 @@ export default function ViewerClient() {
       );
     }
   };
-  // const captureViewRef = React.useRef<() => any>(null);
+
   const ctaBtn = [
     { icon: <Box />, label: "models" },
     { icon: <Layers />, label: "layers" },
@@ -423,7 +463,10 @@ export default function ViewerClient() {
           setIfcUrls(urls);
           console.log("Parsed IFC URLs from params:", urls);
           sessionStorage.setItem(storageKey, JSON.stringify(urls));
-          router.replace(`/projects/${projectId}/viewer3d`);
+          // router.replace(`/projects/${projectId}/viewer3d`);
+          if (searchParams.get("urls")) {
+            router.replace(`/projects/${projectId}/viewer3d`);
+          }
         } else {
           console.error("URLs param parsed but empty:", { rawParams, decoded, parsed });
         }
@@ -438,12 +481,10 @@ export default function ViewerClient() {
           console.log("Parsed IFC URLs from params F5:", parsed);
 
           setIfcUrls((prev) => (areArraysEqual(prev, parsed) ? prev : parsed));
-        } catch (e) {
-          console.error("Error parsing URLs from storage", e);
-        }
-      }
+      }catch { }
     }
-  }, [searchParams, projectId, router]);
+  } 
+  }, [searchParams, projectId]);
 
   const handleBack = () => {
     sessionStorage.removeItem(STORAGE_TAB_KEY);
@@ -519,7 +560,7 @@ export default function ViewerClient() {
     setActiveTool("todo");
   };
 
-  const handleSelectTodo = (todo: any) => {
+  const handleSelectTodo = (todo: ITodo | any) => {
     let targetUrls: string[] = [];
     if (todo.items && todo.items.length > 0) {
       targetUrls = Array.from(
@@ -533,8 +574,9 @@ export default function ViewerClient() {
     if (isContextMatch) {
       setPendingClashSetId(null);
       sessionStorage.removeItem(STORAGE_PENDING_CLASH);
+
       if (viewerActions.current?.restore && todo.viewState) {
-        viewerActions.current.restore(todo.viewState, todo.items);
+        viewerActions.current.restore(todo.viewState, todo.items ?? []);
       }
     } else {
       switchContextAndReload(
@@ -547,11 +589,9 @@ export default function ViewerClient() {
 
   const handleViewerLoaded = () => {
     if (pendingTodo) {
-      console.log("Processing pending todo/view context...", pendingTodo);
       setTimeout(() => {
         const { todo, mode, type } = pendingTodo;
 
-        // Restore Camera & Items
         if (viewerActions.current?.restore && todo.viewState) {
           viewerActions.current.restore(todo.viewState, todo.items || []);
         }
@@ -563,14 +603,14 @@ export default function ViewerClient() {
           setIsDrawerOpen(false);
           if (state !== "views") setState("views");
         } else {
-          setTodoToEdit(todo);
+          const t = todo as ITodo;
+          setTodoToEdit(t);
           setDrawerMode(mode);
           setIsDrawerOpen(true);
           setIsViewDrawerOpen(false);
           if (state !== "todos") setState("todos");
         }
 
-        // Reset state
         setPendingTodo(null);
       }, 800);
       return;
@@ -610,7 +650,7 @@ export default function ViewerClient() {
       window.dispatchEvent(new Event("resize"));
     }, 350);
     return () => clearTimeout(timer);
-  }, [isDrawerOpen]);
+  }, [isDrawerOpen, isViewDrawerOpen]);
 
   useEffect(() => {
     setModelOpacity(1);
@@ -623,12 +663,17 @@ export default function ViewerClient() {
   ) => {
     if (mode === "create") {
       let viewState = null;
-      let contextItems = [];
+      let contextItems: ContextItem[] = [];
 
       if (viewerActions.current) {
         if (viewerActions.current.capture) {
-          viewState = viewerActions.current.capture();
+          const captured = viewerActions.current.capture() as any;
+          viewState = {
+            ...captured,
+            viewOptions 
+          };
         }
+
         if (viewerActions.current.getContext) {
           contextItems = viewerActions.current.getContext();
         }
@@ -646,11 +691,12 @@ export default function ViewerClient() {
         viewState,
         items: contextItems,
       });
+
       setViewToEdit(null);
       setViewDrawerMode("create");
       setIsViewDrawerOpen(true);
+
     } else {
-      // View/Edit mode
       setViewToEdit(view);
       setViewDrawerMode(mode);
       setViewInitialData(null);
@@ -671,14 +717,18 @@ export default function ViewerClient() {
     setActiveTool("view");
   };
 
-  // --- 2. UPDATE SNAPSHOT (...) ---
-  const handleUpdateSnapshot = async (view: any) => {
+  const handleUpdateSnapshot = async (view: IView | any) => {
     if (!viewerActions.current?.capture) return;
 
     try {
-      const newViewState = viewerActions.current.capture();
+      const captured = viewerActions.current.capture() as any;
+      const newViewState = {
+        ...captured,
+        viewOptions 
+      };
 
-      let currentContextItems = [];
+      let currentContextItems: ContextItem[] = [];
+
       if (viewerActions.current?.getContext) {
         currentContextItems = viewerActions.current.getContext();
       } else {
@@ -695,7 +745,6 @@ export default function ViewerClient() {
       });
 
       toast.success("Snapshot updated to current view!");
-
       queryClient.invalidateQueries({ queryKey: ["views", projectId] });
       // ----------------------------------------------------
     } catch (error) {
@@ -704,35 +753,18 @@ export default function ViewerClient() {
     }
   };
 
-  // --- 3. RESTORE VIEW (same as handleSelectTodo) ---
-  // const handleRestoreView = (view: any) => {
-  //   if (!view.items || !view.viewState) return;
-
-  //   // Get unique URL
-  //   const targetUrls = Array.from(new Set(view.items.map((i: any) => i.fileUrl) as string[]));
-
-  //   // Compare Context
-  //   const isContextMatch = targetUrls.length === 0 || areArraysEqual(ifcUrls, targetUrls);
-
-  //   if (isContextMatch) {
-  //     console.log("Context match, restoring view...");
-  //     if (viewerActions.current?.restore) {
-  //       viewerActions.current.restore(view.viewState, []);
-  //     }
-  //   } else {
-  //     console.log("Context mismatch, switching models for view...");
-
-  //     setIsViewDrawerOpen(false);
-  //     setPendingTodo({ todo: view, mode: "view", type: 'view' });
-
-  //     const newUrlsParams = JSON.stringify(targetUrls);
-  //     // window.location.href = `/projects/${projectId}/viewer3d?urls=${encodeURIComponent(newUrlsParams)}`;
-  //     router.push(`/projects/${projectId}/viewer3d?urls=${encodeURIComponent(newUrlsParams)}`);
-  //   }
-  // };
-
-  const handleRestoreView = (view: any) => {
+  const handleRestoreView = (view: IView | any) => {
     if (!view.items || !view.viewState) return;
+    const options = (view.viewState as any)?.viewOptions;
+    if (options) {
+      setViewOptions({
+        annotations: options.annotations ?? true,
+        clipPlanes: options.clipPlanes ?? true,
+        grids: options.grids ?? true,
+        ifcTypes: option.ifcTypes ?? true,
+        objectAttachments: options.objectAttachments ?? true
+      });
+    }
     const targetUrls = Array.from(
       new Set(view.items.map((i: any) => i.fileUrl) as string[]),
     );
@@ -760,6 +792,14 @@ export default function ViewerClient() {
       );
     }
   };
+  
+  const clearMeasureRef = useRef<null | ((cb: () => void) => void)>(null);
+
+  const handleRegisterMeasurementClear = (fn: () => void) => {
+    clearMeasureRef.current = fn;
+  };
+
+  const safeState = !viewOptions.ifcTypes && state === 'layers' ? 'models' : state;
 
   return (
     <div className="flex flex-col h-screen w-full overflow-hidden">
@@ -769,21 +809,46 @@ export default function ViewerClient() {
         onAddTodo={onAddTodo}
         modelOpacity={modelOpacity}
         onOpacityChange={setModelOpacity}
+        
+        onOpenViewDrawer={handleOpenViewDrawer}
         onAddView={onAddView}
         activeTool={activeTool}
-        // onToolSelect={(tool) => {
-        //   console.log("Selected tool:", tool);
-        // }}
+        
         cameraMode={cameraMode}
         onCameraModeChange={handleCameraModeChange}
-        selectionMode={selectionMode}
-        onSelectionModeChange={setSelectionMode}
+        
+        selectionMode={baseSelectionMode}
+        onChangeSelectionMode={(mode) => setBaseSelectionMode(mode)}
+        multiSelectEnabled={multiSelectEnabled}
+        onToggleMultiSelect={() => setMultiSelectEnabled(v => !v)}
+        
         activeView={activeView}
         onViewChange={handleViewChange}
         onToolSelect={handleToolSelect}
+        
         onClipSave={handleClipSave}
         onClipCancel={handleClipCancel}
-        onToolChange={setActiveTool}
+        onToolChange={(tool) => setActiveTool(tool)}
+
+        // Measurement (USER)
+        measureType={measureType}
+        onMeasureTypeChange={setMeasureType}
+        measureColor={measureColor}
+        onMeasureColorChange={setMeasureColor}
+        isMeasureActive={isMeasureActive}
+        onMeasureActiveChange={setIsMeasureActive}
+        onClearAllMeasurements={() => {
+          setMeasureType(null);
+          setIsMeasureActive(false);
+          if (clearMeasureRef.current) {
+            clearMeasureRef.current(() => {}); 
+          }
+        }}
+
+        // Visibility control (USER)
+        viewOptions={viewOptions}
+        onToggleViewOption={handleToggleViewOption}
+
       />
       <div className="flex flex-1 relative overflow-hidden">
         <div className="w-10 min-h-full bg-gray-200 z-10">
@@ -805,7 +870,8 @@ export default function ViewerClient() {
             </span>
 
             {ctaBtn.map((item, index) => {
-              const isActive = state == item.label;
+              const isActive = safeState == item.label;
+              const isDisabled = item.label === 'layers' && !viewOptions.ifcTypes;
 
               return (
                 <span
@@ -862,7 +928,7 @@ export default function ViewerClient() {
               isCollapsed={isCollapsed}
               ifcUrls={ifcUrls}
               state={state}
-              projectId={projectId}
+              projectId={projectId as string}
               onRegisterCapture={handleRegisterActions}
               onLoaded={handleViewerLoaded}
               onSelectTodo={handleSelectTodo}
@@ -872,12 +938,28 @@ export default function ViewerClient() {
               onUpdateSnapshot={handleUpdateSnapshot}
               modelOpacity={modelOpacity}
               onOpacityChange={setModelOpacity}
+
+              // Custom user selection
+              selectionMode={multiSelectEnabled ? 'multi' : 'single'}
+              areaSelectEnabled={baseSelectionMode === 'area'}
+
+              // Measurement (USER)
+              // @ts-expect-error JSX component props not typed in JS file
+              measureType={measureType}
+              measureColor={measureColor}
+              isMeasureActive={isMeasureActive}
+              // @ts-expect-error JSX component props not typed in JS file
+              onClearMeasurements={handleRegisterMeasurementClear}
+              
+              // Visibility control (USER)
+              viewOptions={viewOptions}
+
+              // Dev features
               onOpenNewClashDrawer={() => setIsClashDrawerOpen(true)}
               clashResults={clashResults}
               onRestoreClashSet={handleRestoreClashSet}
               autoExpandedClashSetId={pendingClashSetId}
               cameraMode={cameraMode}
-              selectionMode={selectionMode}
               activeTool={activeTool}
               onToolChange={(tool: ActiveToolType) => setActiveTool(tool)}
             />
@@ -895,18 +977,17 @@ export default function ViewerClient() {
         onOpenChange={handleDrawerClose}
         projectId={projectId as string}
         mode={drawerMode}
-        todoToEdit={todoToEdit}
+        todoToEdit={todoToEdit as ITodo}
         initialData={drawerInitialData}
         currentSelection={selectedItems}
       />
 
-      {/* RENDER VIEW DRAWER */}
       <ViewDrawer
         open={isViewDrawerOpen}
         onOpenChange={handleViewDrawerClose}
         projectId={projectId as string}
         mode={viewDrawerMode}
-        viewToEdit={viewToEdit}
+        viewToEdit={viewToEdit as IView}
         initialData={viewInitialData}
         onRestoreView={(viewState) => {
           if (viewerActions.current?.restore) {

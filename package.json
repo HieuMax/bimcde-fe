@@ -37,7 +37,11 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "date-fns": "^4.1.0",
+    "docx-preview": "^0.3.7",
     "filesize": "^11.0.13",
+    "framer-motion": "^12.29.0",
+    "html2canvas": "^1.4.1",
+    "jszip": "^3.10.1",
     "jwt-decode": "^4.0.0",
     "lucide-react": "^0.556.0",
     "next": "^16.1.0",
@@ -47,7 +51,7 @@
     "react-dom": "19.2.0",
     "react-dropzone": "^14.3.8",
     "react-hook-form": "^7.68.0",
-    "react-pdf": "^10.2.0",
+    "react-pdf": "^10.3.0",
     "react-virtuoso": "^4.18.0",
     "recharts": "^2.15.4",
     "sonner": "^2.0.7",
@@ -66,11 +70,30 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/recharts": "^1.8.29",
     "autoprefixer": "^10.4.22",
+    "baseline-browser-mapping": "^2.9.17",
     "eslint": "^9",
     "eslint-config-next": "16.0.4",
     "postcss": "^8.5.6",
     "tailwindcss": "3",
     "typescript": "^5"
-  }
+  },
+  "description": "BIM CDE",
+  "main": "postcss.config.js",
+  "directories": {
+    "lib": "lib"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HieuMax/bimcde-fe.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/HieuMax/bimcde-fe/issues"
+  },
+  "homepage": "https://github.com/HieuMax/bimcde-fe#readme"
 }
