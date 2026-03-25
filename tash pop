@@ -1,0 +1,33 @@
+[33m3cf239e[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mfeature/refactor-#57[m[33m, [m[1;31morigin/dev[m[33m)[m HEAD@{0}: merge origin/dev: Fast-forward
+[33m43fbd1d[m HEAD@{1}: reset: moving to HEAD
+[33m43fbd1d[m HEAD@{2}: commit: fix conflict #57
+[33m611a1b3[m HEAD@{3}: commit: fix: resolve build errors
+[33m117363b[m HEAD@{4}: commit: fix: resolve build errors
+[33m32deeba[m[33m ([m[1;32mfeature/refactor-view2d-managementcls[m[33m)[m HEAD@{5}: checkout: moving from feature/refactor-view2d-managementcls to feature/refactor-#57
+[33m32deeba[m[33m ([m[1;32mfeature/refactor-view2d-managementcls[m[33m)[m HEAD@{6}: commit (merge): fix conflict #57
+[33maa70dc5[m[33m ([m[1;31morigin/feature/refactor-view2d-management[m[33m, [m[1;32mfeature/refactor-view2d-management[m[33m)[m HEAD@{7}: checkout: moving from feature/refactor-view2d-management to feature/refactor-view2d-managementcls
+[33maa70dc5[m[33m ([m[1;31morigin/feature/refactor-view2d-management[m[33m, [m[1;32mfeature/refactor-view2d-management[m[33m)[m HEAD@{8}: commit: refactor: update old features view 2D management
+[33m12a7125[m[33m ([m[1;31morigin/refactor-viewer-clean[m[33m, [m[1;32mrefactor-viewer-clean[m[33m)[m HEAD@{9}: checkout: moving from refactor-viewer-clean to feature/refactor-view2d-management
+[33m12a7125[m[33m ([m[1;31morigin/refactor-viewer-clean[m[33m, [m[1;32mrefactor-viewer-clean[m[33m)[m HEAD@{10}: commit (merge): Fix merge conflicts
+[33m21e72cc[m HEAD@{11}: commit: refactor viewer: remove clipping & multi, keep measurement + hover
+[33mc6c7b8b[m HEAD@{12}: reset: moving to ORIG_HEAD
+[33mc6c7b8b[m HEAD@{13}: commit: refactor viewer: remove clipping & multi, keep measurement + hover
+[33m5e1cfe6[m[33m ([m[1;31morigin/feature/Release3[m[33m, [m[1;32mfeature/Release3[m[33m)[m HEAD@{14}: checkout: moving from feature/Release3 to refactor-viewer-clean
+[33m5e1cfe6[m[33m ([m[1;31morigin/feature/Release3[m[33m, [m[1;32mfeature/Release3[m[33m)[m HEAD@{15}: commit: feature: update chatbot assistant
+[33m87a6ef0[m HEAD@{16}: reset: moving to ORIG_HEAD
+[33m87a6ef0[m HEAD@{17}: checkout: moving from feature/Release3 to feature/Release3
+[33m87a6ef0[m HEAD@{18}: commit: feat: update viewer3d and UI components
+[33mdbeae1f[m HEAD@{19}: reset: moving to HEAD
+[33mdbeae1f[m HEAD@{20}: commit: wip: changes FE before merge dev
+[33m7948c26[m HEAD@{21}: commit: update release2: new feature: UC119 and UC123
+[33mf63fe7a[m HEAD@{22}: commit: US 111 Clip plane
+[33md359062[m[33m ([m[1;31morigin/feature/2DviewRL2[m[33m, [m[1;32mfeature/2DviewRL2[m[33m)[m HEAD@{23}: checkout: moving from feature/2DviewRL2 to feature/Release3
+[33md359062[m[33m ([m[1;31morigin/feature/2DviewRL2[m[33m, [m[1;32mfeature/2DviewRL2[m[33m)[m HEAD@{24}: commit: fix conflict
+[33m940cc74[m HEAD@{25}: commit: feat: apply stashed FE changes after dev merge
+[33ma078bab[m HEAD@{26}: commit (merge): resolve conflicts and merge dev into feature/2DviewRL2
+[33m49e0b76[m HEAD@{27}: reset: moving to HEAD
+[33m49e0b76[m HEAD@{28}: commit: fix release 2
+[33m0a013b1[m HEAD@{29}: commit: update Release 2
+[33m190acab[m HEAD@{30}: commit: update US95, US97
+[33mf8d1253[m[33m ([m[1;32mmain[m[33m)[m HEAD@{31}: checkout: moving from main to feature/2DviewRL2
+[33mf8d1253[m[33m ([m[1;32mmain[m[33m)[m HEAD@{32}: clone: from https://github.com/HieuMax/bimcde-fe.git

@@ -941,14 +941,7 @@ export default function ViewerClient() {
               selectionMode={multiSelectEnabled ? 'multi' : 'single'}
               // areaSelectEnabled={baseSelectionMode === 'area'}
 
-              // Measurement (USER)
-              // @ts-expect-error JSX component props not typed in JS file
-              // measureType={measureType}
-              // measureColor={measureColor}
-              // isMeasureActive={isMeasureActive}
-              // @ts-expect-error JSX component props not typed in JS file
-              // onClearMeasurements={handleRegisterMeasurementClear}
-              
+
               // Visibility control (USER)
               // viewOptions={viewOptions}
 
@@ -985,7 +978,7 @@ export default function ViewerClient() {
         onOpenChange={handleViewDrawerClose}
         projectId={projectId as string}
         mode={viewDrawerMode}
-        viewToEdit={viewToEdit as IView}
+        // viewToEdit={viewToEdit as IView}
         initialData={viewInitialData}
         onRestoreView={(viewState) => {
           if (viewerActions.current?.restore) {

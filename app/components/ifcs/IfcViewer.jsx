@@ -1188,13 +1188,6 @@ export default function IfcViewer({
         <div style={{ flex: 1, height: '100%', position: 'relative', overflow: 'hidden', alignItems: 'center', }}>
           <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block', outline: 'none', }} />
 
-          {/* Area selection rectangle overlay */}
-          {/* {selectionRect && (
-            <div className="absolute z-50 pointer-events-none"
-              style={{ left: selectionRect.x, top: selectionRect.y, width: selectionRect.w, height: selectionRect.h, border: '2px solid #2563eb', background: 'rgba(37, 99, 235, 0.12)', borderRadius: 6, }}
-            />
-          )} */}
-
           {cameraMode === 'walk' && (
             <div className="absolute top-4 right-4 z-30 animate-in fade-in slide-in-from-top-2 duration-500 pointer-events-none select-none">
               <div className="bg-black/60 backdrop-blur-sm text-white p-3 rounded-lg shadow-lg border border-white/10 w-auto min-w-[200px]">
@@ -1224,12 +1217,7 @@ export default function IfcViewer({
               <div className="text-sm"><span className="font-semibold">{selectedItems.length}</span> selected</div>
               <div className="w-px h-5 bg-white/20" />
               <button className="hover:text-blue-400 transition" title="View properties" onClick={() => { if (isPropertiesOpen) setIsPropertiesOpen(false); else handleShowProperties(); }}><Info /></button>
-              {viewOptions?.objectAttachments !== false && (
-                <button className="hover:text-blue-400 transition" title="Attachments"><Paperclip /></button>
-              )}
-              <button className="hover:text-blue-400 transition" title="Zoom to section" onClick={handleZoomToSection}><Shrink /></button>
-              <button className="hover:text-blue-400 transition" title="Clip box"><SquareScissors /></button>
-              <button className="hover:text-blue-400 transition" title="Show only selected object"><SquaresSubtract /></button>
+
               {selectedItems.length > 0 && (
                 <button className="hover:text-blue-400 transition" title="Toggle visibility"
                   onClick={() => {
@@ -1263,8 +1251,7 @@ export default function IfcViewer({
                   {hiddenItems[`${selectedItems[0]?.modelID}-${selectedItems[0]?.expressID}`] ? <EyeOff /> : <Eye />}
                 </button>
               )}
-              <div className="w-px h-5 bg-white/20" />
-              <div className="text-sm"><span className="font-semibold"></span> Change visibility <ChevronDown /></div>
+
             </div>
           )}
         </div>
