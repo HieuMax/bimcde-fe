@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { ChevronRight, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useApi } from "@/app/hooks/useApi";
 
 export default function PermissionsSettingsPage({
@@ -210,24 +210,6 @@ export default function PermissionsSettingsPage({
                   </div>
                 </RadioGroup>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Section 3: Organizer access control */}
-        <Card className="border-none shadow-sm cursor-pointer hover:bg-slate-50 transition-all group">
-          <CardContent className="p-10">
-            <div className="flex items-center justify-between">
-              <div className="space-y-2">
-                <h2 className="text-lg font-bold text-slate-800">
-                  Organizer access control
-                </h2>
-                <p className="text-base text-muted-foreground leading-relaxed">
-                  Use Connect Groups to define access control for Organizer
-                  groups in the 3D application.
-                </p>
-              </div>
-              <ChevronRight className="w-6 h-6 text-slate-400 group-hover:text-[#005a92] transition-colors" />
             </div>
           </CardContent>
         </Card>

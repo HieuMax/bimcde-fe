@@ -18,7 +18,7 @@ export const commentService = {
   createComment: async (payload: {
     content: string;
     targetId: string;
-    targetType: "file" | "folder" | "release";
+    targetType: "file" | "folder" | "release" | "topic";
     userId: string;
   }) => {
     const data = await api.post<typeof payload>("/comments", payload);
