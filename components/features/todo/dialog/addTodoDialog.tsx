@@ -32,7 +32,11 @@ import {
   MultiSelectValue,
 } from "@/components/ui/multi-select";
 import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { useApi } from "@/app/hooks/useApi";
 import { useAuth } from "@/app/context/authContext";
@@ -45,11 +49,6 @@ interface AddTodoDialogProps {
   tag: any[];
   projectId: string;
   onClose: () => void;
-}
-
-interface Assignee {
-  id: string;
-  name: string;
 }
 
 export default function AddTodoDialog({
@@ -272,7 +271,7 @@ export default function AddTodoDialog({
                         variant="outline"
                         className={cn(
                           "w-full justify-start text-left font-normal",
-                          !dueDate && "text-muted-foreground"
+                          !dueDate && "text-muted-foreground",
                         )}>
                         <CalendarIcon className="mr-2 h-4 w-4" />
                         {dueDate ? (

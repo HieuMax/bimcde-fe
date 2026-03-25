@@ -23,6 +23,7 @@ import {
 import { useAuth } from "@/app/context/authContext";
 import { useApi } from "@/app/hooks/useApi";
 import { AttachmentDialog } from "../drawer/attachmentDialog";
+import { useRouter } from "next/navigation";
 
 interface commentProps {
   listCommentData: any[];
@@ -41,6 +42,7 @@ export default function ListCommentComponent({
   const [openAttachment, setOpenAttachment] = useState(false);
   const { post, delete: deleteApi } = useApi();
   const { user } = useAuth();
+  const router = useRouter();
 
   //#region LOGIC
   //#region Attachment
@@ -52,9 +54,14 @@ export default function ListCommentComponent({
     const index = listCommentData.findIndex((c) => c._id === editingId);
     if (index === -1) return;
 
+    const updatedFiles = newFiles.map((file) => ({
+      ...file,
+      location: file.url,
+    }));
+
     listCommentData[index].attachments = [
       ...(listCommentData[index].attachments || []),
-      ...newFiles,
+      ...updatedFiles,
     ];
   };
 
@@ -68,6 +75,35 @@ export default function ListCommentComponent({
     listCommentData[commentIndex].attachments = [...attachments];
     const comment = listCommentData[commentIndex];
     handleUpdateComment(comment);
+  };
+
+  const handleViewFile = (item: any) => {
+    const isFile = "mimeType" in item;
+
+    // Folder → mở folder
+    if (!isFile) {
+      return;
+    }
+
+    const fileExt = item.name.split(".").pop()?.toLowerCase();
+    if (!fileExt) return;
+
+    const IFC_FILES = ["ifc"];
+    const DOC_FILES = ["docs", "pdf", "png", "jpg", "webp"];
+
+    // IFC → 3D Viewer
+    if (IFC_FILES.includes(fileExt)) {
+      router.push(
+        `/projects/${todoData}/viewer3d?urls=${encodeURIComponent(JSON.stringify([item.location]))}`,
+      );
+      return;
+    }
+
+    // DOC / PDF → Project Viewer
+    if (DOC_FILES.includes(fileExt)) {
+      router.push(`/projects/${todoData.projectId}/viewer/${item.fileId}`);
+      return;
+    }
   };
   //#endregion
 
@@ -157,11 +193,13 @@ export default function ListCommentComponent({
                 <div className="flex items-center nowrap min-h-10 w-full">
                   <div className="  mr-2">
                     <Avatar>
-                      <AvatarImage
-                        src="https://github.com/shadcn.png"
-                        alt="@shadcn"
-                      />
-                      <AvatarFallback>#</AvatarFallback>
+                      <AvatarImage alt="@shadcn" />
+                      <AvatarFallback>
+                        {" "}
+                        {data?.createdBy?.fullName
+                          ?.substring(0, 2)
+                          .toUpperCase() || "U"}
+                      </AvatarFallback>
                     </Avatar>
                   </div>
 
@@ -244,7 +282,9 @@ export default function ListCommentComponent({
                       key={`${file._id}-${fileIndex}`}
                       className="flex items-center nowrap text-xs min-h-10 gap-2 cursor-pointer">
                       <File></File>
-                      <span className="overflow-hidden text-ellipsis whitespace-nowrap w-full">
+                      <span
+                        onClick={() => handleViewFile(file)}
+                        className="overflow-hidden text-ellipsis whitespace-nowrap w-full">
                         {file.name}
                       </span>
                       <X

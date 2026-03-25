@@ -123,6 +123,14 @@ export default function LoginForm() {
           {loading ? "Đang đăng nhập..." : "Đăng nhập"}
         </Button>
 
+        <p className="text-right text-sm">
+          <Link
+            href="/forgot-password"
+            className="font-medium text-[#1D3F52] hover:underline">
+            Quên mật khẩu
+          </Link>
+        </p>
+
         {/* Divider */}
         <div className="relative my-4">
           <div className="absolute inset-0 flex items-center">

@@ -55,7 +55,7 @@ export default function PermissionsSettingsPage({
     try {
       const response = await put(
         `/permissions/update/${projectId}`,
-        permissions
+        permissions,
       );
       if (response.success) {
         alert("Permissions updated successfully");
@@ -84,17 +84,17 @@ export default function PermissionsSettingsPage({
   }
 
   return (
-    <div className="p-8 space-y-8 bg-muted min-h-screen">
-      <div className="flex items-center justify-between max-w-[1400px] mx-auto">
-        <h1 className="text-2xl font-semibold text-slate-800">Permissions</h1>
+    <div className="p-4 space-y-4 bg-muted ">
+      <div className="flex items-center justify-between  mx-auto">
+        <h1 className="text-xl font-normal text-gray-800">Permissions</h1>
         <Button
           onClick={handleSave}
-          className="bg-[#005a92] hover:bg-[#004a79] h-11 px-8 text-base text-white transition-colors shadow-md">
+          className="bg-[#406D87] hover:bg-[#345a70]  px-4 text-base text-white transition-colors shadow-md">
           Save changes
         </Button>
       </div>
 
-      <div className="space-y-6 max-w-[1400px] mx-auto">
+      <div className="space-y-4  mx-auto">
         <Card className="border-none shadow-sm overflow-hidden">
           <CardContent className="p-10">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
