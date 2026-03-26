@@ -86,29 +86,26 @@ export default function ImageViewer({
 
       {/* ===== CONTROL BAR ===== */}
       <div className="absolute left-6 bottom-6 bg-[#2f2b36] text-white rounded-md p-3 flex items-center gap-3 shadow-lg z-50">
-        <button onClick={onPrev} className="p-2 rounded hover:bg-white/10">
+        <button onClick={onPrev} className="p-1 hover:bg-white/10 rounded disabled:opacity-50" disabled={pageIndex <= 1}>
           <ChevronLeft size={18} />
         </button>
-
-        <div className="flex items-center gap-2 bg-white text-black rounded px-2">
-          <span className="text-sm">{pageIndex}</span>
-          <span className="text-xs">/ {totalPages}</span>
+        <div className="bg-white text-black px-3 py-0.5 rounded text-sm font-medium">
+          {pageIndex} / {totalPages}
         </div>
-
-        <button onClick={onNext} className="p-2 rounded hover:bg-white/10">
+        <button onClick={onNext} className="p-1 hover:bg-white/10 rounded disabled:opacity-50" disabled={pageIndex >= totalPages}>
           <ChevronRight size={18} />
         </button>
-
-        <div className="border-l h-6 opacity-40 mx-2" />
-
-        <button onClick={() => onZoom(-0.1)} className="p-2 rounded hover:bg-white/10">
-          <ZoomOut size={16} />
+        <div className="bg-white text-black px-2 py-0.5 rounded text-sm font-medium ml-2 min-w-[3rem] text-center">
+          {Math.round(zoom * 100)}%
+        </div>
+        <button onClick={() => onZoom(-0.1)} className="p-1 hover:bg-white/10 rounded ml-2">
+          <ZoomOut size={18} />
         </button>
-        <button onClick={() => onZoom(0.1)} className="p-2 rounded hover:bg-white/10">
-          <ZoomIn size={16} />
+        <button onClick={() => onZoom(0.1)} className="p-1 hover:bg-white/10 rounded">
+          <ZoomIn size={18} />
         </button>
-        <button onClick={() => onRotate(90)} className="p-2 rounded hover:bg-white/10">
-          <RotateCcw size={16} />
+        <button onClick={() => onRotate(90)} className="p-1 hover:bg-white/10 rounded">
+          <RotateCcw size={18} />
         </button>
       </div>
     </div>

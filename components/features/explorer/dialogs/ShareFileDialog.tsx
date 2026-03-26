@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
-import { X, Loader2, FileWarning, Copy, Check, Mail } from "lucide-react";
+import { Loader2, FileWarning, Copy, Check } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from "@/components/ui/dialog";
@@ -18,6 +18,8 @@ import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { httpClient } from "@/lib/http-client";
 
+// import RecipientSelector, { RecipientOption } from "./";
+import { RecipientSelector, RecipientOption } from "../../release/RecipientSelector";
 /* ===================== TYPES ===================== */
 interface Props {
   open: boolean;
@@ -27,7 +29,6 @@ interface Props {
 
 type ShareType = "SPECIFIC" | "INTERNAL_LINK" | "PUBLIC_LINK";
 type AccessLevel = "VIEW" | "DOWNLOAD";
-type Recipient = { _id?: string; email: string };
 
 /* ===================== COMPONENT ===================== */
 export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
@@ -36,8 +37,7 @@ export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
 
   /* --- STATE --- */
   const [shareType, setShareType] = useState<ShareType>("PUBLIC_LINK");
-  const [emailInput, setEmailInput] = useState("");
-  const [recipients, setRecipients] = useState<Recipient[]>([]);
+  const [selectedRecipients, setSelectedRecipients] = useState<RecipientOption[]>([]);
   const [note, setNote] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
   const [accessLevel, setAccessLevel] = useState<AccessLevel>("VIEW");
@@ -53,68 +53,36 @@ export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
       setShareLink(null);
       setShareType("PUBLIC_LINK");
       setAccessLevel("VIEW");
-      setRecipients([]);
-      setEmailInput("");
+      setSelectedRecipients([]); 
       setNote("");
       setExpiresAt("");
     }
   }, [open, file]);
-
-  /* --- EMAIL HANDLERS --- */
-  const isValidEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-
-  // Hàm thêm email vào danh sách
-  const handleAddEmail = () => {
-    const email = emailInput.trim();
-    if (!email) return;
-    
-    if (!isValidEmail(email)) {
-      toast.error("Địa chỉ email không hợp lệ");
-      return;
-    }
-    
-    // Kiểm tra trùng
-    if (!recipients.some(r => r.email === email)) {
-      setRecipients([...recipients, { email }]);
-      setEmailInput(""); // Reset ô nhập sau khi thêm thành công
-    } else {
-      setEmailInput(""); // Nếu trùng cũng xóa đi cho gọn
-    }
-  };
-
-  const handleRemoveEmail = (email: string) => {
-    setRecipients(recipients.filter(r => r.email !== email));
-  };
 
   const handleClose = () => {
     setShareLink(null);
     onOpenChange(false);
   };
 
-  /* --- MUTATION (GỌI API) --- */
+  /* --- MUTATION --- */
   const shareMutation = useMutation({
     mutationFn: async () => {
-      // 1. Validate
       if (isFolder) throw new Error("Không hỗ trợ chia sẻ thư mục.");
       
-      const finalRecipients = recipients.map(r => r.email);
-      const pendingEmail = emailInput.trim()
+      // Chỉ lấy danh sách email nếu đang ở chế độ SPECIFIC
+      const finalRecipients = shareType === "SPECIFIC" 
+        ? selectedRecipients.map(r => r.email).filter(Boolean) as string[]
+        : [];
 
-      if (pendingEmail && isValidEmail(pendingEmail) && !finalRecipients.includes(pendingEmail)){
-        finalRecipients.push(pendingEmail)
-      } 
-      // Nếu chọn chế độ "Specific" -> Bắt buộc phải có ít nhất 1 email
-      if (shareType === "SPECIFIC" && recipients.length === 0) {
-        throw new Error("Chế độ 'Người cụ thể' yêu cầu phải nhập ít nhất một email.");
+      if (shareType === "SPECIFIC" && finalRecipients.length === 0) {
+        throw new Error("Chế độ 'Người cụ thể' yêu cầu phải chọn ít nhất một thành viên có email hợp lệ.");
       }
 
-      // 2. Gọi API
-      // Backend sẽ tự động: Tạo Token + Gửi Mail (nếu mảng recipients có dữ liệu)
+      // Gọi API
       const res = await httpClient.post<{ token?: string, shareToken?: string }>("/share", {
         fileId: file?._id,
         projectId,
         type: shareType,
-        // recipients: recipients.map(r => r.email), 
         recipients: finalRecipients,
         note,
         expiresAt: expiresAt ? new Date(expiresAt) : null,
@@ -130,15 +98,12 @@ export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
         return;
       }
 
-      const clientUrl =
-        process.env.NEXT_PUBLIC_CLIENT_URL || window.location.origin;
-      // Tạo đường dẫn
+      const clientUrl = process.env.NEXT_PUBLIC_CLIENT_URL || window.location.origin;
       const link = `${clientUrl}/share/${token}`;
       setShareLink(link);
       
-      // Hiển thị thông báo phù hợp
-      if (recipients.length > 0) {
-        toast.success(`Link created and email sent successfully to ${recipients.length} people!`);
+      if (shareType === "SPECIFIC" && selectedRecipients.length > 0) {
+        toast.success(`Link created and email sent successfully to ${selectedRecipients.length} people!`);
       } else {
         toast.success("Link created successfully!");
       }
@@ -148,9 +113,8 @@ export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
     }
   });
 
-  // Logic enable nút submit
-  // Cho phép submit nếu: Có file + Không phải Folder + (Nếu là Specific thì phải có người nhận)
-  const canSubmit = !!file && !isFolder && (shareType !== "SPECIFIC" || recipients.length > 0);
+  // Nút submit hợp lệ khi: có file + không phải folder + (nếu là Specific thì phải chọn người)
+  const canSubmit = !!file && !isFolder && (shareType !== "SPECIFIC" || selectedRecipients.length > 0);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -191,43 +155,24 @@ export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
               </Select>
             </div>
 
-            <div className="space-y-1.5">
-              <Label className="text-xs text-slate-500">
-                People {shareType === "SPECIFIC" && <span className="text-red-500">*</span>}
-              </Label>
-
-              <div className="border rounded-md p-2 bg-slate-50 min-h-[46px] transition-all focus-within:ring-2 focus-within:ring-blue-100 focus-within:border-blue-400">
-                <div className="flex flex-wrap gap-2 mb-1">
-                  {recipients.map(r => (
-                    <span
-                      key={r.email}
-                      className="bg-white border text-xs px-2 py-1 rounded-full flex items-center gap-1 shadow-sm"
-                    >
-                      <Mail size={10} className="text-slate-400" />
-                      {r.email}
-                      <X
-                        size={12}
-                        className="cursor-pointer hover:text-red-500 ml-1"
-                        onClick={() => handleRemoveEmail(r.email)}
-                      />
-                    </span>
-                  ))}
-
-                  <input
-                    className="flex-1 bg-transparent text-sm outline-none min-w-[150px] h-6"
-                    placeholder="Please enter valid email address"
-                    value={emailInput}
-                    onChange={e => setEmailInput(e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        handleAddEmail();
-                      }
-                    }}
-                  />
+            {/* CHỈ HIỂN THỊ KHI CHỌN CHẾ ĐỘ SPECIFIC */}
+            {shareType === "SPECIFIC" && (
+              <div className="space-y-1.5 animate-in fade-in duration-200">
+                <Label className="text-xs text-slate-500">
+                  People <span className="text-red-500">*</span>
+                </Label>
+                <div className="border rounded-md p-1 bg-slate-50 transition-all focus-within:ring-2 focus-within:ring-blue-100 focus-within:border-blue-400">
+                    <RecipientSelector
+                      projectId={projectId}
+                      initialOptions={selectedRecipients}
+                      onChange={(ids, options) => setSelectedRecipients(options)}
+                    />
+                </div>
+                <div className="pt-2 text-xs text-slate-500">
+                  Note: Any access restrictions placed on the files are removed when the files are shared.
                 </div>
               </div>
-            </div>
+            )}
 
             {(shareType === "SPECIFIC" || shareType === "INTERNAL_LINK") && (
               <div className="space-y-1.5">
@@ -242,34 +187,34 @@ export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
             )}
 
             {(shareType === "INTERNAL_LINK" || shareType === "PUBLIC_LINK") && (
-              <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label className="text-xs text-slate-500">
-                  Link expires on (in UTC)
-                </Label>
-                <Input
-                  type="date"
-                  value={expiresAt}
-                  onChange={e => setExpiresAt(e.target.value)}
-                />
-              </div>
+              <div className="grid grid-cols-2 gap-4 animate-in fade-in duration-200">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-slate-500">
+                    Link expires on (in UTC)
+                  </Label>
+                  <Input
+                    type="date"
+                    value={expiresAt}
+                    onChange={e => setExpiresAt(e.target.value)}
+                  />
+                </div>
 
-              <div className="space-y-1.5">
-                <Label className="text-xs text-slate-500">Access</Label>
-                <Select
-                  value={accessLevel}
-                  onValueChange={(v: any) => setAccessLevel(v)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="VIEW">View only</SelectItem>
-                    <SelectItem value="DOWNLOAD">View & download</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-slate-500">Access</Label>
+                  <Select
+                    value={accessLevel}
+                    onValueChange={(v: any) => setAccessLevel(v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="VIEW">View only</SelectItem>
+                      <SelectItem value="DOWNLOAD">View & download</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-            </div>
             )}
 
             {(shareType === "INTERNAL_LINK" || shareType === "PUBLIC_LINK") && (
@@ -284,13 +229,7 @@ export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
               </div>
             )}
 
-            {shareType === "SPECIFIC" && (
-              <div className="border-t border-slate-200 pt-3 text-xs text-slate-500">
-                Note: Any access restrictions placed on the files are removed when the files are shared.
-              </div>
-            )}
           </div>
-
         )}
 
         {/* FOOTER */}
@@ -317,7 +256,7 @@ export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
                        <Button variant="ghost" onClick={handleClose}>Cancel</Button>
                        <Button onClick={() => shareMutation.mutate()} disabled={!canSubmit || shareMutation.isPending}>
                           {shareMutation.isPending ? <Loader2 className="animate-spin mr-2 h-4 w-4"/> : (
-                              recipients.length > 0 ? "Create a Link and Send an Email" : "Create a Share Link"
+                              shareType === "SPECIFIC" ? "Create a Link and Send an Email" : "Create a Share Link"
                           )}
                        </Button>
                     </>

@@ -6,14 +6,15 @@ import { AnimatePresence, motion } from 'framer-motion';
 import FileDetailTab from './tabView2D/detailTab';
 import TodosTab from './tabView2D/todoTab';
 import ViewsTab from './tabView2D/viewTab';
-
+import VersionHistoryPanel from './tabView2D/VersionHistoryPanel';
 import { ViewItem, TodoItem, PageItem, IFile } from '@/types/explorer';
+
 
 const PagesTab = dynamic(() => import('./tabView2D/pageTab'), { ssr: false });
 
 const CURRENT_USER = { name: 'hao nguyen' };
 
-type ActiveTool = 'filedetail' | 'page' | 'view' | 'todo';
+type ActiveTool = 'filedetail' | 'page' | 'view' | 'todo' | 'history';
 
 type LeftPanelBodyProps = {
   activeTool: ActiveTool;
@@ -34,6 +35,9 @@ type LeftPanelBodyProps = {
   onDeleteView?: (id: string) => void;
   onDeleteTodo?: (id: string) => void;
   onEditView?: (view: ViewItem) => void;
+  onCloseHistory?: () => void;
+  onOpenVersion?: (version: any) => void;
+  onDownloadVersion?: (version: any) => void;
 };
 
 export default function LeftPanelBody(props: LeftPanelBodyProps) {
@@ -47,7 +51,10 @@ export default function LeftPanelBody(props: LeftPanelBodyProps) {
     onCreateTodo,
     onDeleteView,
     onDeleteTodo,
-    onEditView
+    onEditView,
+    onCloseHistory,
+    onOpenVersion,
+    onDownloadVersion
   } = props;
 
   return (
@@ -61,7 +68,18 @@ export default function LeftPanelBody(props: LeftPanelBodyProps) {
         className="h-full"
       >
         {activeTool === 'filedetail' && (
-          <FileDetailTab file={data.file} view={data.view ?? null} />
+          <FileDetailTab file={data.file} view={data.view as any} />
+        )}
+
+        {activeTool === 'history' && (
+          <VersionHistoryPanel 
+            file={data.file} 
+            onClose={() => onCloseHistory?.()} 
+            onOpenVersion={onOpenVersion}
+            onDownloadVersion={onDownloadVersion || ((ver) => {
+              if(ver.location) window.open(ver.location, "_blank");
+            })}
+          />
         )}
 
         {activeTool === 'page' && (

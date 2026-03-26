@@ -81,14 +81,15 @@ export default function FileViewport({
 
       {type === 'WORD' && (
          <WordViewerClient
-           src={url}
-           zoom={zoom}
-           onZoom={onZoom}
-           pageIndex={pageIndex}
-          onLoadSuccess={onWordLoadSuccess}
-          onPageThumbnailGenerated={onWordThumbnailGenerated}
-           onPrev={onPrev}
-           onNext={onNext}
+            src={url}
+            zoom={zoom}
+            onZoom={onZoom}
+            onRotatePage={onRotatePage} 
+            pageIndex={pageIndex}
+            onLoadSuccess={onWordLoadSuccess}
+            onPageThumbnailGenerated={onWordThumbnailGenerated}
+            onPrev={onPrev}
+            onNext={onNext}
          />
       )}
       

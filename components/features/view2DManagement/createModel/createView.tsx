@@ -3,27 +3,34 @@
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 
+import  {RecipientSelector, RecipientOption } from "@/components/features/release/RecipientSelector"; 
+
 interface CreateViewPanelProps {
+  projectId: string; 
   onClose: () => void;
   onSave: (data: {
     name: string;
     description: string;
     createdBy?: string;
-    sharedWithUsers?: string;
+    sharedWithUsers?: string[]; 
   }) => Promise<void>;
 }
 
 export default function CreateViewPanel({
+  projectId,
   onClose,
   onSave,
 }: CreateViewPanelProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [shareWith, setShareWith] = useState("");
+  
+  // 👇 THAY THẾ STATE shareWith BẰNG DANH SÁCH RECIPIENT
+  const [selectedRecipients, setSelectedRecipients] = useState<RecipientOption[]>([]);
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [currentUser, setCurrentUser] = useState<string | null>(null);
 
-  // Lấy user hiện tại (logic của bạn – GIỮ)
+  // Lấy user hiện tại
   useEffect(() => {
     try {
       const userStr = localStorage.getItem("user");
@@ -45,11 +52,14 @@ export default function CreateViewPanel({
     try {
       setIsSubmitting(true);
 
+      // Trích xuất mảng ID từ các option đã chọn
+      const sharedUserIds = selectedRecipients.map(r => r.id);
+
       await onSave({
         name: name.trim(),
         description: description.trim(),
         createdBy: currentUser || "Unknown",
-        sharedWithUsers: shareWith,
+        sharedWithUsers: sharedUserIds, // 👈 Gửi mảng ID lên API
       });
       // parent sẽ tự đóng panel sau khi save thành công
     } catch (error) {
@@ -62,7 +72,7 @@ export default function CreateViewPanel({
   return (
     <aside className="w-80 h-full bg-white shadow flex flex-col border-l border-gray-200">
       {/* HEADER */}
-      <div className="px-5 py-4 border-b border-gray-300 flex items-center justify-between">
+      <div className="px-5 py-4 border-b border-gray-300 flex items-center justify-between bg-slate-50">
         <div>
           <div className="text-base font-semibold text-gray-900">
             Create View
@@ -121,15 +131,15 @@ export default function CreateViewPanel({
           <label className="block mb-1 font-medium text-gray-700">
             Share with
           </label>
-          <input
-            value={shareWith}
-            onChange={(e) => setShareWith(e.target.value)}
-            className="w-full rounded border border-gray-300 px-3 py-2
-                       text-gray-700 placeholder-gray-400
-                       focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            placeholder="Enter users or groups (comma separated)"
-            disabled={isSubmitting}
-          />
+          {/* 👇 ÁP DỤNG RECIPIENT SELECTOR TẠI ĐÂY */}
+          <div className="border rounded-md p-1 bg-slate-50 transition-all focus-within:ring-2 focus-within:ring-blue-100 focus-within:border-blue-400">
+             <RecipientSelector
+                projectId={projectId}
+                initialOptions={selectedRecipients}
+                onChange={(ids, options) => setSelectedRecipients(options)}
+                disabled={isSubmitting}
+             />
+          </div>
           <div className="mt-1 text-xs text-gray-500">
             Optional – leave empty to keep private
           </div>
@@ -145,7 +155,7 @@ export default function CreateViewPanel({
       </div>
 
       {/* FOOTER */}
-      <div className="px-5 py-4 border-t bg-gray-50 flex justify-end gap-2">
+      <div className="px-5 py-4 border-t bg-gray-50 flex justify-end gap-2 shrink-0">
         <button
           onClick={onClose}
           disabled={isSubmitting}

@@ -1,4 +1,3 @@
-// projects/[projectId]/viewer/layout.tsx
 export default function ViewerLayout({
   children,
 }: {

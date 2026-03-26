@@ -97,15 +97,28 @@ export default function PdfViewerClient({
       </div>
 
       {/* ===== CONTROL BAR ===== */}
-      <div className="absolute left-1/2 bottom-6 -translate-x-1/2 bg-[#2f2b36] text-white rounded-md px-2 py-2 flex items-center gap-3 shadow-lg z-50">
-        <button onClick={onPrev}><ChevronLeft size={18} /></button>
-        <div className="bg-white text-black px-3 rounded text-sm">
+      <div className="absolute left-6 bottom-6 bg-[#2f2b36] text-white rounded-md p-3 flex items-center gap-3 shadow-lg z-50">
+        <button onClick={onPrev} className="p-1 hover:bg-white/10 rounded disabled:opacity-50" disabled={currentPageIndex <= 1}>
+          <ChevronLeft size={18} />
+        </button>
+        <div className="bg-white text-black px-3 py-0.5 rounded text-sm font-medium">
           {currentPageIndex} / {numPages}
         </div>
-        <button onClick={onNext}><ChevronRight size={18} /></button>
-        <button onClick={() => onZoom(-0.1)}><ZoomOut size={16} /></button>
-        <button onClick={() => onZoom(0.1)}><ZoomIn size={16} /></button>
-        <button onClick={() => onRotatePage(90)}><RotateCcw size={16} /></button>
+        <button onClick={onNext} className="p-1 hover:bg-white/10 rounded disabled:opacity-50" disabled={currentPageIndex >= numPages}>
+          <ChevronRight size={18} />
+        </button>
+        <div className="bg-white text-black px-2 py-0.5 rounded text-sm font-medium ml-2 min-w-[3rem] text-center">
+          {Math.round(zoom * 100)}%
+        </div>
+        <button onClick={() => onZoom(-0.1)} className="p-1 hover:bg-white/10 rounded ml-2">
+          <ZoomOut size={18} />
+        </button>
+        <button onClick={() => onZoom(0.1)} className="p-1 hover:bg-white/10 rounded">
+          <ZoomIn size={18} />
+        </button>
+        <button onClick={() => onRotatePage(90)} className="p-1 hover:bg-white/10 rounded">
+          <RotateCcw size={18} />
+        </button>
       </div>
     </div>
   );

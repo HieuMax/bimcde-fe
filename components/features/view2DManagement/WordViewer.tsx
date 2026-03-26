@@ -1,183 +1,177 @@
-'use client';
+"use client";
 
-import React, { useEffect, useRef, useState } from 'react';
-import { renderAsync } from 'docx-preview';
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react';
-import html2canvas from 'html2canvas';
+import React from "react";
+import { X, MoreVertical, FileText, Download, FolderOpen } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
-export default function WordViewerClient({
-  src,
-  zoom,
-  onZoom,
-  pageIndex = 1,
-  onPrev,
-  onNext,
-  onLoadSuccess,
-  onPageThumbnailGenerated
-}: {
-  src: string;
-  zoom: number;
-  onZoom: (d: number) => void;
-  pageIndex?: number;
-  onPrev?: () => void;
-  onNext?: () => void;
-  onLoadSuccess?: (total: number) => void;
-  onPageThumbnailGenerated?: (index: number, src: string) => void; 
-}) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [totalPages, setTotalPages] = useState(1);
-  const pageRefs = useRef<HTMLElement[]>([]);
+interface VersionHistoryPanelProps {
+  file: any; 
+  currentThumbnail?: string;
+  onClose: () => void;
+  onOpenVersion?: (version: any) => void;
+  onDownloadVersion?: (version: any) => void;
+}
 
-  useEffect(() => {
-    let isMounted = true;
-    const loadDocx = async () => {
-      if (!containerRef.current || !src) return;
-      setLoading(true);
-      setError(null);
+export default function VersionHistoryPanel({
+  file,
+  currentThumbnail,
+  onClose,
+  onOpenVersion,
+  onDownloadVersion,
+}: VersionHistoryPanelProps) {
+  if (!file) return null;
 
-      try {
-        const response = await fetch(src);
-        if (!response.ok) throw new Error('Không thể tải file Word');
-        const blob = await response.blob();
-
-        if (isMounted && containerRef.current) {
-          // [SỬA ĐỔI 1]: Truyền undefined thay vì null để tránh lỗi nội bộ của thư viện
-          await renderAsync(blob, containerRef.current, undefined, {
-            className: 'docx-document',
-            inWrapper: true,
-            ignoreWidth: false,
-            ignoreHeight: false,
-            experimental: true, // [SỬA ĐỔI 2]: Bật cờ này để render ảnh và link bên trong Word tốt hơn
-          });
-
-          if (containerRef.current) {
-            const sections = Array.from(containerRef.current.querySelectorAll('section'));
-            const total = sections.length > 0 ? sections.length : 1;
-            
-            pageRefs.current = sections;
-            setTotalPages(total);
-            
-            // Đảm bảo lỗi ở callback cha không làm crash luồng chạy
-            try {
-              if (onLoadSuccess) onLoadSuccess(total);
-            } catch (cbErr) {
-              console.warn("Lỗi đồng bộ trang:", cbErr);
-            }
-            const generateThumbnails = async () => {
-              for (let i = 0; i < sections.length; i++) {
-                if (!isMounted) break; // Dừng nếu user thoát trang
-                try {
-                  const canvas = await html2canvas(sections[i], {
-                    scale: 0.25, // Scale nhỏ để load cho nhẹ (vì chỉ làm thumbnail)
-                    useCORS: true,
-                    logging: false,
-                  });
-                  const thumbSrc = canvas.toDataURL("image/jpeg", 0.6);
-                  
-                  if (onPageThumbnailGenerated) {
-                    onPageThumbnailGenerated(i + 1, thumbSrc);
-                  }
-                  
-                  // Nghỉ 50ms giữa mỗi lần chụp để trình duyệt không bị đơ
-                  await new Promise(resolve => setTimeout(resolve, 50));
-                } catch (e) {
-                  console.warn(`Lỗi tạo thumbnail trang ${i + 1}`);
-                }
-              }
-            };
-            setTimeout(generateThumbnails, 1000);
-          }
+  // Lấy danh sách versions từ dữ liệu thật của file
+  const versions = file.versions && file.versions.length > 0 
+    ? [...file.versions].sort((a, b) => b.version - a.version) 
+    : [
+        {
+          version: file.currentVersion || 1,
+          location: file.location || file.fileUrl,
+          uploadedBy: file.modifiedBy || file.createdBy,
+          createdAt: file.updatedAt || file.createdAt
         }
-      } catch (err) {
-        console.error('Lỗi khi render Word:', err);
-        if (isMounted) setError('Một số hình ảnh hoặc liên kết phức tạp có thể không hiển thị được.');
-      } finally {
-        // [SỬA ĐỔI 3]: LUÔN LUÔN TẮT LOADING dù có bị lỗi hay không!
-        if (isMounted) setLoading(false);
-      }
-    };
+      ];
 
-    loadDocx();
-    return () => { isMounted = false; };
-  }, [src]);
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return "Unknown date";
+    const date = new Date(dateString);
+    return date.toLocaleString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    });
+  };
 
-  // Logic cuộn mượt mà đến trang khi bấm Next/Prev
-  useEffect(() => {
-    if (pageRefs.current.length > 0 && pageIndex > 0) {
-      const targetPage = pageRefs.current[pageIndex - 1]; 
-      if (targetPage) {
-        targetPage.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
+  const renderThumbnail = (url?: string) => {
+    if (!url) return <FileText className="text-slate-300" size={20} />;
+    
+    if (url.startsWith("data:image")) {
+      return <img src={url} alt="thumbnail" className="w-full h-full object-cover" />;
     }
-  }, [pageIndex]);
+
+    const lowerUrl = url.toLowerCase();
+    
+    if (lowerUrl.includes(".pdf")) {
+      return (
+        <div className="flex flex-col items-center justify-center text-red-500">
+          <FileText size={18} />
+          <span className="text-[8px] font-bold mt-0.5">PDF</span>
+        </div>
+      );
+    }
+    
+    if (lowerUrl.includes(".doc") || lowerUrl.includes(".docx")) {
+      return (
+        <div className="flex flex-col items-center justify-center text-blue-600">
+          <FileText size={18} />
+          <span className="text-[8px] font-bold mt-0.5">DOCX</span>
+        </div>
+      );
+    }
+
+    if (lowerUrl.match(/\.(jpeg|jpg|gif|png|webp)$/)) {
+      return <img src={url} alt="thumbnail" className="w-full h-full object-cover" />;
+    }
+
+    return <FileText className="text-slate-400" size={20} />;
+  };
 
   return (
-    <div className="w-full h-full relative bg-[#6b6a73] overflow-hidden">
-      <style>{`
-        .docx-wrapper {
-          background: transparent !important;
-          padding: 2rem !important;
-          display: flex;
-          flex-direction: column; 
-          align-items: center;
-          gap: 20px; 
-          height: auto !important;      
-          overflow: visible !important; 
-        }
-        .docx-document {
-          background: white !important;
-          box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3) !important;
-          min-height: 297mm; 
-          width: 210mm !important; 
-          padding: 20mm !important; 
-        }
-      `}</style>
-
-      {loading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-[#6b6a73]/70 backdrop-blur-sm z-20">
-          <div className="bg-white text-black px-6 py-4 rounded-lg shadow-xl flex items-center gap-3">
-            <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-            <span className="font-medium">Đang xử lý tài liệu...</span>
-          </div>
-        </div>
-      )}
-      
-      {error && !loading && (
-        <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-yellow-100 text-yellow-800 border border-yellow-300 px-4 py-2 rounded shadow-md z-20 text-sm opacity-90 transition-opacity hover:opacity-100">
-          {error}
-        </div>
-      )}
-
-      {/* ===== VIEWPORT CONTAINER ===== */}
-      <div className="absolute inset-0 overflow-auto scroll-smooth">
-        <div
-          style={{ zoom: zoom } as React.CSSProperties}
-          ref={containerRef}
-        />
+    <div className="w-full h-full bg-white flex flex-col">
+      {/* HEADER */}
+      <div className="flex items-center justify-between px-4 py-4 border-b border-gray-200 bg-white shrink-0">
+        <h2 className="text-lg font-medium text-gray-800">Version history</h2>
+        <button
+          onClick={onClose}
+          className="text-gray-500 hover:text-gray-800 transition-colors rounded-full p-1 hover:bg-gray-100"
+        >
+          <X size={20} />
+        </button>
       </div>
 
-      {/* ===== CONTROL BAR ===== */}
-      <div className="absolute left-1/2 bottom-6 -translate-x-1/2 bg-[#2f2b36] text-white rounded-md px-3 py-2 flex items-center gap-3 shadow-lg z-50">
-        <button onClick={onPrev} className="p-1 hover:bg-white/10 rounded disabled:opacity-50" disabled={pageIndex <= 1}>
-          <ChevronLeft size={18} />
-        </button>
-        <div className="bg-white text-black px-3 py-0.5 rounded text-sm font-medium">
-          {pageIndex} / {totalPages}
-        </div>
-        <button onClick={onNext} className="p-1 hover:bg-white/10 rounded disabled:opacity-50" disabled={pageIndex >= totalPages}>
-          <ChevronRight size={18} />
-        </button>
-        <div className="bg-white text-black px-2 py-0.5 rounded text-sm font-medium ml-2 min-w-[3rem] text-center">
-          {Math.round(zoom * 100)}%
-        </div>
-        <button onClick={() => onZoom(-0.1)} className="p-1 hover:bg-white/10 rounded ml-2">
-          <ZoomOut size={18} />
-        </button>
-        <button onClick={() => onZoom(0.1)} className="p-1 hover:bg-white/10 rounded">
-          <ZoomIn size={18} />
-        </button>
+      {/* BODY - SCROLLABLE LIST */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar">
+        {versions.length === 0 ? (
+          <div className="p-4 text-center text-sm text-gray-500">
+            No version history found.
+          </div>
+        ) : (
+          <div className="flex flex-col">
+            {versions.map((ver: any, index: number) => {
+              const isCurrent = ver.version === (file.currentVersion || versions[0].version);
+              const authorName = typeof ver.uploadedBy === 'string' 
+                ? ver.uploadedBy 
+                : (ver.uploadedBy?.fullName || "Admin");
+
+              return (
+                <div
+                  key={ver.version || index}
+                  className={`flex gap-3 p-3 border-b border-gray-100 transition-colors ${
+                    isCurrent ? "bg-[#eef4f9]" : "hover:bg-gray-50"
+                  }`}
+                >
+                  {/* 👇 GỌI HÀM RENDER THUMBNAIL Ở ĐÂY */}
+                  <div className="w-14 h-10 bg-slate-50 border border-gray-200 shadow-sm flex-shrink-0 flex items-center justify-center overflow-hidden rounded-sm">
+                    {/* Ưu tiên lấy URL từ ver.location, nếu không có mới fallback về previewSrc */}
+                    {renderThumbnail(ver.location || file.previewSrc || file.fileUrl)}
+                  </div>
+
+                  {/* Info Area */}
+                  <div className="flex-1 min-w-0 flex flex-col justify-center">
+                    <div className="text-sm truncate">
+                      <span className="font-semibold text-[#005a9e]">
+                        V.{ver.version}
+                      </span>
+                      <span className="text-gray-600 ml-1">• {file.name}</span>
+                    </div>
+                    <div className="text-xs text-gray-600 mt-0.5 truncate">
+                      {authorName}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-0.5">
+                      {formatDate(ver.createdAt || ver.date)}
+                    </div>
+                  </div>
+
+                  {/* Actions Menu */}
+                  <div className="flex-shrink-0 flex items-center">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button className="p-1.5 text-gray-500 hover:bg-gray-200 rounded outline-none transition-colors bg-gray-200/50">
+                          <MoreVertical size={16} />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48 shadow-lg">
+                        <DropdownMenuItem
+                          className="cursor-pointer py-2"
+                          onClick={() => onOpenVersion?.(ver)}
+                        >
+                          <FolderOpen className="w-4 h-4 mr-2 text-gray-500" />
+                          Open
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          className="cursor-pointer py-2 text-[#005a9e]"
+                          onClick={() => onDownloadVersion?.(ver)}
+                        >
+                          <Download className="w-4 h-4 mr-2 text-[#005a9e]" />
+                          Download original
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
