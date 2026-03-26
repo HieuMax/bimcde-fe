@@ -23,6 +23,7 @@ export default function PdfViewerClient({
   onPrev,
   onNext,
   onPageRendered,
+  onPageThumbnailGenerated
 }: {
   src: string;
   currentPageIndex: number;
@@ -33,6 +34,7 @@ export default function PdfViewerClient({
   onPrev: () => void;
   onNext: () => void;
   onPageRendered?: () => void;
+  onPageThumbnailGenerated?: (index: number, src: string) => void; 
 }) {
   const [numPages, setNumPages] = useState(0);
   const [containerWidth, setContainerWidth] = useState(0);
@@ -74,7 +76,10 @@ export default function PdfViewerClient({
             return (
               <div
                 key={pageNumber}
-                ref={(el) => el && pageRefs.current.set(pageNumber, el)}
+                // ref={(el) => el && pageRefs.current.set(pageNumber, el)}
+                ref={(el) => {
+                  if (el) pageRefs.current.set(pageNumber, el);
+                }}
                 className="mb-4 flex justify-center"
               >
                 <Page
@@ -84,9 +89,27 @@ export default function PdfViewerClient({
                   rotate={pageNumber === currentPageIndex ? pageRotation : 0}
                   renderTextLayer={false}
                   renderAnnotationLayer={false}
+                  // onRenderSuccess={() => {
+                  //   if (pageNumber === currentPageIndex) {
+                  //     onPageRendered?.(); 
+                  //   }
+                  // }}
                   onRenderSuccess={() => {
-                    if (pageNumber === currentPageIndex) {
-                      onPageRendered?.(); 
+                    if (pageNumber === currentPageIndex) onPageRendered?.(); 
+                    
+                    if (onPageThumbnailGenerated) {
+                      setTimeout(() => {
+                        const el = pageRefs.current.get(pageNumber);
+                        const canvas = el?.querySelector('canvas');
+                        if (canvas) {
+                          try {
+                            const thumbSrc = canvas.toDataURL("image/jpeg", 0.5);
+                            onPageThumbnailGenerated(pageNumber, thumbSrc);
+                          } catch (e) {
+                            console.warn("Lỗi tạo thumbnail PDF:", e);
+                          }
+                        }
+                      }, 500);
                     }
                   }}
                 />

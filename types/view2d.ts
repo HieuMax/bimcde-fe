@@ -63,6 +63,7 @@ export interface View2DItem {
   _id: string;
   name?: string;
 
+  description?: string;
   projectId: string;
   fileId: string | FileItem;
 

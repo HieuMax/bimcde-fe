@@ -170,15 +170,25 @@
           let maxVisibleArea = 0;
           let bestCanvas: HTMLCanvasElement | null = null;
           
+          // if (containerRect && canvases.length > 0) {
+          //     canvases.forEach((c) => {
+          //         const canvas = c as HTMLCanvasElement;
+          //         const rect = canvas.getBoundingClientRect();
+          //         const overlapX = Math.max(0, Math.min(rect.right, containerRect.right) - Math.max(rect.left, containerRect.left));
+          //         const overlapY = Math.max(0, Math.min(rect.bottom, containerRect.bottom) - Math.max(rect.top, containerRect.top));
+          //         const area = overlapX * overlapY;
+          //         if (area > maxVisibleArea) { maxVisibleArea = area; bestCanvas = canvas; }
+          //     });
+          // }
           if (containerRect && canvases.length > 0) {
-              canvases.forEach((c) => {
+              for (const c of Array.from(canvases)) {
                   const canvas = c as HTMLCanvasElement;
                   const rect = canvas.getBoundingClientRect();
                   const overlapX = Math.max(0, Math.min(rect.right, containerRect.right) - Math.max(rect.left, containerRect.left));
                   const overlapY = Math.max(0, Math.min(rect.bottom, containerRect.bottom) - Math.max(rect.top, containerRect.top));
                   const area = overlapX * overlapY;
                   if (area > maxVisibleArea) { maxVisibleArea = area; bestCanvas = canvas; }
-              });
+              }
           }
           
           if (bestCanvas && container && containerRect) {
@@ -256,14 +266,14 @@
           let bestCanvas: HTMLCanvasElement | null = null;
 
           if (containerRect && canvases.length > 0) {
-              canvases.forEach((c) => {
+              for (const c of Array.from(canvases)) {
                   const canvas = c as HTMLCanvasElement;
                   const rect = canvas.getBoundingClientRect();
                   const overlapX = Math.max(0, Math.min(rect.right, containerRect.right) - Math.max(rect.left, containerRect.left));
                   const overlapY = Math.max(0, Math.min(rect.bottom, containerRect.bottom) - Math.max(rect.top, containerRect.top));
                   const area = overlapX * overlapY;
                   if (area > maxVisibleArea) { maxVisibleArea = area; bestCanvas = canvas; }
-              });
+              }
           }
           if (bestCanvas) {
               snapshotUrl = bestCanvas.toDataURL("image/jpeg", 0.7);
@@ -322,7 +332,7 @@
           previewSrc: finalPreviewSrc
         });
 
-        setViews((prev) => [newView, ...prev]);
+        setViews((prev) => [newView as any, ...prev]);
         setRightPanel(null);
         setActiveTool("view");
       } catch (error) {
@@ -333,10 +343,11 @@
 
     const handleUpdateViewSnapshot = async (targetView: ViewItem) => {
       try {
-        let { snapshotUrl, actualPageIndex } = await captureCurrentScreen();
-        if (!snapshotUrl) {
-          snapshotUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(targetView.name || 'View')}&background=random`;
-        }
+        // 👇 FIX: Dùng const và đổi tên biến lấy ra thành capturedUrl
+        const { snapshotUrl: capturedUrl, actualPageIndex } = await captureCurrentScreen();
+        
+        // Khai báo hằng số snapshotUrl chính thức
+        const snapshotUrl = capturedUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(targetView.name || 'View')}&background=random`;
 
         let scrollX = 0; let scrollY = 0;
         const scrollContainer = getScrollContainer();
@@ -737,7 +748,7 @@
         try {
           // Fetch View theo Project
           const viewsData = await view2DService.getViewsByProject(currentProjectId);
-          if (Array.isArray(viewsData)) setViews(viewsData);
+          if (Array.isArray(viewsData)) setViews(viewsData as any);
 
           // CẬP NHẬT: Fetch Todo theo Project
           const todosData = await todo2DService.getTodosByProject(currentProjectId);
@@ -769,7 +780,10 @@
     const handleWordThumbnailGenerated = React.useCallback((index: number, src: string) => {
       setPages((prevPages) => {
         return prevPages.map((page) => {
-          if (page.source === "word" && page.index === index) {
+          // if (page.source === "word" && page.index === index) {
+          //   return { ...page, imageSrc: src };
+          // }
+          if ((page.source === "word" || page.source === "pdf") && (page.index === index || page.pageNumber === index)) {
             return { ...page, imageSrc: src };
           }
           return page;
@@ -936,7 +950,7 @@
               {rightPanel.type === "history" && (
                 <VersionHistoryPanel 
                   file={selectedFile || file} 
-                  currentThumbnail={data.pages?.[0]?.imageSrc}
+                  currentThumbnail={pages?.[0]?.imageSrc}
                   onClose={() => setRightPanel(null)} 
                   onDownloadVersion={(ver) => {
                       window.open(ver.location, "_blank"); 

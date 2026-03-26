@@ -76,6 +76,7 @@ export default function FileViewport({
           onPrev={onPrev}
           onNext={onNext}
           onPageRendered={onRendered}
+          onPageThumbnailGenerated={onWordThumbnailGenerated}
         />
       )}
 

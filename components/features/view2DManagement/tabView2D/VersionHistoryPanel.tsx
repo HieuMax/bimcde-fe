@@ -11,6 +11,7 @@ import {
 
 interface VersionHistoryPanelProps {
   file: any; 
+  currentThumbnail?: string;
   onClose: () => void;
   onOpenVersion?: (version: any) => void;
   onDownloadVersion?: (version: any) => void;
@@ -18,6 +19,7 @@ interface VersionHistoryPanelProps {
 
 export default function VersionHistoryPanel({
   file,
+  currentThumbnail,
   onClose,
   onOpenVersion,
   onDownloadVersion,
@@ -48,6 +50,38 @@ export default function VersionHistoryPanel({
     });
   };
 
+  // 👇 1. ĐƯA HÀM RENDER THUMBNAIL VÀO ĐÂY
+  const renderThumbnail = (ver: any, isCurrent: boolean) => {
+    const imageUrl = isCurrent ? (currentThumbnail || file.previewSrc) : (ver.previewSrc || ver.thumbnail);
+
+    if (imageUrl && (imageUrl.startsWith("data:image") || imageUrl.match(/\.(jpeg|jpg|gif|png|webp)$/i))) {
+      return <img src={imageUrl} alt="thumbnail" className="w-full h-full object-cover" />;
+    }
+
+    // Nếu chưa có ảnh thì lấy URL gốc để hiện Icon
+    const fallbackUrl = (ver.location || file.fileUrl || "").toLowerCase();
+
+    if (fallbackUrl.includes(".pdf")) {
+      return (
+        <div className="flex flex-col items-center justify-center text-red-500">
+          <FileText size={18} />
+          <span className="text-[8px] font-bold mt-0.5">PDF</span>
+        </div>
+      );
+    }
+
+    if (fallbackUrl.includes(".doc") || fallbackUrl.includes(".docx")) {
+      return (
+        <div className="flex flex-col items-center justify-center text-blue-600">
+          <FileText size={18} />
+          <span className="text-[8px] font-bold mt-0.5">DOCX</span>
+        </div>
+      );
+    }
+
+    return <FileText className="text-slate-400" size={20} />;
+  };
+
   return (
     <div className="w-full h-full bg-white flex flex-col">
       {/* HEADER */}
@@ -70,10 +104,8 @@ export default function VersionHistoryPanel({
         ) : (
           <div className="flex flex-col">
             {versions.map((ver: any, index: number) => {
-              // Phiên bản có số version lớn nhất (hoặc nằm đầu tiên sau khi sort) là Current Version
               const isCurrent = ver.version === (file.currentVersion || versions[0].version);
 
-              
               const authorName = typeof ver.uploadedBy === 'string' 
                 ? ver.uploadedBy 
                 : (ver.uploadedBy?.fullName || "Admin");
@@ -85,17 +117,9 @@ export default function VersionHistoryPanel({
                     isCurrent ? "bg-[#eef4f9]" : "hover:bg-gray-50"
                   }`}
                 >
-                  {/* Thumbnail Area */}
-                  <div className="w-14 h-10 bg-white border border-gray-200 shadow-sm flex-shrink-0 flex items-center justify-center overflow-hidden rounded-sm">
-                    {file.previewSrc ? (
-                      <img
-                        src={file.previewSrc}
-                        alt="thumbnail"
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <FileText className="text-blue-500 opacity-50" size={20} />
-                    )}
+                  {/* 👇 2. GỌI HÀM RENDER THUMBNAIL Ở ĐÂY THAY VÌ THẺ IMG CŨ */}
+                  <div className="w-14 h-10 bg-slate-50 border border-gray-200 shadow-sm flex-shrink-0 flex items-center justify-center overflow-hidden rounded-sm">
+                    {renderThumbnail(ver, isCurrent)}
                   </div>
 
                   {/* Info Area */}
@@ -115,7 +139,7 @@ export default function VersionHistoryPanel({
                   </div>
 
                   {/* Actions Menu */}
-                  <div className="flex-shrink-0">
+                  <div className="flex-shrink-0 flex items-center">
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
                         <button className="p-1.5 text-gray-500 hover:bg-gray-200 rounded outline-none transition-colors bg-gray-200/50">
