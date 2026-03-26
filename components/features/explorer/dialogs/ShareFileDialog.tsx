@@ -18,7 +18,6 @@ import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { httpClient } from "@/lib/http-client";
 
-// import RecipientSelector, { RecipientOption } from "./";
 import { RecipientSelector, RecipientOption } from "../../release/RecipientSelector";
 /* ===================== TYPES ===================== */
 interface Props {
