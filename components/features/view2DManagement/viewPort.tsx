@@ -18,6 +18,7 @@ export default function FileViewport({
   onRotatePage,
   onPrev,
   onNext,
+  onPageChange,
   onRendered,
   onWordLoadSuccess,
   onWordThumbnailGenerated
@@ -31,6 +32,7 @@ export default function FileViewport({
   onRotatePage: (d: number) => void;
   onPrev: () => void;
   onNext: () => void;
+  onPageChange?: (page: number) => void;
   onRendered?: () => void;
   onWordLoadSuccess?: (total: number) => void;
   onWordThumbnailGenerated?: (index: number, src: string) => void;
@@ -75,8 +77,8 @@ export default function FileViewport({
           onRotatePage={onRotatePage} 
           onPrev={onPrev}
           onNext={onNext}
+          onPageChange={onPageChange}
           onPageRendered={onRendered}
-          onPageThumbnailGenerated={onWordThumbnailGenerated}
         />
       )}
 
@@ -85,12 +87,12 @@ export default function FileViewport({
             src={url}
             zoom={zoom}
             onZoom={onZoom}
-            onRotatePage={onRotatePage} 
             pageIndex={pageIndex}
             onLoadSuccess={onWordLoadSuccess}
             onPageThumbnailGenerated={onWordThumbnailGenerated}
             onPrev={onPrev}
             onNext={onNext}
+            onPageChange={onPageChange}
          />
       )}
       
@@ -105,6 +107,7 @@ export default function FileViewport({
           onRotate={onRotatePage}
           onPrev={onPrev}
           onNext={onNext}
+          onPageChange={onPageChange}
         />
       )}
     </div>

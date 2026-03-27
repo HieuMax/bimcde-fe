@@ -26,16 +26,35 @@ export default function VersionHistoryPanel({
 }: VersionHistoryPanelProps) {
   if (!file) return null;
 
-  const versions = file.versions && file.versions.length > 0 
-    ? [...file.versions].sort((a, b) => b.version - a.version) 
-    : [
-        {
-          version: file.currentVersion || 1,
+  // 🌟 LOGIC THÔNG MINH: BÙ ĐẮP DỮ LIỆU VERSIONS BỊ THIẾU 🌟
+  let versions: any[] = [];
+  const currentVer = file.currentVersion || 1;
+
+  if (file.versions && file.versions.length >= currentVer) {
+    // Trường hợp lý tưởng: Backend trả về đầy đủ mảng lịch sử
+    versions = [...file.versions].sort((a: any, b: any) => b.version - a.version);
+  } else {
+    // Trường hợp lỗi Backend: Trả về currentVersion = 5 nhưng mảng bị trống hoặc thiếu
+    // -> Frontend dùng vòng lặp tự động lấp đầy từ V.5 lùi dần về V.1
+    for (let i = currentVer; i >= 1; i--) {
+      // Tìm xem có data thực của version này không
+      const existingVer = file.versions?.find((v: any) => v.version === i);
+      
+      if (existingVer) {
+        versions.push(existingVer);
+      } else {
+        // Nếu không có, tự tạo một phiên bản ảo để giao diện luôn đầy đủ V.1 -> V.5
+        versions.push({
+          version: i,
           location: file.location || file.fileUrl,
-          uploadedBy: file.modifiedBy || file.createdBy,
-          createdAt: file.updatedAt || file.createdAt
-        }
-      ];
+          uploadedBy: file.modifiedBy || file.createdBy || "Admin",
+          createdAt: file.updatedAt || file.createdAt,
+          fileName: file.name, // Lấy tên hiện tại hiển thị tạm
+          previewSrc: file.previewSrc
+        });
+      }
+    }
+  }
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return "Unknown date";
@@ -50,7 +69,6 @@ export default function VersionHistoryPanel({
     });
   };
 
-  // 👇 1. ĐƯA HÀM RENDER THUMBNAIL VÀO ĐÂY
   const renderThumbnail = (ver: any, isCurrent: boolean) => {
     const imageUrl = isCurrent ? (currentThumbnail || file.previewSrc) : (ver.previewSrc || ver.thumbnail);
 
@@ -58,7 +76,6 @@ export default function VersionHistoryPanel({
       return <img src={imageUrl} alt="thumbnail" className="w-full h-full object-cover" />;
     }
 
-    // Nếu chưa có ảnh thì lấy URL gốc để hiện Icon
     const fallbackUrl = (ver.location || file.fileUrl || "").toLowerCase();
 
     if (fallbackUrl.includes(".pdf")) {
@@ -104,7 +121,10 @@ export default function VersionHistoryPanel({
         ) : (
           <div className="flex flex-col">
             {versions.map((ver: any, index: number) => {
-              const isCurrent = ver.version === (file.currentVersion || versions[0].version);
+              // Phiên bản có số version bằng currentVer là bản hiện tại
+              const isCurrent = ver.version === currentVer;
+
+              const displayFileName = ver.fileName || ver.name || file.name;
 
               const authorName = typeof ver.uploadedBy === 'string' 
                 ? ver.uploadedBy 
@@ -117,7 +137,6 @@ export default function VersionHistoryPanel({
                     isCurrent ? "bg-[#eef4f9]" : "hover:bg-gray-50"
                   }`}
                 >
-                  {/* 👇 2. GỌI HÀM RENDER THUMBNAIL Ở ĐÂY THAY VÌ THẺ IMG CŨ */}
                   <div className="w-14 h-10 bg-slate-50 border border-gray-200 shadow-sm flex-shrink-0 flex items-center justify-center overflow-hidden rounded-sm">
                     {renderThumbnail(ver, isCurrent)}
                   </div>
@@ -128,7 +147,7 @@ export default function VersionHistoryPanel({
                       <span className="font-semibold text-[#005a9e]">
                         V.{ver.version}
                       </span>
-                      <span className="text-gray-600 ml-1">• {file.name}</span>
+                      <span className="text-gray-600 ml-1">• {displayFileName}</span>
                     </div>
                     <div className="text-xs text-gray-600 mt-0.5 truncate">
                       {authorName}

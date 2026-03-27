@@ -12,11 +12,6 @@ export const todo2DService = {
     const data = await api.get(`${BASE_URL}/file/${fileId}`);
     return data as TodoItem[];
   },
-  
-  getTodosByProject: async (projectId: string) => {
-    const data = await api.get(`${BASE_URL}/project/${projectId}`);
-    return data as TodoItem[];
-  },
 
   /**
    * 2. Tạo todo mới

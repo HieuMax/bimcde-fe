@@ -24,5 +24,3 @@ const nextConfig: NextConfig = {
 };
 
 export default nextConfig;
-
-// bimcde-fe\next.config.example.ts

@@ -9,8 +9,11 @@ import {
     SquareScissors,
     Box,
     ClipboardCheck,
+    MoreVertical,
+    Settings,
     Fullscreen,
     Eye,
+    Download,
     LucideIcon,
     Ruler,
     Grid3x3,
@@ -24,7 +27,7 @@ import {
     ArrowRight,
     ArrowDown,
     ArrowUp,
-    Trash2, 
+    Trash2, // Icon Walk
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -101,6 +104,8 @@ function NavIconButton({ icon: Icon, label, onClick, isActive, className }: NavB
 
 export function Navbar({
     onBack,
+    onRefresh,
+    onAction,
     onAddTodo,
     activeTool,
     modelOpacity = 1,
@@ -404,6 +409,9 @@ export function Navbar({
                                 </div>
                             </DropdownMenuContent>
                         </DropdownMenu>
+
+                        {/* <div className="w-px h-6 bg-border mx-1" />
+                        <NavIconButton icon={MoreVertical} label="More options" /> */}
 
                         <div className="w-px h-6 bg-border mx-1" />
 

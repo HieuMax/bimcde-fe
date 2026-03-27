@@ -18,7 +18,9 @@ import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { httpClient } from "@/lib/http-client";
 
+// IMPORT RECIPIENT SELECTOR
 import { RecipientSelector, RecipientOption } from "../../release/RecipientSelector";
+
 /* ===================== TYPES ===================== */
 interface Props {
   open: boolean;
@@ -37,6 +39,7 @@ export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
   /* --- STATE --- */
   const [shareType, setShareType] = useState<ShareType>("PUBLIC_LINK");
   const [selectedRecipients, setSelectedRecipients] = useState<RecipientOption[]>([]);
+  const [customEmails, setCustomEmails] = useState(""); 
   const [note, setNote] = useState("");
   const [expiresAt, setExpiresAt] = useState("");
   const [accessLevel, setAccessLevel] = useState<AccessLevel>("VIEW");
@@ -53,6 +56,7 @@ export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
       setShareType("PUBLIC_LINK");
       setAccessLevel("VIEW");
       setSelectedRecipients([]); 
+      setCustomEmails(""); // 👈 Reset email nhập tay
       setNote("");
       setExpiresAt("");
     }
@@ -63,18 +67,27 @@ export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
     onOpenChange(false);
   };
 
-  /* --- MUTATION --- */
+  /* --- MUTATION (GỌI API) --- */
   const shareMutation = useMutation({
     mutationFn: async () => {
       if (isFolder) throw new Error("Không hỗ trợ chia sẻ thư mục.");
       
-      // Chỉ lấy danh sách email nếu đang ở chế độ SPECIFIC
+      // Xử lý chuỗi email nhập tay (loại bỏ khoảng trắng và email rỗng)
+      const parsedCustomEmails = customEmails
+        .split(",")
+        .map(e => e.trim())
+        .filter(e => e.includes("@"));
+
+      // Gộp email từ RecipientSelector và email nhập tay
       const finalRecipients = shareType === "SPECIFIC" 
-        ? selectedRecipients.map(r => r.email).filter(Boolean) as string[]
-        : [];
+        ? [
+            ...(selectedRecipients.map(r => r.email).filter(Boolean) as string[]),
+            ...parsedCustomEmails
+          ]
+        : parsedCustomEmails; // Cho phép gửi email thông báo kể cả khi chọn PUBLIC_LINK
 
       if (shareType === "SPECIFIC" && finalRecipients.length === 0) {
-        throw new Error("Chế độ 'Người cụ thể' yêu cầu phải chọn ít nhất một thành viên có email hợp lệ.");
+        throw new Error("Chế độ 'Người cụ thể' yêu cầu phải chọn hoặc nhập ít nhất một email hợp lệ.");
       }
 
       // Gọi API
@@ -101,8 +114,8 @@ export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
       const link = `${clientUrl}/share/${token}`;
       setShareLink(link);
       
-      if (shareType === "SPECIFIC" && selectedRecipients.length > 0) {
-        toast.success(`Link created and email sent successfully to ${selectedRecipients.length} people!`);
+      if (shareType === "SPECIFIC" || customEmails.trim().length > 0) {
+        toast.success(`Link created and email sent successfully!`);
       } else {
         toast.success("Link created successfully!");
       }
@@ -112,8 +125,8 @@ export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
     }
   });
 
-  // Nút submit hợp lệ khi: có file + không phải folder + (nếu là Specific thì phải chọn người)
-  const canSubmit = !!file && !isFolder && (shareType !== "SPECIFIC" || selectedRecipients.length > 0);
+  // Nút submit hợp lệ khi: có file + không phải folder + (nếu là Specific thì phải chọn người hoặc nhập email)
+  const canSubmit = !!file && !isFolder && (shareType !== "SPECIFIC" || selectedRecipients.length > 0 || customEmails.trim().length > 0);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -154,22 +167,37 @@ export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
               </Select>
             </div>
 
-            {/* CHỈ HIỂN THỊ KHI CHỌN CHẾ ĐỘ SPECIFIC */}
+            {/* 👇 CHỈ HIỂN THỊ KHI CHỌN CHẾ ĐỘ SPECIFIC */}
             {shareType === "SPECIFIC" && (
-              <div className="space-y-1.5 animate-in fade-in duration-200">
-                <Label className="text-xs text-slate-500">
-                  People <span className="text-red-500">*</span>
-                </Label>
-                <div className="border rounded-md p-1 bg-slate-50 transition-all focus-within:ring-2 focus-within:ring-blue-100 focus-within:border-blue-400">
-                    <RecipientSelector
-                      projectId={projectId}
-                      initialOptions={selectedRecipients}
-                      onChange={(ids, options) => setSelectedRecipients(options)}
-                    />
+              <div className="space-y-4 animate-in fade-in duration-200">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-slate-500">
+                    Select Project Members
+                  </Label>
+                  <div className="border rounded-md p-1 bg-slate-50 transition-all focus-within:ring-2 focus-within:ring-blue-100 focus-within:border-blue-400">
+                      <RecipientSelector
+                        projectId={projectId}
+                        initialOptions={selectedRecipients}
+                        onChange={(ids, options) => setSelectedRecipients(options)}
+                      />
+                  </div>
                 </div>
-                <div className="pt-2 text-xs text-slate-500">
+
+                {/* 👇 THÊM KHUNG NHẬP EMAIL THỦ CÔNG */}
+                {/* <div className="space-y-1.5">
+                  <Label className="text-xs text-slate-500">
+                    Or enter email addresses <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    placeholder="example1@gmail.com, example2@yahoo.com"
+                    value={customEmails}
+                    onChange={e => setCustomEmails(e.target.value)}
+                  />
+                </div> */}
+
+                {/* <div className="pt-1 text-xs text-slate-500">
                   Note: Any access restrictions placed on the files are removed when the files are shared.
-                </div>
+                </div> */}
               </div>
             )}
 
@@ -186,34 +214,46 @@ export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
             )}
 
             {(shareType === "INTERNAL_LINK" || shareType === "PUBLIC_LINK") && (
-              <div className="grid grid-cols-2 gap-4 animate-in fade-in duration-200">
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-slate-500">
-                    Link expires on (in UTC)
-                  </Label>
+              <>
+                {/* 👇 TÙY CHỌN: CHO PHÉP NHẬP EMAIL ĐỂ GỬI LINK CẢ Ở CHẾ ĐỘ PUBLIC */}
+                <div className="space-y-1.5 animate-in fade-in duration-200">
+                  <Label className="text-xs text-slate-500">Send link to emails (optional)</Label>
                   <Input
-                    type="date"
-                    value={expiresAt}
-                    onChange={e => setExpiresAt(e.target.value)}
+                    placeholder="example1@gmail.com, example2@yahoo.com"
+                    value={customEmails}
+                    onChange={e => setCustomEmails(e.target.value)}
                   />
                 </div>
 
-                <div className="space-y-1.5">
-                  <Label className="text-xs text-slate-500">Access</Label>
-                  <Select
-                    value={accessLevel}
-                    onValueChange={(v: any) => setAccessLevel(v)}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="VIEW">View only</SelectItem>
-                      <SelectItem value="DOWNLOAD">View & download</SelectItem>
-                    </SelectContent>
-                  </Select>
+                <div className="grid grid-cols-2 gap-4 animate-in fade-in duration-200">
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-slate-500">
+                      Link expires on (in UTC)
+                    </Label>
+                    <Input
+                      type="date"
+                      value={expiresAt}
+                      onChange={e => setExpiresAt(e.target.value)}
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-slate-500">Access</Label>
+                    <Select
+                      value={accessLevel}
+                      onValueChange={(v: any) => setAccessLevel(v)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="VIEW">View only</SelectItem>
+                        <SelectItem value="DOWNLOAD">View & download</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-              </div>
+              </>
             )}
 
             {(shareType === "INTERNAL_LINK" || shareType === "PUBLIC_LINK") && (
@@ -255,7 +295,7 @@ export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
                        <Button variant="ghost" onClick={handleClose}>Cancel</Button>
                        <Button onClick={() => shareMutation.mutate()} disabled={!canSubmit || shareMutation.isPending}>
                           {shareMutation.isPending ? <Loader2 className="animate-spin mr-2 h-4 w-4"/> : (
-                              shareType === "SPECIFIC" ? "Create a Link and Send an Email" : "Create a Share Link"
+                              (shareType === "SPECIFIC" || customEmails.trim().length > 0) ? "Create Link & Send Email" : "Create Share Link"
                           )}
                        </Button>
                     </>

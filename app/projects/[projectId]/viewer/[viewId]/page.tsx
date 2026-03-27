@@ -14,8 +14,10 @@ export default function Page() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  // Lấy token từ URL (do file redirect phía trên bắn sang)
   const shareToken = searchParams?.get("shareToken") ?? undefined;
   
+  // Xác định chế độ Share
   const isShareMode = !!shareToken;
 
   /* ===== STATE ===== */
@@ -95,3 +97,4 @@ export default function Page() {
   );
 }
 
+// bimcde-fe\app\projects\[projectId]\viewer\[viewId]\page.tsx

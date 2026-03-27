@@ -6,9 +6,9 @@ import { AnimatePresence, motion } from 'framer-motion';
 import FileDetailTab from './tabView2D/detailTab';
 import TodosTab from './tabView2D/todoTab';
 import ViewsTab from './tabView2D/viewTab';
-import VersionHistoryPanel from './tabView2D/VersionHistoryPanel';
-import { ViewItem, TodoItem, PageItem, IFile } from '@/types/explorer';
 
+import { ViewItem, TodoItem, PageItem, IFile } from '@/types/explorer';
+import VersionHistoryPanel from './tabView2D/VersionHistoryPanel';
 
 const PagesTab = dynamic(() => import('./tabView2D/pageTab'), { ssr: false });
 
@@ -35,9 +35,11 @@ type LeftPanelBodyProps = {
   onDeleteView?: (id: string) => void;
   onDeleteTodo?: (id: string) => void;
   onEditView?: (view: ViewItem) => void;
-  onCloseHistory?: () => void;
+
   onOpenVersion?: (version: any) => void;
   onDownloadVersion?: (version: any) => void;
+  onCloseHistory?: () => void;
+  onFileUpdated?: (file: IFile) => void;
 };
 
 export default function LeftPanelBody(props: LeftPanelBodyProps) {
@@ -52,9 +54,9 @@ export default function LeftPanelBody(props: LeftPanelBodyProps) {
     onDeleteView,
     onDeleteTodo,
     onEditView,
-    onCloseHistory,
     onOpenVersion,
-    onDownloadVersion
+    onDownloadVersion,
+    onCloseHistory
   } = props;
 
   return (
@@ -68,7 +70,10 @@ export default function LeftPanelBody(props: LeftPanelBodyProps) {
         className="h-full"
       >
         {activeTool === 'filedetail' && (
-          <FileDetailTab file={data.file} view={data.view as any} />
+          <FileDetailTab 
+            file={data.file} view={data.view ?? null} 
+            onUpdateSuccess={props.onFileUpdated}
+          />
         )}
 
         {activeTool === 'history' && (

@@ -7,7 +7,7 @@ import { useTags } from "@/components/features/explorer/hooks/useTags";
 import { TagIcon, Loader2 } from "lucide-react";
 
 export default function CreateTodoPanel({
-  projectId, // 👈 THÊM PROP NÀY ĐỂ TRUYỀN VÀO RECIPIENT SELECTOR
+  projectId, 
   onClose,
   onSave,
 }: {

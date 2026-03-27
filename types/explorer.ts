@@ -120,8 +120,8 @@ export interface TodoItem {
   _id: string;
   title: string;
   description?: string;
-  status?: "Open" | "In Progress" | "Waiting" | "Done" | "Closed" ;
-  priority?: "Critical" | "High" | "Normal" | "Low";
+  status?: "Open" | "In Progress" | "Done" | "On Hold"; 
+  priority?: "Low" | "Normal" | "High" | "Urgent";
   type?: string;
   dueDate?: string;
   completion?: number;

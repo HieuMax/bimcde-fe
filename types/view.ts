@@ -40,23 +40,6 @@ export interface IView {
   viewState: IViewState;
   createdAt: string;
   updatedAt: string;
-
-  currentVersion: number;
-  size?: number;
-  mimeType?: string;
-
-  location?: string;
-  fileUrl?: string;
-
-  // createdAt?: string;
-  // createdBy?: string;
-
-  // updatedAt?: string;
-  modifiedBy?: string;
-
-  isLocked?: boolean;
-  lockedBy?: string;
-
 }
 
 export interface CreateViewDTO {

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useParams  } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Menu, Search, ChevronDown, Check, Plus, ChevronRight, Box, FileText, Folder, FolderSearch, LinkIcon, X, AlertCircle, Bookmark, Circle, ArrowLeft, Camera, MessageSquare, MoreVertical, Pencil, Play, Trash2 } from "lucide-react"
@@ -31,7 +31,8 @@ export function Topics({
 
     const queryClient = useQueryClient()
     const router = useRouter()
-
+    const params = useParams()
+    
     const [view, setView] = useState<ViewState>("list")
     
     const [selectedTopic3D, setSelectedTopic3D ] = useState<TopicItem | null>(null)
@@ -123,9 +124,9 @@ export function Topics({
     const [formData, setFormData] = useState<Partial<TopicItem>>({
         title: "",
         description: "",
-        type: "undefined",
-        priority: "normal",
-        status: "new",
+        type: "Undefined",
+        priority: "Normal",
+        status: "New",
         // projectId: projectId
     })
 
@@ -177,18 +178,19 @@ export function Topics({
     const handleCreateSubmit = async () => {
         if (!formData.title) return alert("Title is required")
 
+        const safeProjectId = projectId || (params?.projectId as string) || (params?.id as string);
         if (!projectId) {
             alert("Lỗi: Không tìm thấy Project ID từ hệ thống.");
             return;
         }
 
-        let payload = { ...formData, projectId: projectId, references: selectedRefs }
+        // let payload = { ...formData, projectId: projectId, references: selectedRefs }
+        let payload = { ...formData, projectId: safeProjectId, references: selectedRefs }
 
-        // Xóa trường assignee nếu người dùng không nhập gì để tránh lỗi Cast to ObjectId
         if (!payload.assignee || payload.assignee.trim() === "") {
             delete payload.assignee;
         }
-        // Tương tự với dueDate (nếu không có thì không gửi string rỗng)
+        
         if (!payload.dueDate) {
             delete payload.dueDate;
         }
@@ -935,16 +937,16 @@ export function Topics({
                         onChange={(e) => setFormData({...formData, type: e.target.value as any})}
                     >
                         <option>Select type</option>
-                        <option value="undefined">Undefined</option>
-                        <option value="comment">Comment</option>
-                        <option value="issue">Issue</option>
-                        <option value="request">Request</option>
-                        <option value="fault">Fault</option>
-                        <option value="inquiry">Inquiry</option>
-                        <option value="solution">Solution</option>
-                        <option value="remark">Remark</option>
-                        <option value="clash">Clash</option>
-                        <option value="opo">Opo</option>
+                        <option value="uUndefined">Undefined</option>
+                        <option value="Comment">Comment</option>
+                        <option value="Issue">Issue</option>
+                        <option value="Request">Request</option>
+                        <option value="Fault">Fault</option>
+                        <option value="Inquiry">Inquiry</option>
+                        <option value="Solution">Solution</option>
+                        <option value="Remark">Remark</option>
+                        <option value="Clash">Clash</option>
+                        <option value="Ppo">Opo</option>
                     </select>
                 </div>
                 <div className="space-y-1">
@@ -977,11 +979,11 @@ export function Topics({
                     <label className="text-xs text-slate-500">Status</label>
                     <select className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 bg-white">
                         <option>Select status</option>
-                        <option value="new">New</option>
-                        <option value="inprogress">In Progress</option>
-                        <option value="waiting">Waiting</option>
-                        <option value="done">Done</option>
-                        <option value="closed">Closed</option>
+                        <option value="New">New</option>
+                        <option value="Inprogress">In Progress</option>
+                        <option value="Waiting">Waiting</option>
+                        <option value="Done">Done</option>
+                        <option value="Closed">Closed</option>
                     </select>
                 </div>
                 <div className="pt-2">
@@ -1051,16 +1053,16 @@ export function Topics({
                         onChange={(e) => setFormData({...formData, type: e.target.value as any})}
                     >
                         <option>Select type</option>
-                        <option value="undefined">Undefined</option>
-                        <option value="comment">Comment</option>
-                        <option value="issue">Issue</option>
-                        <option value="request">Request</option>
-                        <option value="fault">Fault</option>
-                        <option value="inquiry">Inquiry</option>
-                        <option value="solution">Solution</option>
-                        <option value="remark">Remark</option>
-                        <option value="clash">Clash</option>
-                        <option value="opo">Opo</option>
+                        <option value="Undefined">Undefined</option>
+                        <option value="Comment">Comment</option>
+                        <option value="Issue">Issue</option>
+                        <option value="Request">Request</option>
+                        <option value="Fault">Fault</option>
+                        <option value="Inquiry">Inquiry</option>
+                        <option value="Solution">Solution</option>
+                        <option value="Remark">Remark</option>
+                        <option value="Clash">Clash</option>
+                        <option value="Opo">Opo</option>
                     </select>
                 </div>
                 <div className="space-y-1">

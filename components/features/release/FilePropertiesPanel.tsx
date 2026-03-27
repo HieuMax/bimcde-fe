@@ -42,8 +42,21 @@ export const FilePropertiesPanel: React.FC<FilePropertiesPanelProps> = ({
     if (IFC_FILES.includes(fileExt)) {
       if (!item.location) return;
 
+      // Normalize in case location is already URL-encoded
+      let locationUrl = item.location;
+      try {
+        const decoded = decodeURIComponent(item.location);
+        if (/^https?:\/\//i.test(decoded)) {
+          locationUrl = decoded;
+        }
+      } catch {
+        // ignore malformed encoding and keep original
+      }
+
       router.push(
-        `/viewer?urls=${encodeURIComponent(JSON.stringify([item.location]))}`,
+        `/projects/${projectId}/viewer3d?urls=${encodeURIComponent(
+          JSON.stringify([locationUrl]),
+        )}`,
       );
       return;
     }

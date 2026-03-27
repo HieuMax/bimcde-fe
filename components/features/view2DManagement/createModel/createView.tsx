@@ -6,13 +6,13 @@ import { Loader2 } from "lucide-react";
 import  {RecipientSelector, RecipientOption } from "@/components/features/release/RecipientSelector"; 
 
 interface CreateViewPanelProps {
-  projectId: string; 
+  projectId: string;
   onClose: () => void;
   onSave: (data: {
     name: string;
     description: string;
     createdBy?: string;
-    sharedWithUsers?: string[]; 
+    sharedWithUsers?: string[];
   }) => Promise<void>;
 }
 
@@ -24,7 +24,6 @@ export default function CreateViewPanel({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   
-  // 👇 THAY THẾ STATE shareWith BẰNG DANH SÁCH RECIPIENT
   const [selectedRecipients, setSelectedRecipients] = useState<RecipientOption[]>([]);
   
   const [isSubmitting, setIsSubmitting] = useState(false);

@@ -1,5 +1,5 @@
 import { AuthProvider } from "./context/authContext";
-import "./globals.css";
+import "./global.css";
 import type { Metadata } from "next";
 import QueryProvider from "@/components/providers/QueryProvider";
 import { Roboto } from "next/font/google";
@@ -23,14 +23,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${roboto.variable} h-full`}>
-      <body className="h-full overflow-hidden">
+    <html lang="en" className={roboto.variable}>
+      <body>
         <QueryProvider>
-          <AuthProvider>
-            <div className="w-full h-full min-h-0">
-              {children}
-            </div>
-          </AuthProvider>
+          <AuthProvider>{children}</AuthProvider>
         </QueryProvider>
       </body>
     </html>

@@ -16,6 +16,7 @@ import { explorerService } from '@/services/explorer.service';
 type Props = {
   file: IFile | null;
   view?: View2DItem | null;
+  onUpdateSuccess?: (updatedFile: IFile) => void;
 };
 
 function formatFileSize(bytes?: number): string {
@@ -34,7 +35,7 @@ function formatDate(date?: string) {
   return new Date(date).toLocaleDateString();
 }
 
-export default function FileDetailTab({ file }: Props) {
+export default function FileDetailTab({ file, onUpdateSuccess}: Props) {
   const router = useRouter();
 
   const [mode, setMode] = useState<'view' | 'edit'>('view');
@@ -84,15 +85,92 @@ export default function FileDetailTab({ file }: Props) {
   }
 
   // ===== HÀM XỬ LÝ LƯU (GỌI API) =====
+
+  // const handleSaveDetails = async () => {
+  //   let finalName = editForm.name.trim();
+
+  //   if (!finalName) {
+  //      alert("Title is required");
+  //      return;
+  //   }
+
+  //   // --- FIX LỖI LẶP ĐUÔI FILE (.pdf.pdf.pdf) ---
+  //   // 1. Lấy đuôi mở rộng của file gốc (VD: .pdf, .docx)
+  //   const extMatch = file.name.match(/\.[0-9a-z]+$/i);
+  //   if (extMatch) {
+  //     const ext = extMatch[0].toLowerCase();
+  //     // 2. Cắt bỏ toàn bộ các đuôi bị lặp ở cuối chuỗi
+  //     const extRegex = new RegExp(`(${ext.replace(/\./g, '\\.')})+$`, 'i');
+  //     finalName = finalName.replace(extRegex, '');
+  //     // 3. Nối lại đúng 1 đuôi duy nhất
+  //     finalName = finalName + ext;
+  //   }
+  //   // --------------------------------------------
+    
+  //   setLoading(true);
+  //   try {
+  //     // 1. Lấy userId từ localStorage
+  //     let userObj: any = null;
+  //     try {
+  //       const userStr = localStorage.getItem('user');
+  //       if (userStr) userObj = JSON.parse(userStr);
+  //     } catch (e) {}
+  //     const userId = userObj?._id || userObj?.id || currentUserId || "";
+
+  //     // Gọi API với finalName đã được chuẩn hóa
+  //     if (finalName !== file.name) {
+  //       await explorerService.renameFile(file._id, finalName, userId);
+  //     }
+
+  //     await explorerService.assignTags([file._id], editForm.tags);
+
+  //     // Cập nhật lại UI với tên mới
+  //     file.name = finalName;
+  //     file.tags = editForm.tags.map(tagId => {
+  //        const found = availableTags?.find((at: any) => at._id === tagId);
+  //        return found || tagId;
+  //     });
+
+  //     // Tắt mode edit
+  //     setMode('view');
+  //   } catch (error) {
+  //     console.error("Lỗi khi lưu thông tin file:", error);
+  //     alert("Đã xảy ra lỗi khi lưu. Vui lòng thử lại!");
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
+
   const handleSaveDetails = async () => {
-    if (!editForm.name.trim()) {
+    let finalName = editForm.name.trim();
+
+    if (!finalName) {
        alert("Title is required");
        return;
     }
+
+    // --- FIX LỖI LẶP ĐUÔI FILE (.pdf.pdf.pdf) ---
+    const extMatch = file.name.match(/\.[0-9a-z]+$/i);
+    if (extMatch) {
+      const ext = extMatch[0]; // Lấy đuôi gốc, ví dụ: .pdf hoặc .DOCX
+      let cleaned = finalName;
+
+      // 1. Cắt bỏ dấu chấm hoặc khoảng trắng bị gõ thừa ở cuối cùng
+      cleaned = cleaned.replace(/[\.\s]+$/, '');
+
+      // 2. Vòng lặp bóc tách: Cứ thấy đuôi ở cuối là cắt bỏ, kể cả các dấu chấm đứng giữa
+      while (cleaned.toLowerCase().endsWith(ext.toLowerCase())) {
+        cleaned = cleaned.slice(0, -ext.length);    // Cắt đuôi
+        cleaned = cleaned.replace(/[\.\s]+$/, '');  // Cắt tiếp dấu chấm thừa (vd trong trường hợp ..DOCX)
+      }
+
+      // 3. Nối lại đúng 1 lần đuôi gốc
+      finalName = cleaned + ext;
+    }
+    // --------------------------------------------
     
     setLoading(true);
     try {
-      // 1. Lấy userId từ localStorage
       let userObj: any = null;
       try {
         const userStr = localStorage.getItem('user');
@@ -100,20 +178,36 @@ export default function FileDetailTab({ file }: Props) {
       } catch (e) {}
       const userId = userObj?._id || userObj?.id || currentUserId || "";
 
-      // 2. Gọi API Đổi tên (Nếu có thay đổi)
-      if (editForm.name.trim() !== file.name) {
-        await explorerService.renameFile(file._id, editForm.name.trim(), userId);
+      // 1. Tạo một object clone để chứa dữ liệu mới
+      let updatedFileRes: any = { ...file };
+
+      // 2. Gọi API Rename và lấy kết quả trả về từ Backend (chứa version mới)
+      if (finalName !== file.name) {
+        const renameResult = await explorerService.renameFile(file._id, finalName, userId);
+        if (renameResult) {
+          updatedFileRes = { ...updatedFileRes, ...renameResult };
+        }
       }
 
-      // 3. Gọi API Cập nhật Tags
-      await explorerService.assignTags([file._id], editForm.tags);
+      // 3. Gọi API gán Tag
+      const tagUpdatedFiles = await explorerService.assignTags([file._id], editForm.tags);
+      if (tagUpdatedFiles && tagUpdatedFiles.length > 0) {
+        const updatedWithTag = tagUpdatedFiles.find((f: any) => f._id === file._id);
+        if (updatedWithTag) {
+          updatedFileRes = { ...updatedFileRes, ...updatedWithTag };
+        }
+      }
 
-      // 4. Mẹo cập nhật UI tạm thời để thấy ngay mà không cần tải lại trang
-      file.name = editForm.name.trim();
-      file.tags = editForm.tags.map(tagId => {
-         const found = availableTags?.find((at: any) => at._id === tagId);
-         return found || tagId; // Trả về object tag nếu tìm thấy, hoặc ID string
-      });
+      // 4. BƯỚC QUAN TRỌNG: Gửi object mới lên component cha (viewHome) để re-render
+      if (onUpdateSuccess) {
+         // Đảm bảo tags được map lại đúng format để UI hiển thị không bị lỗi
+         updatedFileRes.tags = editForm.tags.map(tagId => {
+           const found = availableTags?.find((at: any) => at._id === tagId);
+           return found || tagId;
+         });
+         
+         onUpdateSuccess(updatedFileRes);
+      }
 
       // Tắt mode edit
       setMode('view');

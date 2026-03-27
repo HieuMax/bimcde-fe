@@ -22,8 +22,8 @@ export default function PdfViewerClient({
   onZoom,
   onPrev,
   onNext,
+  onPageChange,
   onPageRendered,
-  onPageThumbnailGenerated
 }: {
   src: string;
   currentPageIndex: number;
@@ -33,8 +33,8 @@ export default function PdfViewerClient({
   onZoom: (d: number) => void;
   onPrev: () => void;
   onNext: () => void;
+  onPageChange?: (page: number) => void;
   onPageRendered?: () => void;
-  onPageThumbnailGenerated?: (index: number, src: string) => void; 
 }) {
   const [numPages, setNumPages] = useState(0);
   const [containerWidth, setContainerWidth] = useState(0);
@@ -42,6 +42,43 @@ export default function PdfViewerClient({
   const containerRef = useRef<HTMLDivElement>(null);
   const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
 
+  const isScrollDriven = useRef(false);
+  const currentPageIndexRef = useRef(currentPageIndex);
+
+  useEffect(() => {
+    if (!containerRef.current || pageRefs.current.size === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const pageNum = Number(entry.target.getAttribute('data-page-number'));
+            // Nếu phát hiện trang mới nằm giữa màn hình
+            if (pageNum && pageNum !== currentPageIndexRef.current) {
+              isScrollDriven.current = true; // Đánh dấu là do user cuộn chuột
+              onPageChange?.(pageNum); // Báo về Control Bar nhảy số
+            }
+          }
+        });
+      },
+      {
+        root: containerRef.current,
+        rootMargin: '-40% 0px -40% 0px', // Bắt giao điểm ở khoảng giữa màn hình
+      }
+    );
+
+    const timeoutId = setTimeout(() => {
+      pageRefs.current.forEach((el) => {
+        if (el) observer.observe(el);
+      });
+    }, 500);
+
+    return () => {
+      clearTimeout(timeoutId);
+      observer.disconnect();
+    };
+  }, [numPages, zoom, onPageChange]);
+  
   /* ===== OBSERVE WIDTH ===== */
   useEffect(() => {
     if (!containerRef.current) return;
@@ -54,12 +91,14 @@ export default function PdfViewerClient({
 
   /* ===== SCROLL TO ACTIVE PAGE ===== */
   useEffect(() => {
-    const el = pageRefs.current.get(currentPageIndex);
-    if (el && containerRef.current) {
-      containerRef.current.scrollTo({
-        top: el.offsetTop - 32,
-        behavior: 'smooth',
-      });
+    if (isScrollDriven.current) {
+      isScrollDriven.current = false;
+      return;
+    }
+    
+    if (pageRefs.current.has(currentPageIndex) && containerRef.current) {
+      const el = pageRefs.current.get(currentPageIndex);
+      el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   }, [currentPageIndex]);
 
@@ -76,10 +115,8 @@ export default function PdfViewerClient({
             return (
               <div
                 key={pageNumber}
-                // ref={(el) => el && pageRefs.current.set(pageNumber, el)}
-                ref={(el) => {
-                  if (el) pageRefs.current.set(pageNumber, el);
-                }}
+                ref={(el) => el && pageRefs.current.set(pageNumber, el)}
+                data-page-number={pageNumber}
                 className="mb-4 flex justify-center"
               >
                 <Page
@@ -89,27 +126,9 @@ export default function PdfViewerClient({
                   rotate={pageNumber === currentPageIndex ? pageRotation : 0}
                   renderTextLayer={false}
                   renderAnnotationLayer={false}
-                  // onRenderSuccess={() => {
-                  //   if (pageNumber === currentPageIndex) {
-                  //     onPageRendered?.(); 
-                  //   }
-                  // }}
                   onRenderSuccess={() => {
-                    if (pageNumber === currentPageIndex) onPageRendered?.(); 
-                    
-                    if (onPageThumbnailGenerated) {
-                      setTimeout(() => {
-                        const el = pageRefs.current.get(pageNumber);
-                        const canvas = el?.querySelector('canvas');
-                        if (canvas) {
-                          try {
-                            const thumbSrc = canvas.toDataURL("image/jpeg", 0.5);
-                            onPageThumbnailGenerated(pageNumber, thumbSrc);
-                          } catch (e) {
-                            console.warn("Lỗi tạo thumbnail PDF:", e);
-                          }
-                        }
-                      }, 500);
+                    if (pageNumber === currentPageIndex) {
+                      onPageRendered?.(); 
                     }
                   }}
                 />
@@ -120,28 +139,15 @@ export default function PdfViewerClient({
       </div>
 
       {/* ===== CONTROL BAR ===== */}
-      <div className="absolute left-6 bottom-6 bg-[#2f2b36] text-white rounded-md p-3 flex items-center gap-3 shadow-lg z-50">
-        <button onClick={onPrev} className="p-1 hover:bg-white/10 rounded disabled:opacity-50" disabled={currentPageIndex <= 1}>
-          <ChevronLeft size={18} />
-        </button>
-        <div className="bg-white text-black px-3 py-0.5 rounded text-sm font-medium">
+      <div className="absolute left-1/2 bottom-6 -translate-x-1/2 bg-[#2f2b36] text-white rounded-md px-2 py-2 flex items-center gap-3 shadow-lg z-50">
+        <button onClick={onPrev}><ChevronLeft size={18} /></button>
+        <div className="bg-white text-black px-3 rounded text-sm">
           {currentPageIndex} / {numPages}
         </div>
-        <button onClick={onNext} className="p-1 hover:bg-white/10 rounded disabled:opacity-50" disabled={currentPageIndex >= numPages}>
-          <ChevronRight size={18} />
-        </button>
-        <div className="bg-white text-black px-2 py-0.5 rounded text-sm font-medium ml-2 min-w-[3rem] text-center">
-          {Math.round(zoom * 100)}%
-        </div>
-        <button onClick={() => onZoom(-0.1)} className="p-1 hover:bg-white/10 rounded ml-2">
-          <ZoomOut size={18} />
-        </button>
-        <button onClick={() => onZoom(0.1)} className="p-1 hover:bg-white/10 rounded">
-          <ZoomIn size={18} />
-        </button>
-        <button onClick={() => onRotatePage(90)} className="p-1 hover:bg-white/10 rounded">
-          <RotateCcw size={18} />
-        </button>
+        <button onClick={onNext}><ChevronRight size={18} /></button>
+        <button onClick={() => onZoom(-0.1)}><ZoomOut size={16} /></button>
+        <button onClick={() => onZoom(0.1)}><ZoomIn size={16} /></button>
+        <button onClick={() => onRotatePage(90)}><RotateCcw size={16} /></button>
       </div>
     </div>
   );

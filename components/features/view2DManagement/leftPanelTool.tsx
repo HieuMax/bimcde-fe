@@ -11,7 +11,7 @@ export default function LeftPanelTool({
 }) {
   const tools = [
     { key: 'filedetail', icon: <Info size={22} />, label: 'File detail' },
-    { key: 'history', icon: <FileClock size={22} />, label: 'Revisions' },
+    { key: 'history', icon: <FileClock size={22} />, label: 'Version history' },
     { key: 'page', icon: <Grid2X2 size={22} />, label: 'Pages' },
     { key: 'todo', icon: <CircleCheckBig size={22} />, label: 'ToDos' },
     { key: 'view', icon: <Camera size={22} />, label: 'Views' },

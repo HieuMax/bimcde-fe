@@ -180,14 +180,14 @@ export default function ViewsTab({
                         }}
                         className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 hover:text-blue-600 flex items-center gap-2"
                       >
-                        <Edit size={12} /> Edit
+                        <Edit size={12} /> Rename
                       </button>
-                      {/* <button 
+                      <button 
                         className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 hover:text-blue-600 flex items-center gap-2"
                         onClick={() => setActiveMenuId(null)}
                       >
                         <Share2 size={12} /> Share
-                      </button> */}
+                      </button>
                       <div className="h-[1px] bg-gray-100 my-0.5" />
                       <button 
                         onClick={() => {

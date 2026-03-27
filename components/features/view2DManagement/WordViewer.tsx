@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { renderAsync } from 'docx-preview';
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react';
 import html2canvas from 'html2canvas';
 
 export default function WordViewerClient({
@@ -13,8 +13,8 @@ export default function WordViewerClient({
   onPrev,
   onNext,
   onLoadSuccess,
-  onPageThumbnailGenerated,
-  onRotatePage,
+  onPageChange,
+  onPageThumbnailGenerated
 }: {
   src: string;
   zoom: number;
@@ -22,15 +22,25 @@ export default function WordViewerClient({
   pageIndex?: number;
   onPrev?: () => void;
   onNext?: () => void;
+  onPageChange?: (page: number) => void;
   onLoadSuccess?: (total: number) => void;
   onPageThumbnailGenerated?: (index: number, src: string) => void; 
-  onRotatePage: (d: number) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [totalPages, setTotalPages] = useState(1);
   const pageRefs = useRef<HTMLElement[]>([]);
+
+  // Các Ref dùng để kiểm soát cuộn trang
+  const scrollContainerRef = useRef<HTMLDivElement>(null); 
+  const isScrollDriven = useRef(false);
+  const currentPageIndexRef = useRef(pageIndex);
+
+  // 🌟 LUÔN ĐỒNG BỘ INDEX HIỆN TẠI VÀO REF
+  useEffect(() => {
+    currentPageIndexRef.current = pageIndex;
+  }, [pageIndex]);
 
   useEffect(() => {
     let isMounted = true;
@@ -41,7 +51,7 @@ export default function WordViewerClient({
 
       try {
         const response = await fetch(src);
-        if (!response.ok) throw new Error('Unable to load Word file');
+        if (!response.ok) throw new Error('Không thể tải file Word');
         const blob = await response.blob();
 
         if (isMounted && containerRef.current) {
@@ -50,11 +60,17 @@ export default function WordViewerClient({
             inWrapper: true,
             ignoreWidth: false,
             ignoreHeight: false,
-            experimental: true,
+            experimental: true, 
           });
 
           if (containerRef.current) {
             const sections = Array.from(containerRef.current.querySelectorAll('section'));
+            
+            // 🌟 1. ĐÁNH DẤU SỐ TRANG CHO TỪNG PHẦN TỬ ĐỂ OBSERVER NHẬN DIỆN
+            sections.forEach((section, idx) => {
+               section.setAttribute('data-page-number', (idx + 1).toString());
+            });
+
             const total = sections.length > 0 ? sections.length : 1;
             
             pageRefs.current = sections;
@@ -63,14 +79,14 @@ export default function WordViewerClient({
             try {
               if (onLoadSuccess) onLoadSuccess(total);
             } catch (cbErr) {
-              console.warn("Page synchronization error:", cbErr);
+              console.warn("Lỗi đồng bộ trang:", cbErr);
             }
             const generateThumbnails = async () => {
               for (let i = 0; i < sections.length; i++) {
                 if (!isMounted) break; 
                 try {
                   const canvas = await html2canvas(sections[i], {
-                    scale: 0.25, 
+                    scale: 0.25,
                     useCORS: true,
                     logging: false,
                   });
@@ -82,7 +98,7 @@ export default function WordViewerClient({
                   
                   await new Promise(resolve => setTimeout(resolve, 50));
                 } catch (e) {
-                  console.warn(`Page thumbnail creation error ${i + 1}`);
+                  console.warn(`Lỗi tạo thumbnail trang ${i + 1}`);
                 }
               }
             };
@@ -90,20 +106,56 @@ export default function WordViewerClient({
           }
         }
       } catch (err) {
-        console.error('Error when rendering Word:', err);
-        if (isMounted) setError('Some complex images or links may not display.');
+        console.error('Lỗi khi render Word:', err);
+        if (isMounted) setError('Một số hình ảnh hoặc liên kết phức tạp có thể không hiển thị được.');
       } finally {
         if (isMounted) setLoading(false);
       }
     };
+
     loadDocx();
     return () => { isMounted = false; };
   }, [src]);
 
+  // 🌟 2. THÊM OBSERVER ĐỂ THEO DÕI KHI CUỘN CHUỘT
   useEffect(() => {
+    if (!scrollContainerRef.current || pageRefs.current.length === 0) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            const pageNum = Number(entry.target.getAttribute('data-page-number'));
+            if (pageNum && pageNum !== currentPageIndexRef.current) {
+              isScrollDriven.current = true; // Đánh dấu là do user cuộn chuột
+              onPageChange?.(pageNum); // Báo về Control Bar nhảy số
+            }
+          }
+        });
+      },
+      {
+        root: scrollContainerRef.current,
+        rootMargin: '-40% 0px -40% 0px', // Vùng nhận diện ở giữa màn hình
+      }
+    );
+
+    pageRefs.current.forEach((el) => observer.observe(el));
+    
+    return () => observer.disconnect();
+  }, [totalPages, zoom, onPageChange]);
+
+  // 🌟 3. LOGIC CUỘN MƯỢT CÓ CHỐNG GIẬT
+  useEffect(() => {
+    // Nếu trang nhảy số do cuộn chuột thì KHÔNG scrollIntoView nữa (Tránh giật trang)
+    if (isScrollDriven.current) {
+      isScrollDriven.current = false;
+      return;
+    }
+
+    // Nếu do bấm nút Next/Prev trên Control Bar -> Cuộn đến trang đó
     if (pageRefs.current.length > 0 && pageIndex > 0) {
       const targetPage = pageRefs.current[pageIndex - 1]; 
-      if (targetPage) {
+      if (targetPage && scrollContainerRef.current) {
         targetPage.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }
     }
@@ -146,8 +198,11 @@ export default function WordViewerClient({
         </div>
       )}
 
-      {/* ===== VIEWPORT CONTAINER ===== */}
-      <div className="absolute inset-0 overflow-auto scroll-smooth">
+      {/* 🌟 4. GẮN THÊM REF VÀO VIEWPORT CONTAINER */}
+      <div 
+        className="absolute inset-0 overflow-auto scroll-smooth"
+        ref={scrollContainerRef}
+      >
         <div
           style={{ zoom: zoom } as React.CSSProperties}
           ref={containerRef}
@@ -155,7 +210,7 @@ export default function WordViewerClient({
       </div>
 
       {/* ===== CONTROL BAR ===== */}
-      <div className="absolute left-6 bottom-6 bg-[#2f2b36] text-white rounded-md p-3 flex items-center gap-3 shadow-lg z-50">
+      <div className="absolute left-1/2 bottom-6 -translate-x-1/2 bg-[#2f2b36] text-white rounded-md px-3 py-2 flex items-center gap-3 shadow-lg z-50">
         <button onClick={onPrev} className="p-1 hover:bg-white/10 rounded disabled:opacity-50" disabled={pageIndex <= 1}>
           <ChevronLeft size={18} />
         </button>
@@ -173,9 +228,6 @@ export default function WordViewerClient({
         </button>
         <button onClick={() => onZoom(0.1)} className="p-1 hover:bg-white/10 rounded">
           <ZoomIn size={18} />
-        </button>
-        <button onClick={() => onRotatePage(90)} className="p-1 hover:bg-white/10 rounded">
-          <RotateCcw size={18} />
         </button>
       </div>
     </div>

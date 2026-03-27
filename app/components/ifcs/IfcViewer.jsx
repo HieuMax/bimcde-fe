@@ -1,14 +1,13 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ThreeScene } from '@/app/libs/ifc/scene';
-import * as THREE from "three";
 import { IfcManager } from '@/app/libs/ifc/ifc-manager';
 import { TreeNode } from './TreeNode';
 import TodoList from '@/components/todos/TodoList';
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import {
   Eye,
   EyeOff,
@@ -17,10 +16,6 @@ import {
   Info,
   EllipsisVertical,
   Menu, Search, Check,
-  Paperclip,
-  SquareScissors,
-  Shrink,
-  SquaresSubtract,
   Settings2,
   Footprints,
   Move
@@ -32,7 +27,6 @@ import { ViewList } from '@/components/views/ViewList';
 import { DataTable } from '@/components/_3d/data_table/DataTable';
 import { Topics } from '@/components/_3d/topics/Topics';
 import { ClashSets } from '@/components/_3d/clash_sets/ClashSets';
-import { Organizer } from '@/components/_3d/organizer/Organizer';
 import { PropertiesDrawer } from './PropertiesDrawer';
 import { ModelPositionDrawer } from './ModelPositionDrawer';
 
@@ -56,27 +50,9 @@ export default function IfcViewer({
   autoExpandedClashSetId,
   onRestoreClashSet,
   cameraMode,
+  selectionMode,
   activeTool,
-  onToolChange,
-
-  // --- USER PROPS ---
-  selectionMode = 'single',
-  areaSelectEnabled = false,
-  
-  // measurement
-  measureType = null,
-  measureColor = '#D81B60',
-  isMeasureActive = false,
-  onClearMeasurements = null,
-  
-  // visibility control
-  viewOptions = {
-    annotations: true,
-    clipPlanes: true,
-    grids: false,
-    ifcTypes: true,
-    objectAttachments: true,
-  },
+  onToolChange
 }) {
   const canvasRef = useRef(null);
   const loaderRef = useRef(null);
@@ -84,17 +60,8 @@ export default function IfcViewer({
   const threeSceneRef = useRef(null);
   const requestRef = useRef();
   const selectedItemsRef = useRef([]);
-  const selectionModeRef = useRef(selectionMode);
-  const modelUrlMap = useRef({});
-
-  useEffect(() => {
-    selectionModeRef.current = selectionMode;
-  }, [selectionMode]);
-
-  const areaSelectEnabledRef = useRef(areaSelectEnabled);
-  useEffect(() => {
-    areaSelectEnabledRef.current = areaSelectEnabled;
-  }, [areaSelectEnabled]);
+  const selectionModeRef = useRef(selectionMode)
+  const modelUrlMap = useRef({})
 
   const [isLoading, setIsLoading] = useState(false);
   const [selectedModelIndex, setSelectedModelIndex] = useState(null);
@@ -104,11 +71,11 @@ export default function IfcViewer({
   const [hiddenItems, setHiddenItems] = useState({});
   const [openMenuKey, setOpenMenuKey] = useState(null);
   const [selectedLayer, setSelectedLayer] = useState([]);
-  
-  const [sortBy, setSortBy] = useState("date-modified");
-  const [showSearch, setShowSearch] = useState(false);
-  const [statusFilter, setStatusFilter] = useState(undefined);
-  const [searchQuery, setSearchQuery] = useState("");
+  //< "name" | "date-modified" >
+  const [sortBy, setSortBy] = useState("date-modified")
+  const [showSearch, setShowSearch] = useState(false)
+  const [statusFilter, setStatusFilter] = useState(undefined)
+  const [searchQuery, setSearchQuery] = useState("")
 
   const [isPropertiesOpen, setIsPropertiesOpen] = useState(false);
   const [propertiesData, setPropertiesData] = useState(null);
@@ -117,495 +84,92 @@ export default function IfcViewer({
   const EXPANDED_WIDTH = 370;
   const COLLAPSED_WIDTH = 250;
 
-  //marker
-  const topicMarkerGroupRef = useRef(new THREE.Group());
-  const [markerCallback, setMarkerCallback] = useState(null);
-  const markerCallbackRef = useRef(null);
-  useEffect(() => {
-    markerCallbackRef.current = markerCallback;
-  }, [markerCallback]);
-
-  const clearTopicMarker = useCallback(() => {
-      const g = topicMarkerGroupRef.current;
-      while (g.children.length > 0) g.remove(g.children[0]);
-  }, []);
-
-  const drawTopicMarker = useCallback((point) => {
-      clearTopicMarker();
-      if (!point) return;
-
-      const canvas = document.createElement('canvas');
-      canvas.width = 128; canvas.height = 128;
-      const ctx = canvas.getContext('2d');
-
-      ctx.beginPath();
-      ctx.arc(64, 64, 55, 0, Math.PI * 2);
-      ctx.fillStyle = '#dc2626'; 
-      ctx.fill();
-
-      ctx.lineWidth = 8;
-      ctx.strokeStyle = '#ffffff';
-      ctx.stroke();
-
-      ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 64px Arial';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText('!', 64, 68);
-
-      const texture = new THREE.CanvasTexture(canvas);
-      const mat = new THREE.SpriteMaterial({
-          map: texture,
-          depthTest: false, 
-          depthWrite: false,
-          sizeAttenuation: true
-      });
-
-      const sprite = new THREE.Sprite(mat);
-      sprite.position.copy(point);
-      sprite.scale.set(1.5, 1.5, 1);
-      sprite.renderOrder = 10000;
-      
-      topicMarkerGroupRef.current.add(sprite);
-  }, [clearTopicMarker]);
+  // const [isCollapsed, setIsCollapsed] = useState(false);
 
   const mouseDownPos = useRef({ x: 0, y: 0 });
   const isDragging = useRef(false);
 
-  useEffect(() => {
-    if (!setSelectdItemsForNavbar) return;
-    const payload = (selectedItems || []).map(item => ({
-      ...item,
-      fileUrl: item.fileUrl || modelUrlMap.current[item.modelID],
-    }));
-    setSelectdItemsForNavbar(payload);
-  }, [selectedItems, setSelectdItemsForNavbar]);
-
+  // Model list
   const [models, setModels] = useState([]);
-  const modelsRef = useRef(models);
-  useEffect(() => {
-    modelsRef.current = models;
-  }, [models]);
 
   const [hiddenLayers, setHiddenLayers] = useState(new Set());
 
+  // DATA TABLE
   const isDataTable = state === 'data-table';
 
-  const [selectionRect, setSelectionRect] = useState(null);
-  const selectionRectRef = useRef(null);
-  const areaDragRef = useRef({ active: false, startX: 0, startY: 0 });
 
-  // =====================================================
-  // MEASUREMENT 
-  // =====================================================
-  const [measurementPoints, setMeasurementPoints] = useState([]); 
-  const [measurements, setMeasurements] = useState([]); 
-  
-
-  const measurementsRef = useRef(measurements);
-  useEffect(() => {
-    measurementsRef.current = measurements;
-  }, [measurements]);
-  const modelOpacityRef = useRef(modelOpacity);
-    useEffect(() => {
-      modelOpacityRef.current = modelOpacity;
-  }, [modelOpacity]);
-
-  useEffect(() => {
-    measurementModeRef.current = measureType;
-  }, [measureType]);  
-
-  const measurementGroupRef = useRef(new THREE.Group());
-  const measurementModeRef = useRef(measureType);
-  // =====================================================
-  // 1. MŨI TÊN ĐO LƯỜNG (TRIMBLE STYLE)
-  // =====================================================
-  const drawArrowHead = (position, direction, color) => {
-    const arrowLength = 0.5; 
-    const arrowRadius = 0.1; 
-
-    const geometry = new THREE.ConeGeometry(arrowRadius, arrowLength, 13);
-
-    geometry.translate(0, -arrowLength / 2, 0);
-
-    const material = new THREE.MeshBasicMaterial({ 
-      color: new THREE.Color(color), 
-      depthTest: false,  
-      depthWrite: false 
-    });
-    
-    const arrow = new THREE.Mesh(geometry, material);
-    arrow.position.copy(position);
-    arrow.renderOrder = 999; 
-
-    const axis = new THREE.Vector3(0, 1, 0);
-    const quaternion = new THREE.Quaternion().setFromUnitVectors(axis, direction.clone().normalize());
-    arrow.setRotationFromQuaternion(quaternion);
-
-    measurementGroupRef.current.add(arrow);
-    
-    return arrow;
-  };
-
-  // =====================================================
-  // 2. NHÃN KÍCH THƯỚC (BOX ĐEN, VIỀN DÀY MÀU)
-  // =====================================================
-  const createMeasurementLabel = (point, text, color) => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 70; // Hạ chiều cao để box dẹt hơn, giống hình
-    const ctx = canvas.getContext('2d');
-
-    // Box nền xám đậm (gần đen)
-    ctx.fillStyle = '#222222';
-    ctx.fillRect(4, 4, canvas.width - 8, canvas.height - 8);
-    
-    // Viền box dày, màu bám theo đường line
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 4;
-    ctx.strokeRect(4, 4, canvas.width - 8, canvas.height - 8);
-
-    // Chữ màu trắng, in đậm, căn giữa
-    ctx.fillStyle = '#ffffff'; 
-    ctx.font = 'bold 40px Arial, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(text, canvas.width / 2, canvas.height / 2 + 2); 
-
-    const texture = new THREE.CanvasTexture(canvas);
-    const material = new THREE.SpriteMaterial({
-      map: texture,
-      depthTest: false,
-      depthWrite: false, 
-      sizeAttenuation: true,
-    });
-
-    const label = new THREE.Sprite(material);
-    label.position.copy(point);
-    label.scale.set(2.4, 0.65, 1);
-    label.renderOrder = 1000; 
-    
-    measurementGroupRef.current.add(label);
-    return label;
-  };
-
-  const drawAngleArc = (center, p1, p3, color, radius = 1.5) => {
-    const v1 = new THREE.Vector3().subVectors(p1, center).normalize();
-    const v2 = new THREE.Vector3().subVectors(p3, center).normalize();
-
-    const segments = 24;
-    const points = [];
-    const angleRad = v1.angleTo(v2);
-    const normal = new THREE.Vector3().crossVectors(v1, v2).normalize();
-
-    for (let i = 0; i <= segments; i++) {
-      const theta = (i / segments) * angleRad;
-      const rotatedVec = v1.clone().applyAxisAngle(normal, theta).multiplyScalar(radius);
-      points.push(new THREE.Vector3().addVectors(center, rotatedVec));
-    }
-
-    const geometry = new THREE.BufferGeometry().setFromPoints(points);
-    const material = new THREE.LineBasicMaterial({ 
-      color: new THREE.Color(color), 
-      linewidth: 2,
-      depthTest: false, 
-      depthWrite: false
-    });
-    
-    const arc = new THREE.Line(geometry, material);
-    arc.renderOrder = 999;
-    
-    measurementGroupRef.current.add(arc);
-    
-    const midIndex = Math.floor(points.length / 2);
-    return points[midIndex];
-  };
-
-  const drawMeasurementPoint = (point, color) => {
-    const geometry = new THREE.SphereGeometry(0.1, 12, 12);
-    const material = new THREE.MeshBasicMaterial({ 
-      color: new THREE.Color(color),
-      depthTest: false, 
-      depthWrite: false, 
-    });
-    const sphere = new THREE.Mesh(geometry, material);
-    sphere.position.copy(point);
-    sphere.renderOrder = 999; 
-    
-    measurementGroupRef.current.add(sphere);
-    return sphere;
-  };
-
-  const drawMeasurementLine = (point1, point2, color) => {
-    const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.BufferAttribute(
-      new Float32Array([point1.x, point1.y, point1.z, point2.x, point2.y, point2.z]),
-      3
-    ));
-    const material = new THREE.LineBasicMaterial({ 
-      color: new THREE.Color(color),
-      linewidth: 3,
-      depthTest: false, 
-      depthWrite: false, 
-    });
-    const line = new THREE.Line(geometry, material);
-    line.renderOrder = 999;
-    
-    measurementGroupRef.current.add(line);
-    return line;
-  };
-
-  const clearMeasurements = useCallback(() => {
-    while (measurementGroupRef.current.children.length > 0) {
-      measurementGroupRef.current.remove(measurementGroupRef.current.children[0]);
-    }
-    setMeasurementPoints([]);
-    setMeasurements([]);
-  }, []);
-
-  useEffect(() => {
-    if (onClearMeasurements) {
-      onClearMeasurements(clearMeasurements);
-    }
-  }, [clearMeasurements, onClearMeasurements]);
-
-  // MARKER ĐÁNH DẤU THỨ TỰ TỪNG CLIP
-  const createSectionMarker = (point, index) => {
-    const canvas = document.createElement('canvas');
-    canvas.width = 128; canvas.height = 128;
-    const ctx = canvas.getContext('2d');
-
-    ctx.beginPath();
-    ctx.arc(64, 64, 55, 0, Math.PI * 2);
-    ctx.fillStyle = '#2563eb';
-    ctx.fill();
-    
-    ctx.lineWidth = 8;
-    ctx.strokeStyle = '#ffffff';
-    ctx.stroke();
-
-    ctx.fillStyle = '#ffffff';
-    ctx.font = 'bold 64px Arial';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(String(index), 64, 68);
-
-    const texture = new THREE.CanvasTexture(canvas);
-    
-    const mat = new THREE.SpriteMaterial({
-      map: texture,
-      depthTest: false,
-      depthWrite: false,
-      sizeAttenuation: true
-    });
-
-    const sprite = new THREE.Sprite(mat);
-    sprite.position.copy(point);
-    sprite.scale.set(1.5, 1.5, 1); 
-    sprite.renderOrder = 10000; 
-    sprite.userData.isClipHelper = true;
-
-    return sprite;
-  };
-
-
-  // =====================================================
-  // EVENT LISTENER: MEASUREMENT
-  // =====================================================
-  useEffect(() => {
-    if (!isMeasureActive || !measureType || !canvasRef.current || !sceneRef.current) return;
-
-    const canvas = canvasRef.current;
-    const raycaster = new THREE.Raycaster();
-    const mouse = new THREE.Vector2();
-
-    const onMeasurementClick = (e) => {
-      const rect = canvas.getBoundingClientRect();
-      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-
-      raycaster.setFromCamera(mouse, sceneRef.current.getCamera());
-      const meshes = modelsRef.current.map(m => m.mesh).filter(Boolean);
-      const hits = raycaster.intersectObjects(meshes, true);
-
-      if (hits.length === 0) return;
-
-      const hitPoint = hits[0].point;
-
-      if (measureType === 'single-point') {
-        drawMeasurementPoint(hitPoint, measureColor);
-        const text = `X: ${hitPoint.x.toFixed(2)}\nY: ${hitPoint.y.toFixed(2)}\nZ: ${hitPoint.z.toFixed(2)}`;
-        const labelPos = hitPoint.clone().add(new THREE.Vector3(0, 0.5, 0));
-        createMeasurementLabel(labelPos, text, measureColor);
-
-        // setMeasurements(prev => [
-        //   ...prev,
-        //   { start: { x: hitPoint.x, y: hitPoint.y, z: hitPoint.z }, end: { x: hitPoint.x, y: hitPoint.y, z: hitPoint.z }, value: 0 }
-        // ]);
-        setMeasurements(prev => [
-          ...prev,
-          { type: 'single-point', points: [{ x: hitPoint.x, y: hitPoint.y, z: hitPoint.z }], value: 0 }
-        ]);
-        
-        setMeasurementPoints([]); 
-      }
-      else if (measureType === 'perpendicular') {
-        const newPoints = [...measurementPoints, hitPoint];
-        setMeasurementPoints(newPoints);
-        drawMeasurementPoint(hitPoint, measureColor); 
-
-        if (newPoints.length === 2) {
-          const p1 = newPoints[0];
-          const p2 = newPoints[1];
-          const distance = p1.distanceTo(p2);
-          
-          // setMeasurements(prev => [
-          //   ...prev,
-          //   { start: { x: p1.x, y: p1.y, z: p1.z }, end: { x: p2.x, y: p2.y, z: p2.z }, value: distance }
-          // ]);
-          setMeasurements(prev => [
-            ...prev,
-            { type: 'perpendicular', points: [{ x: p1.x, y: p1.y, z: p1.z }, { x: p2.x, y: p2.y, z: p2.z }], value: distance }
-          ]);
-
-          drawMeasurementLine(p1, p2, measureColor);
-
-          const dir1 = new THREE.Vector3().subVectors(p2, p1).normalize();
-          const dir2 = new THREE.Vector3().subVectors(p1, p2).normalize();
-          
-          drawArrowHead(p2, dir1, measureColor); 
-          drawArrowHead(p1, dir2, measureColor); 
-
-          const midpoint = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
-          createMeasurementLabel(midpoint, `${distance.toFixed(2)} m`, measureColor);
-
-          setMeasurementPoints([]); 
-        }
-      }
-      else if (measureType === 'slope') {
-        const newPoints = [...measurementPoints, hitPoint];
-        setMeasurementPoints(newPoints);
-        drawMeasurementPoint(hitPoint, measureColor);
-
-        if (newPoints.length === 2) {
-          const p1 = newPoints[0]; 
-          const p2 = newPoints[1]; 
-          
-          drawMeasurementLine(p1, p2, measureColor);
-          
-          const direction = new THREE.Vector3().subVectors(p2, p1).normalize();
-          drawArrowHead(p2, direction, measureColor);
-
-          const distance = p1.distanceTo(p2);
-
-          // setMeasurements(prev => [
-          //   ...prev,
-          //   { start: { x: p1.x, y: p1.y, z: p1.z }, end: { x: p2.x, y: p2.y, z: p2.z }, value: distance }
-          // ]);
-          setMeasurements(prev => [
-            ...prev,
-            { type: 'slope', points: [{ x: p1.x, y: p1.y, z: p1.z }, { x: p2.x, y: p2.y, z: p2.z }], value: distance }
-          ]);
-
-          createMeasurementLabel(p2, `L: ${distance.toFixed(2)}`, measureColor);
-
-          setMeasurementPoints([]);
-        }
-      }
-      else if (measureType === 'angle') {
-        const newPoints = [...measurementPoints, hitPoint];
-        setMeasurementPoints(newPoints);
-        drawMeasurementPoint(hitPoint, measureColor);
-
-        if (newPoints.length === 3) {
-          const p1 = newPoints[0];
-          const p2 = newPoints[1]; 
-          const p3 = newPoints[2];
-
-          drawMeasurementLine(p2, p1, measureColor);
-          drawMeasurementLine(p2, p3, measureColor);
-
-          const v1 = new THREE.Vector3().subVectors(p1, p2).normalize();
-          const v2 = new THREE.Vector3().subVectors(p3, p2).normalize();
-          const angleRad = v1.angleTo(v2);
-          const angleDeg = angleRad * (180 / Math.PI);
-
-          // setMeasurements(prev => [
-          //   ...prev,
-          //   { start: { x: p1.x, y: p1.y, z: p1.z }, end: { x: p3.x, y: p3.y, z: p3.z }, value: angleDeg }
-          // ]);
-          setMeasurements(prev => [
-            ...prev,
-            { type: 'angle', points: [{ x: p1.x, y: p1.y, z: p1.z }, { x: p2.x, y: p2.y, z: p2.z }, { x: p3.x, y: p3.y, z: p3.z }], value: angleDeg }
-          ]);
-
-          const minLen = Math.min(p1.distanceTo(p2), p3.distanceTo(p2));
-          const arcRadius = Math.min(1.5, minLen * 0.4); 
-          
-          const labelPos = drawAngleArc(p2, p1, p3, measureColor, arcRadius);
-
-          createMeasurementLabel(labelPos, `${angleDeg.toFixed(1)}°`, measureColor);
-
-          setMeasurementPoints([]);
-        }
-      }
-    };
-
-    canvas.addEventListener('click', onMeasurementClick);
-
-    return () => {
-      canvas.removeEventListener('click', onMeasurementClick);
-    };
-  }, [isMeasureActive, measureType, measureColor, measurementPoints]);
-
-
-  // =====================================================
-  // INIT GROUPS (SAFE CLEANUP)
-  // =====================================================
-  useEffect(() => {
-    if (!sceneRef.current) return;
-    const scene = sceneRef.current.scene;
-    const measurementGroup = measurementGroupRef.current;
-    const topicMarkerGroup = topicMarkerGroupRef.current;
-
-    scene.add(measurementGroup);
-    scene.add(topicMarkerGroup);
-
-    return () => {
-      scene.remove(measurementGroup);
-      scene.remove(topicMarkerGroup);
-      measurementGroup.clear();
-      topicMarkerGroup.clear();
-    };
-  }, [models]);
-
-  // =====================================================
-  // VISIBILITY CONTROL
-  // =====================================================
-  useEffect(() => {
-    if (!sceneRef.current) return;
-
-    // Toggle Annotations & Measurement
-    if (measurementGroupRef.current) {
-      measurementGroupRef.current.visible = !!viewOptions?.annotations;
-    }
-    if (topicMarkerGroupRef.current) {
-      topicMarkerGroupRef.current.visible = !!viewOptions?.annotations;
-    }
-
-    // Toggle Dev Branch Clipping Helpers
-    if (loaderRef.current) {
-        loaderRef.current.setClipHelperVisibility(!!viewOptions?.clipPlanes);
-    }
-  }, [viewOptions]);
-
-  // =====================================================
-  // STATE POSITION DRAWER (DEV)
-  // =====================================================
+  // --- STATE POSITION DRAWER ---
   const [isPosDrawerOpen, setIsPosDrawerOpen] = useState(false);
   const [posDrawerModel, setPosDrawerModel] = useState(null);
   const [posDrawerData, setPosDrawerData] = useState(null);
 
+  const [markerCallback, setMarkerCallback] = useState(null);
+  const markerCallbackRef = useRef(null);
+  const markerMeshRef = useRef(null);
+
+  // --- HÀM VẼ CHẤM ĐỎ MARKER ---
+  const updateMarkerMesh = async (point) => {
+    if (!sceneRef.current) return;
+    const scene = sceneRef.current.scene;
+    
+    if (markerMeshRef.current) {
+        scene.remove(markerMeshRef.current);
+        if (markerMeshRef.current.material && markerMeshRef.current.material.map) {
+          markerMeshRef.current.material.map.dispose();
+        }
+        if (markerMeshRef.current.material) {
+          markerMeshRef.current.material.dispose();
+        }
+        markerMeshRef.current = null;
+    }
+
+    if (point) {
+        const THREE = await import('three');
+
+        const canvas = document.createElement('canvas');
+        canvas.width = canvasSize;
+        canvas.height = canvasSize;
+        const ctx = canvas.getContext('2d');
+
+        // Tính toán tâm và bán kính
+        const center = canvasSize / 2;
+        const outerRadius = (canvasSize / 2) * 0.9; 
+        const innerRadius = (canvasSize / 2) * 0.6;
+
+        ctx.beginPath();
+        ctx.arc(center, center, outerRadius, 0, 2 * Math.PI);
+        ctx.fillStyle = 'rgba(255, 255, 255, 1.0)';
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(center, center, innerRadius, 0, 2 * Math.PI);
+        ctx.fillStyle = '#ff0000';
+        ctx.fill();
+
+        const markerTexture = new THREE.CanvasTexture(canvas);
+
+        const material = new THREE.SpriteMaterial({ 
+            map: markerTexture, 
+            depthTest: false, 
+            transparent: true,
+            opacity: 0.9
+        }); 
+        
+        const sprite = new THREE.Sprite(material);
+
+        sprite.scale.set(0.8, 0.8, 1.0); 
+        
+        // Đặt vị trí
+        sprite.position.set(point.x, point.y, point.z);
+        
+        sprite.renderOrder = 999; 
+        
+        scene.add(sprite);
+        markerMeshRef.current = sprite;
+    }
+  };
+
+  // --- HANDLER ---
   const handleOpenPositionSettings = (model) => {
     if (!loaderRef.current) return;
 
@@ -631,9 +195,11 @@ export default function IfcViewer({
   };
 
   useEffect(() => {
+    // Start loop
     requestRef.current = requestAnimationFrame(animateClipping);
     return () => cancelAnimationFrame(requestRef.current);
   }, []);
+
 
   useEffect(() => {
     if (!loaderRef.current || !sceneRef.current) return;
@@ -656,6 +222,7 @@ export default function IfcViewer({
     }
   }, [activeTool]);
 
+
   const activeToolRef = useRef(activeTool);
   useEffect(() => {
     activeToolRef.current = activeTool;
@@ -664,6 +231,10 @@ export default function IfcViewer({
   useEffect(() => {
     selectedItemsRef.current = selectedItems;
   }, [selectedItems]);
+
+  useEffect(() => {
+    selectionModeRef.current = selectionMode;
+  }, [selectionMode]);
 
   useEffect(() => {
     if (threeSceneRef.current && cameraMode) {
@@ -685,127 +256,12 @@ export default function IfcViewer({
         threeSceneRef.current = scene;
         loaderRef.current = new IfcManager(scene.scene, []);
 
-        // --- AREA SELECTION handlers (registered once, driven by refs) ---
-        const getCanvasLocal = (ev) => {
-          const rect = canvas.getBoundingClientRect();
-          return { x: ev.clientX - rect.left, y: ev.clientY - rect.top, rect };
-        };
-
-        const onAreaMouseDown = (ev) => {
-          if (!areaSelectEnabledRef.current) return;
-          if (ev.button !== 0) return;
-          const { x, y } = getCanvasLocal(ev);
-          areaDragRef.current.active = true;
-          areaDragRef.current.startX = x;
-          areaDragRef.current.startY = y;
-          const r0 = { x, y, w: 0, h: 0 };
-          selectionRectRef.current = r0;
-          setSelectionRect(r0);
-          ev.preventDefault();
-          ev.stopPropagation();
-        };
-
-        const onAreaMouseMove = (ev) => {
-          if (!areaDragRef.current.active) return;
-          const { x, y } = getCanvasLocal(ev);
-          const sx = areaDragRef.current.startX;
-          const sy = areaDragRef.current.startY;
-          const left = Math.min(sx, x);
-          const top = Math.min(sy, y);
-          const w = Math.abs(x - sx);
-          const h = Math.abs(y - sy);
-          const r = { x: left, y: top, w, h };
-          selectionRectRef.current = r;
-          setSelectionRect(r);
-          ev.preventDefault();
-          ev.stopPropagation();
-        };
-
-        const onAreaMouseUp = () => {
-          if (!areaDragRef.current.active) return;
-          areaDragRef.current.active = false;
-
-          const rectData = selectionRectRef.current;
-          setSelectionRect(null);
-          selectionRectRef.current = null;
-
-          if (!rectData || rectData.w < 5 || rectData.h < 5) return;
-          if (!sceneRef.current || !loaderRef.current) return;
-
-          const bounds = canvas.getBoundingClientRect();
-          const raycaster = new THREE.Raycaster();
-          const mouse = new THREE.Vector2();
-
-          const stepPx = 35;
-          const nx = Math.max(3, Math.min(24, Math.floor(rectData.w / stepPx)));
-          const ny = Math.max(3, Math.min(24, Math.floor(rectData.h / stepPx)));
-
-          const meshes = models.map(m => m.mesh).filter(Boolean);
-          const foundMap = new Map();
-
-          for (let ix = 0; ix < nx; ix++) {
-            for (let iy = 0; iy < ny; iy++) {
-              const px = rectData.x + (rectData.w * (ix + 0.5)) / nx;
-              const py = rectData.y + (rectData.h * (iy + 0.5)) / ny;
-
-              mouse.x = (px / bounds.width) * 2 - 1;
-              mouse.y = -(py / bounds.height) * 2 + 1;
-
-              raycaster.setFromCamera(mouse, sceneRef.current.getCamera());
-              const hits = raycaster.intersectObjects(meshes, true);
-              if (!hits.length) continue;
-
-              const hit = hits.find(h => !h.object?.userData?.isClipHelper && !h.object?.parent?.userData?.isClipHelper);
-              if (!hit) continue;
-
-              const faceIndex = hit.faceIndex;
-              const geometry = hit.object.geometry;
-              const expressID = loaderRef.current.ifcLoader.ifcManager.getExpressId(geometry, faceIndex);
-              const modelID = hit.object.modelID;
-              if (modelID == null || expressID == null) continue;
-
-              const key = `${modelID}:${expressID}`;
-              if (!foundMap.has(key)) {
-                foundMap.set(key, {
-                  modelID,
-                  expressID,
-                  fileUrl: modelUrlMap.current[modelID],
-                });
-              }
-            }
-          }
-
-          const picked = Array.from(foundMap.values());
-          if (picked.length === 0) return;
-          
-          const multi = selectionModeRef.current === 'multi';
-          setSelectedItems(prev => {
-            const prevArr = Array.isArray(prev) ? prev : [];
-            const base = multi ? prevArr : [];
-            const merged = [...base];
-
-            const seen = new Set(base.map(i => `${i.modelID}:${i.expressID}`));
-            picked.forEach(p => {
-              const k = `${p.modelID}:${p.expressID}`;
-              if (!seen.has(k)) {
-                merged.push(p);
-                seen.add(k);
-              }
-            });
-
-            if (loaderRef.current?.highlightItems) {
-              void loaderRef.current.highlightItems(merged);
-            }
-
-            return merged;
-          });
-        };
-
         canvas.addEventListener('mousedown', (e) => {
           mouseDownPos.current = { x: e.clientX, y: e.clientY };
           isDragging.current = false;
         });
 
+        /** IF MOUSE MOVES -> DRAGGING */
         canvas.addEventListener('mousemove', (e) => {
           const dx = Math.abs(e.clientX - mouseDownPos.current.x);
           const dy = Math.abs(e.clientY - mouseDownPos.current.y);
@@ -814,37 +270,11 @@ export default function IfcViewer({
           }
         });
 
-        canvas.addEventListener('mousedown', onAreaMouseDown, true);
-        canvas.addEventListener('mousemove', onAreaMouseMove, true);
-        window.addEventListener('mouseup', onAreaMouseUp, true);
-
+        /** ONLY PICK IF NOT DRAGGING */
         canvas.addEventListener('mouseup', (event) => {
-          if (areaSelectEnabledRef.current) return;
-          
           if (!isDragging.current) {
-            // Check Marker
-            if (markerCallbackRef.current) {
-                const rect = canvas.getBoundingClientRect();
-                const mouse = new THREE.Vector2(
-                    ((event.clientX - rect.left) / rect.width) * 2 - 1,
-                    -((event.clientY - rect.top) / rect.height) * 2 + 1
-                );
-                const raycaster = new THREE.Raycaster();
-                raycaster.setFromCamera(mouse, scene.getCamera());
-                const meshes = modelsRef.current.map(m => m.mesh).filter(Boolean);
-                const intersects = raycaster.intersectObjects(meshes, true);
-                const validHit = intersects.find(h => !h.object.userData.isClipHelper);
-
-                if (validHit) {
-                    drawTopicMarker(validHit.point);
-                    markerCallbackRef.current(validHit.point);
-                    setMarkerCallback(null);
-                }
-                return;
-            }
-
-            // Check Dev's Active Tool
             const isClippingMode = activeToolRef.current === 'clipping';
+
             const camera = scene.getCamera();
             const renderer = scene.getRenderer();
 
@@ -858,16 +288,43 @@ export default function IfcViewer({
 
             if (loaderRef.current) {
               const clickedPlane = loaderRef.current.pickClipPlane(event, camera, renderer);
+
               if (clickedPlane) {
+                console.log("Click trúng Icon -> Edit Plane");
+
                 loaderRef.current.editPlane(clickedPlane);
+
                 if (onToolChange) {
                   onToolChange('clipping');
                 }
+
                 return;
               }
             }
 
-            // Standard Pick
+            if (markerCallbackRef.current) {
+              const hitResult = loaderRef.current.pick(event, camera, renderer);
+              
+              const intersectPoint = hitResult?.point || hitResult?.intersect?.point;
+              
+              if (intersectPoint) {
+                  markerCallbackRef.current({
+                      x: intersectPoint.x,
+                      y: intersectPoint.y,
+                      z: intersectPoint.z
+                  });
+                  updateMarkerMesh(intersectPoint);
+              } else {
+                  // CẢNH BÁO: Nếu chạy vào đây nghĩa là ifc-manager đang bị thiếu point
+                  alert("Click thành công vật thể, nhưng file ifc-manager.js chưa trả về tọa độ (point). Vui lòng xem hướng dẫn để fix!");
+                  
+                  markerCallbackRef.current({ x: 0, y: 0, z: 0 });
+              }
+              
+              markerCallbackRef.current = null;
+              return; 
+            }
+
             const result = loaderRef.current.pick(event, scene.getCamera(), scene.getRenderer());
             const currentMode = selectionModeRef.current || 'single';
 
@@ -875,54 +332,49 @@ export default function IfcViewer({
             let newSelection = [];
 
             if (result) {
-              const sourceUrl = modelUrlMap.current[result.modelID];
-              
-              let faceData = null;
-              const rect = canvas.getBoundingClientRect();
-              const mouse = new THREE.Vector2(((event.clientX - rect.left) / rect.width) * 2 - 1, -((event.clientY - rect.top) / rect.height) * 2 + 1);
-              const raycaster = new THREE.Raycaster();
-              raycaster.setFromCamera(mouse, camera);
-              const meshes = modelsRef.current.map(m => m.mesh).filter(Boolean);
-              const intersects = raycaster.intersectObjects(meshes, true);
-              const validHit = intersects.find(h => !h.object.userData.isClipHelper);
-
-              if (validHit && validHit.face) {
-                  const normal = validHit.face.normal.clone().applyQuaternion(validHit.object.quaternion).normalize();
-                  faceData = {
-                      normal: normal,
-                      point: validHit.point.clone(),
-                      faceIndex: validHit.faceIndex,
-                      mesh: validHit.object,
-                      distance: validHit.distance
-                  };
-              }
-
-              const enrichedItem = { ...result, fileUrl: sourceUrl, faceData: faceData };
-
+              const sourceUrl = modelUrlMap.current[result.modelID]
+              const enrichedItem = { ...result, fileUrl: sourceUrl }
+              // if (setSelectdItemsForNavbar) {
+              //   setSelectdItemsForNavbar([enrichedItem]);
+              // }
+              // setSelectedItems([result]);
               if (currentMode === 'single') {
+                // Single: Thay thế hoàn toàn
                 newSelection = [enrichedItem];
               } else {
+                // Multiple: Toggle
                 const exists = prevSelected.find(
                   item => item.modelID === result.modelID && item.expressID === result.expressID
                 );
+
                 if (exists) {
+                  // Remove
                   newSelection = prevSelected.filter(item => item !== exists);
                 } else {
+                  // Add
                   newSelection = [...prevSelected, enrichedItem];
                 }
               }
-              loaderRef.current.highlightItems(newSelection);
+              loaderRef.current.highlightItems(newSelection)
             } else {
+              // setSelectedItems([]);
+              // if (setSelectdItemsForNavbar) {
+              //   setSelectdItemsForNavbar([]);
+              // }
               newSelection = [];
               loaderRef.current.removeHighlight();
             }
 
+
+            // Update Local State
             setSelectedItems(newSelection);
+
             if (setSelectdItemsForNavbar) {
               setSelectdItemsForNavbar(newSelection);
             }
           }
         });
+
 
         if (onRegisterCapture) {
           onRegisterCapture({
@@ -958,9 +410,15 @@ export default function IfcViewer({
         }
       }
 
+      //
+      // LOADING MODELS
+      //
       if (ifcUrls?.length) {
         loaderRef.current.clearModels();
+
         modelUrlMap.current = {};
+
+        // const loadPromises = ifcUrls.map(url => loaderRef.current.loadIfcUrl(url));
 
         const newModels = [];
 
@@ -1000,6 +458,7 @@ export default function IfcViewer({
 
   const sidebarWidth = isCollapsed ? COLLAPSED_WIDTH : EXPANDED_WIDTH;
 
+  // HANDLE RESIZE
   useEffect(() => {
     if (!canvasRef.current || !loaderRef.current || models.length < 1) return;
     const renderer = sceneRef.current.getRenderer();
@@ -1028,6 +487,7 @@ export default function IfcViewer({
       window.dispatchEvent(new Event('resize'));
     }, 250);
   }, [isCollapsed, state === 'data-table']);
+
 
   useEffect(() => {
     if (!selectedTreePaths.length) {
@@ -1062,138 +522,8 @@ export default function IfcViewer({
 
   const isLayerVisible = (modelID, typeId) => !hiddenLayers.has(layerKey(modelID, typeId));
 
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || !loaderRef.current || !sceneRef.current) return;
 
-    const onHover = (e) => {
-      if (isDragging.current) return;
-      if (areaDragRef.current && areaDragRef.current.active) return;
-      
-      loaderRef.current.highlight(e, canvas);
-    };
-
-    canvas.addEventListener('mousemove', onHover);
-
-    return () => {
-      canvas.removeEventListener('mousemove', onHover);
-    };
-  }, []); 
-
-  // const restoreMeasurements = (measurementData) => {
-  //   clearMeasurements();
-
-  //   if (!measurementData || !measurementData.length) return;
-
-  //   const rebuilt = [];
-
-  //   measurementData.forEach(m => {
-  //     const p1 = new THREE.Vector3(m.start.x, m.start.y, m.start.z);
-  //     const p2 = new THREE.Vector3(m.end.x, m.end.y, m.end.z);
-
-  //     const isSinglePoint =
-  //       m.value === 0 &&
-  //       Math.abs(p1.x - p2.x) < 1e-6 &&
-  //       Math.abs(p1.y - p2.y) < 1e-6 &&
-  //       Math.abs(p1.z - p2.z) < 1e-6;
-
-  //     if (isSinglePoint) {
-  //       drawMeasurementPoint(p1, measureColor);
-  //       const labelPos = p1.clone().add(new THREE.Vector3(0, 0.5, 0));
-  //       const text = `X: ${p1.x.toFixed(2)}\nY: ${p1.y.toFixed(2)}\nZ: ${p1.z.toFixed(2)}`;
-  //       createMeasurementLabel(labelPos, text, measureColor);
-  //     } else {
-  //       drawMeasurementPoint(p1, measureColor);
-  //       drawMeasurementPoint(p2, measureColor);
-  //       drawMeasurementLine(p1, p2, measureColor);
-
-  //       const midpoint = new THREE.Vector3()
-  //         .addVectors(p1, p2)
-  //         .multiplyScalar(0.5);
-
-  //       createMeasurementLabel(midpoint, `${m.value}`, measureColor);
-  //     }
-
-  //     rebuilt.push(m);
-  //   });
-
-  //   setMeasurements(rebuilt);
-  // };
-  const restoreMeasurements = (measurementData) => {
-    clearMeasurements();
-    if (!measurementData || !measurementData.length) return;
-
-    const rebuilt = [];
-
-    measurementData.forEach(m => {
-      // Tương thích ngược với các file save cũ
-      if (!m.type) {
-        const p1 = new THREE.Vector3(m.start.x, m.start.y, m.start.z);
-        const p2 = new THREE.Vector3(m.end.x, m.end.y, m.end.z);
-        drawMeasurementPoint(p1, measureColor);
-        drawMeasurementPoint(p2, measureColor);
-        drawMeasurementLine(p1, p2, measureColor);
-        const midpoint = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
-        createMeasurementLabel(midpoint, `${m.value}`, measureColor);
-        rebuilt.push(m);
-        return;
-      }
-
-      // Restore cấu trúc mới
-      const pts = m.points.map(p => new THREE.Vector3(p.x, p.y, p.z));
-
-      if (m.type === 'single-point') {
-        const p1 = pts[0];
-        drawMeasurementPoint(p1, measureColor);
-        const text = `X: ${p1.x.toFixed(2)}\nY: ${p1.y.toFixed(2)}\nZ: ${p1.z.toFixed(2)}`;
-        const labelPos = p1.clone().add(new THREE.Vector3(0, 0.5, 0));
-        createMeasurementLabel(labelPos, text, measureColor);
-      } 
-      else if (m.type === 'perpendicular') {
-        const [p1, p2] = pts;
-        drawMeasurementPoint(p1, measureColor);
-        drawMeasurementPoint(p2, measureColor);
-        drawMeasurementLine(p1, p2, measureColor);
-
-        const dir1 = new THREE.Vector3().subVectors(p2, p1).normalize();
-        const dir2 = new THREE.Vector3().subVectors(p1, p2).normalize();
-        drawArrowHead(p2, dir1, measureColor); 
-        drawArrowHead(p1, dir2, measureColor); 
-
-        const midpoint = new THREE.Vector3().addVectors(p1, p2).multiplyScalar(0.5);
-        createMeasurementLabel(midpoint, `${m.value.toFixed(2)} m`, measureColor);
-      }
-      else if (m.type === 'slope') {
-        const [p1, p2] = pts;
-        drawMeasurementPoint(p1, measureColor);
-        drawMeasurementPoint(p2, measureColor);
-        drawMeasurementLine(p1, p2, measureColor);
-
-        const direction = new THREE.Vector3().subVectors(p2, p1).normalize();
-        drawArrowHead(p2, direction, measureColor);
-        createMeasurementLabel(p2, `L: ${m.value.toFixed(2)}`, measureColor);
-      }
-      else if (m.type === 'angle') {
-        const [p1, p2, p3] = pts;
-        drawMeasurementPoint(p1, measureColor);
-        drawMeasurementPoint(p2, measureColor);
-        drawMeasurementPoint(p3, measureColor);
-
-        drawMeasurementLine(p2, p1, measureColor);
-        drawMeasurementLine(p2, p3, measureColor);
-
-        const minLen = Math.min(p1.distanceTo(p2), p3.distanceTo(p2));
-        const arcRadius = Math.min(1.5, minLen * 0.4); 
-        const labelPos = drawAngleArc(p2, p1, p3, measureColor, arcRadius);
-        createMeasurementLabel(labelPos, `${m.value.toFixed(1)}°`, measureColor);
-      }
-
-      rebuilt.push(m);
-    });
-
-    setMeasurements(rebuilt);
-  };
-
+  // === RESTORE STATE ===
   const restoreState = async (viewState, todoItems = []) => {
     if (!viewState || !sceneRef.current || !loaderRef.current) return;
 
@@ -1206,26 +536,10 @@ export default function IfcViewer({
       loaderRef.current.restoreAllModelsTransform(viewState.modelTransforms);
     }
 
-    // 0. RESTORE CLIPPING & MEASUREMENTS
-    if (viewState.clippingPlanes) {
-      loaderRef.current.restoreClippingState(viewState.clippingPlanes);
-    } else {
-      loaderRef.current.deleteAllPlanes();
-    }
+    // ---------------------------------------------------------
+    // 1. PREPARE MAPPING (URL <-> Model ID)
+    // ---------------------------------------------------------
 
-    if (viewState.measurements) {
-      restoreMeasurements(viewState.measurements);
-    } else {
-      clearMeasurements && clearMeasurements();
-    }
-    
-    if (viewState.marker) {
-      drawTopicMarker(new THREE.Vector3(viewState.marker.x, viewState.marker.y, viewState.marker.z));
-    } else {
-      clearTopicMarker();
-    }
-
-    // 1. PREPARE MAPPING
     const urlToNewId = {};
     Object.keys(modelUrlMap.current).forEach(id => {
       const url = modelUrlMap.current[id];
@@ -1234,26 +548,41 @@ export default function IfcViewer({
 
     const oldIdToUrl = {};
 
+    // R1: Todo Items
     if (todoItems && Array.isArray(todoItems)) {
       todoItems.forEach(item => {
         if (item.fileUrl) oldIdToUrl[String(item.modelId)] = item.fileUrl;
       });
     }
 
+    // R2: Selection in Snapshot
     if (viewState.selection && Array.isArray(viewState.selection)) {
       viewState.selection.forEach(item => {
         if (item.fileUrl) oldIdToUrl[String(item.modelID)] = item.fileUrl;
       });
     }
 
+    // ---------------------------------------------------------
     // 2. RESTORE CAMERA
+    // ---------------------------------------------------------
     sceneRef.current.setCameraState(viewState.camera);
 
+    if (viewState && viewState.camera) {
+      sceneRef.current.setCameraState(viewState.camera);
+    }
+
+    if (viewState && viewState.marker) {
+        updateMarkerMesh(viewState.marker);
+    } else {
+        updateMarkerMesh(null); 
+    }
+    // ---------------------------------------------------------
     // 3. RESTORE VISIBILITY
+    // ---------------------------------------------------------
     const mappedVisibility = [];
     const newHiddenItemsReactState = {};
 
-    if (viewState.visibility && Array.isArray(viewState.visibility)) {
+    if (viewState && viewState.visibility && Array.isArray(viewState.visibility)) {
       viewState.visibility.forEach(group => {
         let url = group.fileUrl;
 
@@ -1262,6 +591,7 @@ export default function IfcViewer({
           url = oldIdToUrl[oldID];
         }
 
+        // Fallback
         if (!url && ifcUrls.length === 1) {
           url = ifcUrls[0];
         }
@@ -1286,8 +616,12 @@ export default function IfcViewer({
     loaderRef.current.restoreVisibilityState(mappedVisibility);
     setHiddenItems(newHiddenItemsReactState);
 
+
+    // ---------------------------------------------------------
     // 4. RESTORE SELECTION & HIGHLIGHT
+    // ---------------------------------------------------------
     let itemsToHighlight = [];
+
     const sourceItems = (todoItems && todoItems.length > 0) ? todoItems : viewState.selection;
 
     if (sourceItems && Array.isArray(sourceItems)) {
@@ -1312,8 +646,23 @@ export default function IfcViewer({
       });
     }
 
+
+    if (viewState.clippingPlanes) {
+      loaderRef.current.restoreClippingState(viewState.clippingPlanes);
+    } else {
+      loaderRef.current.deleteAllPlanes();
+    }
+
     if (itemsToHighlight.length > 0) {
+      // Highlight items
       loaderRef.current.highlightItems(itemsToHighlight);
+
+      if (viewState && viewState.clippingPlanes) {
+        loaderRef.current.restoreClippingState(viewState.clippingPlanes);
+      } else if (loaderRef.current) {
+        loaderRef.current.deleteAllPlanes();
+      }
+      // Update UI Navbar
       setSelectedItems(itemsToHighlight);
       if (setSelectdItemsForNavbar) setSelectdItemsForNavbar(itemsToHighlight);
     } else {
@@ -1323,6 +672,8 @@ export default function IfcViewer({
     }
   };
 
+
+  // Helper
   const getContext = () => {
     const context = [];
     if (modelUrlMap.current) {
@@ -1342,38 +693,38 @@ export default function IfcViewer({
       console.log("Unmounting Viewer - Disposing Manager");
       loaderRef.current.dispose();
     }
-  }, []);
+  }, [])
 
+
+  // --- WRAPPER CLASH TEST ---
   const runClashTest = async (modelIDs, tolerance) => {
     if (!loaderRef.current) return 0;
     return await loaderRef.current.runClashTest(modelIDs, tolerance);
   };
 
+
   const handleSelectClashItem = (item1, item2) => {
     if (!loaderRef.current) return;
+
     const itemsToHighlight = [
       { modelID: item1.modelID, expressID: item1.expressID },
       { modelID: item2.modelID, expressID: item2.expressID }
     ];
-    loaderRef.current.highlightItems(itemsToHighlight);
-  };
 
+    loaderRef.current.highlightItems(itemsToHighlight);
+
+    // Zoom camera  (Optional)
+    // loaderRef.current.zoomToItems(itemsToHighlight); 
+  };
 
   const getSnapshot = () => {
     if (!loaderRef.current || !sceneRef.current) return null;
 
-    const rawCamera = sceneRef.current.getCameraState();
-    const camera = rawCamera ? {
-        position: Array.isArray(rawCamera.position)
-          ? { x: rawCamera.position[0], y: rawCamera.position[1], z: rawCamera.position[2] }
-          : { x: rawCamera.position?.x ?? 0, y: rawCamera.position?.y ?? 0, z: rawCamera.position?.z ?? 0 },
-        target: Array.isArray(rawCamera.target)
-          ? { x: rawCamera.target[0], y: rawCamera.target[1], z: rawCamera.target[2] }
-          : { x: rawCamera.target?.x ?? 0, y: rawCamera.target?.y ?? 0, z: rawCamera.target?.z ?? 0 },
-      } : null;
+    const camera = sceneRef.current.getCameraState();
 
     const rawVisibility = loaderRef.current.getVisibilityState();
 
+    // Map ModelID -> FileUrl
     const safeVisibility = rawVisibility.map(item => {
       const url = modelUrlMap.current[item.modelID];
       if (url) {
@@ -1385,8 +736,7 @@ export default function IfcViewer({
       return null;
     }).filter(item => item !== null);
 
-    // const rawSelection = selectedItems;
-    const rawSelection = selectedItemsRef.current;
+    const rawSelection = selectedItems;
     const safeSelection = rawSelection.map(item => ({
       fileUrl: item.fileUrl || modelUrlMap.current[item.modelID],
       expressID: item.expressID,
@@ -1394,28 +744,18 @@ export default function IfcViewer({
     }));
 
     const thumbnail = sceneRef.current.getScreenshot();
-    const markerSprite = topicMarkerGroupRef.current.children[0];
-    const currentMarker = markerSprite ? {
-      x: markerSprite.position.x,
-      y: markerSprite.position.y,
-      z: markerSprite.position.z
-    } : null;
-    
-    const modelTransforms = loaderRef.current.getAllModelsTransform();
-    const clippingPlanes = loaderRef.current.getClippingState();
 
+    const modelTransforms = loaderRef.current.getAllModelsTransform();
+
+    const clippingPlanes = loaderRef.current.getClippingState();
     return {
       camera,
       visibility: safeVisibility,
       selection: safeSelection,
       thumbnail,
-      // modelOpacity: modelOpacity,
-      modelOpacity: modelOpacityRef.current,
+      modelOpacity: modelOpacity,
       modelTransforms: modelTransforms,
-      clippingPlanes: clippingPlanes, 
-      // measurements: measurements,
-      measurements: measurementsRef.current,
-      marker: currentMarker
+      clippingPlanes: clippingPlanes
     };
   };
 
@@ -1424,6 +764,7 @@ export default function IfcViewer({
       setIsPropertiesOpen(false);
       return;
     }
+
     setIsPropertiesOpen(true);
     setIsLoadingProps(true);
     setPropertiesData(null);
@@ -1438,125 +779,24 @@ export default function IfcViewer({
     }
   };
 
+  // Auto-update properties
   useEffect(() => {
     if (isPropertiesOpen) {
       handleShowProperties();
     }
   }, [selectedItems]);
 
-  function computeFacePolygonBounds(mesh, hitFaceIndex, hitNormal) {
-    const geom = mesh.geometry;
-    const pos = geom.attributes.position;
-    const index = geom.index;
 
-    const thresholdNormal = 0.01;
-    const thresholdPlane = 0.002;
 
-    const faceNormal = hitNormal.clone().normalize();
-    const facePoint = new THREE.Vector3().fromBufferAttribute(pos, index.getX(hitFaceIndex * 3));
-    const vertices = [];
 
-    for (let i = 0; i < index.count; i += 3) {
-      const a = index.getX(i);
-      const b = index.getX(i + 1);
-      const c = index.getX(i + 2);
 
-      const vA = new THREE.Vector3().fromBufferAttribute(pos, a);
-      const vB = new THREE.Vector3().fromBufferAttribute(pos, b);
-      const vC = new THREE.Vector3().fromBufferAttribute(pos, c);
-
-      const triNormal = new THREE.Vector3().crossVectors(vB.clone().sub(vA), vC.clone().sub(vA)).normalize();
-
-      if (triNormal.dot(faceNormal) < 1 - thresholdNormal) continue;
-      if (Math.abs(faceNormal.dot(vA.clone().sub(facePoint))) > thresholdPlane) continue;
-
-      vertices.push(vA, vB, vC);
-    }
-
-    vertices.forEach(v => v.applyMatrix4(mesh.matrixWorld));
-    return new THREE.Box3().setFromPoints(vertices);
-  }
-
-  const handleZoomToSection = async () => {
-    if (selectedItems.length === 0) return;
-
-    const item = selectedItems[0];
-
-    if (item.faceData) {
-      const { faceIndex, mesh, normal } = item.faceData;
-
-      const camera = sceneRef.current.camera;
-      const controls = sceneRef.current.controls;
-      const faceBBox = computeFacePolygonBounds(mesh, faceIndex, normal);
-      const center = faceBBox.getCenter(new THREE.Vector3());
-      const size = faceBBox.getSize(new THREE.Vector3());
-
-      const viewDir = new THREE.Vector3().subVectors(camera.position, controls.target).normalize();
-      const maxDim = Math.max(size.x, size.y, size.z);
-      const fov = camera.fov * Math.PI / 180;
-      const distance = (maxDim / 2) / Math.tan(fov / 2);
-      const finalDistance = distance * 1.15;
-      const newCameraPosition = center.clone().add(viewDir.clone().multiplyScalar(finalDistance));
-
-      animateCamera(camera.position.clone(), newCameraPosition, controls.target.clone(), center);
-      return;
-    }
-
-    const modelID = item.modelID;
-    const expressID = item.expressID;
-
-    const subset = loaderRef.current.ifcLoader.ifcManager.createSubset({
-      modelID,
-      ids: [expressID],
-      applyBVH: true,
-      removePrevious: false,
-      customID: "zoom-subset"
-    });
-    
-    sceneRef.current.scene.add(subset);
-    const bbox = new THREE.Box3().setFromObject(subset);
-    const center = new THREE.Vector3();
-    bbox.getCenter(center);
-    const size = new THREE.Vector3();
-    bbox.getSize(size);
-    const maxDim = Math.max(size.x, size.y, size.z);
-
-    sceneRef.current.controls.target.copy(center);
-    const fov = sceneRef.current.camera.fov * (Math.PI / 180);
-    const cameraDistance = Math.abs(maxDim / Math.sin(fov / 2)) * 0.8; 
-
-    const currentDirection = new THREE.Vector3().subVectors(sceneRef.current.camera.position, center).normalize();
-    const cameraPosition = center.clone().add(currentDirection.multiplyScalar(cameraDistance));
-
-    animateCamera(sceneRef.current.camera.position.clone(), cameraPosition, sceneRef.current.controls.target.clone(), center);
-
-    sceneRef.current.scene.remove(subset);
-    subset.geometry.dispose();
-  };
-
-  const animateCamera = (startPosition, endPosition, startTarget, endTarget) => {
-    const duration = 1000; 
-    const startTime = Date.now();
-
-    const animate = () => {
-      const elapsed = Date.now() - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      const easeProgress = progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
-
-      sceneRef.current.camera.position.lerpVectors(startPosition, endPosition, easeProgress);
-      sceneRef.current.controls.target.lerpVectors(startTarget, endTarget, easeProgress);
-      sceneRef.current.controls.update();
-
-      if (progress < 1) requestAnimationFrame(animate);
-    };
-    animate();
-  };
-
+  // --- EFFECT: UPDATE OPACITY ---
   useEffect(() => {
     if (loaderRef.current) {
       loaderRef.current.setModelOpacity(modelOpacity);
     }
-  }, [modelOpacity]);
+  }, [modelOpacity])
+
 
   const Loading = () => {
     if (isLoading) {
@@ -1576,8 +816,10 @@ export default function IfcViewer({
     <div style={{ width: '100%', height: '100%', position: 'relative', display: 'flex', flexDirection: 'column' }}>
       <Loading />
       <div style={{ display: 'flex', flex: 1, width: '100%', height: '100%', position: 'relative', overflow: 'hidden' }}>
+        {/* LEFT SIDEBAR CONTAINER */}
         {!isDataTable && (
           <div className="flex flex-col bg-slate-700">
+            {/* LEFT SIDEBAR */}
             <div
               onClick={(e) => e.stopPropagation()}
               onMouseDown={(e) => e.stopPropagation()}
@@ -1600,6 +842,7 @@ export default function IfcViewer({
                 flexDirection: state === 'todos' ? 'column' : undefined,
               }}
             >
+              {/* Model */}
               {state == 'models' &&
                 <div className="flex flex-col items-center justify-between mb-3">
                   <div className="p-4 w-full border-b border-border">
@@ -1609,13 +852,24 @@ export default function IfcViewer({
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><Menu className="h-4 w-4" /></Button></DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => setSortBy("name")}>Name {sortBy === "name" && <Check className="ml-2 h-4 w-4" />}</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setSortBy("date-created")}>Date created {sortBy === "date-created" && <Check className="ml-2 h-4 w-4" />}</DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => setSortBy("name")}
+                            >
+                              Name {sortBy === "name" && <Check className="ml-2 h-4 w-4" />}</DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => setSortBy("date-created")}
+                            >
+                              Date created {sortBy === "date-created" && <Check className="ml-2 h-4 w-4" />}</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowSearch(!showSearch)}><Search className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8"
+                          onClick={() => setShowSearch(!showSearch)}
+                        >
+                          <Search className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
+
                     {showSearch && (
                       <div className="mb-3">
                         <Input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="h-8 text-sm" />
@@ -1631,31 +885,89 @@ export default function IfcViewer({
                       </DropdownMenu>
                     </div>
                   </div>
+
+
                   {
                     models.map((m, idx) => {
                       const isActive = selectedModelIndex === idx && selectedTreePaths.length === 0;
+
                       return (
-                        <div key={idx} className={isActive ? 'tree-active' : ''}
-                          onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.background = '#f2f2f2'; }}
-                          onMouseLeave={(e) => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
-                          onClick={() => { setSelectedModelIndex(idx); setSelectedTreePaths([]); }}
-                          style={{ display: 'flex', flexDirection: 'column', marginBottom: '4px', marginTop: '12px', cursor: 'pointer', position: 'relative', width: '100%', borderRadius: '4px', width: `${sidebarWidth}px`, }}
+                        <div
+                          key={idx}
+                          className={isActive ? 'tree-active' : ''}
+                          onMouseEnter={(e) => {
+                            if (!isActive) e.currentTarget.style.background = '#f2f2f2';
+                          }}
+                          onMouseLeave={(e) => {
+                            if (!isActive) e.currentTarget.style.background = 'transparent';
+                          }}
+                          onClick={() => {
+                            setSelectedModelIndex(idx);
+                            setSelectedTreePaths([]);
+                          }}
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            marginBottom: '4px',
+                            marginTop: '12px',
+                            cursor: 'pointer',
+                            position: 'relative',
+                            width: '100%',
+                            borderRadius: '4px',
+                            width: `${sidebarWidth}px`,
+                          }}
                         >
-                          <div className="flex" style={{ background: isActive ? '#dbeafe' : 'transparent', padding: '4px 8px', }}>
-                            <span style={{ cursor: 'pointer', marginRight: '10px', display: 'flex', gap: '4px', }}
-                              onClick={(e) => { e.stopPropagation(); if (!m.visible) return; setOpenModel((prev) => ({ ...prev, [idx]: !prev[idx] })); }}
+                          <div
+                            className="flex"
+                            style={{
+                              background: isActive ? '#dbeafe' : 'transparent',
+                              padding: '4px 8px',
+                            }}
+                          >
+                            <span
+                              style={{
+                                cursor: 'pointer',
+                                marginRight: '10px',
+                                display: 'flex',
+                                gap: '4px',
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (!m.visible) {
+                                  return;
+                                }
+                                setOpenModel((prev) => ({ ...prev, [idx]: !prev[idx] }));
+                              }}
                             >
                               {openModel[idx] ? <ChevronDown /> : <ChevronRight />}
                             </span>
-                            <span style={{ cursor: 'pointer', marginRight: '10px', display: 'flex', gap: '4px', }}
+                            <span
+                              style={{
+                                cursor: 'pointer',
+                                marginRight: '10px',
+                                display: 'flex',
+                                gap: '4px',
+                              }}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setSelectedItems((prev) => prev.filter((item) => item.modelID !== m.id));
+                                setSelectedItems((prev) => {
+                                  const filtered = prev.filter((item) => item.modelID !== m.id);
+                                  return filtered;
+                                });
                                 loaderRef.current.toggleModelVisibility(m.id);
-                                setModels((prev) => prev.map((model) => model.id === m.id ? { ...model, visible: !model.visible } : model));
+                                setModels((prev) =>
+                                  prev.map((model) =>
+                                    model.id === m.id ? { ...model, visible: !model.visible } : model,
+                                  ),
+                                );
+
                                 setHiddenItems((prev) => {
                                   const updated = { ...prev };
-                                  Object.keys(updated).forEach((key) => { if (key.startsWith(`${m.id}-`)) delete updated[key]; });
+                                  Object.keys(updated).forEach((key) => {
+                                    if (key.startsWith(`${m.id}-`)) {
+                                      delete updated[key];
+                                    }
+                                  });
                                   return updated;
                                 });
                                 setOpenModel((prev) => ({ ...prev, [idx]: false }));
@@ -1663,15 +975,37 @@ export default function IfcViewer({
                             >
                               {m.visible ? <Eye /> : <EyeOff />}
                             </span>
-                            <span style={{ cursor: 'pointer', fontWeight: isActive ? 'bold' : 'normal', color: isActive ? '#2D566C' : '#444', lineClamp: 1, display: 'block', wordBreak: 'break-word', }}>{m.name}</span>
-                            <span style={{ cursor: 'pointer', marginLeft: 'auto', marginTop: "4px" }}
-                              onClick={(e) => { e.stopPropagation(); setOpenMenuKey(openMenuKey === `model-${m.id}` ? null : `model-${m.id}`); }}
+
+                            <span
+                              style={{
+                                cursor: 'pointer',
+                                fontWeight: isActive ? 'bold' : 'normal',
+                                color: isActive ? '#2D566C' : '#444',
+                                lineClamp: 1,
+                                display: 'block',
+                                wordBreak: 'break-word',
+                              }}
+                            >
+                              {m.name}
+                            </span>
+
+                            <span
+                              style={{ cursor: 'pointer', marginLeft: 'auto', marginTop: "4px" }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenMenuKey(openMenuKey === `model-${m.id}` ? null : `model-${m.id}`);
+                              }}
                             >
                               <EllipsisVertical size={20} />
+
                               {openMenuKey === `model-${m.id}` && (
                                 <div className="absolute bg-white border shadow-lg z-50 rounded-md py-1 right-2 w-40">
-                                  <div className="px-3 py-2 hover:bg-gray-100 text-sm cursor-pointer flex items-center gap-2"
-                                    onClick={(e) => { e.stopPropagation(); handleOpenPositionSettings(m); }}
+                                  <div
+                                    className="px-3 py-2 hover:bg-gray-100 text-sm cursor-pointer flex items-center gap-2"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenPositionSettings(m);
+                                    }}
                                   >
                                     <Settings2 size={14} /> Position Settings
                                   </div>
@@ -1681,7 +1015,14 @@ export default function IfcViewer({
                           </div>
                           <div className="">
                             {!isCollapsed && openModel[idx] && (
-                              <TreeNode idx={0} modelId={m.ifcModelID} node={m.tree} onSelect={loaderRef} selectedTreePaths={selectedTreePaths} setSelectedTreePaths={setSelectedTreePaths} />
+                              <TreeNode
+                                idx={0}
+                                modelId={m.ifcModelID}
+                                node={m.tree}
+                                onSelect={loaderRef}
+                                selectedTreePaths={selectedTreePaths}
+                                setSelectedTreePaths={setSelectedTreePaths}
+                              />
                             )}
                           </div>
                         </div>
@@ -1691,6 +1032,7 @@ export default function IfcViewer({
                 </div>
               }
 
+              {/* Layers */}
               {state == 'layers' &&
                 <div className="">
                   <div className="p-4 w-full border-b border-border">
@@ -1700,13 +1042,24 @@ export default function IfcViewer({
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><Menu className="h-4 w-4" /></Button></DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => setSortBy("name")}>Name {sortBy === "name" && <Check className="ml-2 h-4 w-4" />}</DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setSortBy("model")}>Model {sortBy === "model" && <Check className="ml-2 h-4 w-4" />}</DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => setSortBy("name")}
+                            >
+                              Name {sortBy === "name" && <Check className="ml-2 h-4 w-4" />}</DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => setSortBy("model")}
+                            >
+                              Model {sortBy === "model" && <Check className="ml-2 h-4 w-4" />}</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setShowSearch(!showSearch)}><Search className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8"
+                          onClick={() => setShowSearch(!showSearch)}
+                        >
+                          <Search className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
+
                     {showSearch && (
                       <div className="mb-3">
                         <Input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="h-8 text-sm" />
@@ -1722,6 +1075,7 @@ export default function IfcViewer({
                       </DropdownMenu>
                     </div>
                   </div>
+
                   {
                     models.map((m, idx) => {
                       return m.layers.map((layer, idx) => {
@@ -1729,48 +1083,136 @@ export default function IfcViewer({
                         const key = layerKey(m.id, layer.typeId);
                         const visible = isLayerVisible(m.id, layer.typeId);
                         const modelHidden = m.visible === false;
+
                         const allLayerKeys = m.layers.map((l) => layerKey(m.id, l.typeId));
-                        const isIsolated = hiddenLayers.size > 0 && allLayerKeys.every((k) => k === key || hiddenLayers.has(k));
+
+                        const isIsolated =
+                          hiddenLayers.size > 0 &&
+                          allLayerKeys.every((k) => k === key || hiddenLayers.has(k));
 
                         return (
-                          <div className="flex justify-between items-center my-2 cursor-pointers" key={idx}
-                            style={{ background: isActive ? '#dbeafe' : 'transparent', padding: '4px 8px', }}
-                            onClick={() => { if (modelHidden) return; setSelectedLayer([layer.typeId]); }}
+                          <div
+                            className="flex justify-between items-center my-2 cursor-pointers"
+                            key={idx}
+                            style={{
+                              background: isActive ? '#dbeafe' : 'transparent',
+                              padding: '4px 8px',
+                            }}
+                            onClick={() => {
+                              if (modelHidden) return;
+                              setSelectedLayer([layer.typeId]);
+                            }}
                           >
-                            <div className="flex" style={{ opacity: modelHidden ? 0.4 : 1 }}>
-                              <span style={{ cursor: 'pointer', marginRight: '10px', display: 'flex', gap: '4px', }}
+                            <div
+                              className="flex"
+                              style={{
+                                opacity: modelHidden ? 0.4 : 1,
+                              }}
+                            >
+                              <span
+                                style={{
+                                  cursor: 'pointer',
+                                  marginRight: '10px',
+                                  display: 'flex',
+                                  gap: '4px',
+                                }}
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   if (modelHidden) return;
+
                                   onToggleLayer(m.id, layer.typeId);
+
                                   setHiddenLayers((prev) => {
                                     const next = new Set(prev);
-                                    if (next.has(key)) next.delete(key);
-                                    else next.add(key);
+                                    next.has(key) ? next.delete(key) : next.add(key);
                                     return next;
                                   });
                                 }}
                               >
                                 {modelHidden ? <EyeOff /> : visible ? <Eye /> : <EyeOff />}{' '}
                               </span>
-                              <span style={{ cursor: 'pointer', fontWeight: isActive ? 'bold' : 'normal', color: isActive ? '#2D566C' : '#444', lineClamp: 1, display: 'block', wordBreak: 'break-word', }}>{layer.label}</span>
+
+                              <span
+                                style={{
+                                  cursor: 'pointer',
+                                  fontWeight: isActive ? 'bold' : 'normal',
+                                  color: isActive ? '#2D566C' : '#444',
+                                  lineClamp: 1,
+                                  display: 'block',
+                                  wordBreak: 'break-word',
+                                }}
+                              >
+                                {layer.label}
+                              </span>
                             </div>
-                            <span style={{ cursor: 'pointer', opacity: modelHidden ? 0.4 : 1, position: 'relative' }}
-                              onClick={(e) => { e.stopPropagation(); if (modelHidden) return; setOpenMenuKey(openMenuKey === key ? null : key); }}
+
+                            <span
+                              style={{
+                                cursor: 'pointer',
+                                opacity: modelHidden ? 0.4 : 1,
+                                position: 'relative',
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (modelHidden) return;
+
+                                setOpenMenuKey(openMenuKey === key ? null : key);
+                              }}
                             >
                               <EllipsisVertical size={16} />
+
                               {openMenuKey === key && (
-                                <div style={{ position: 'absolute', top: '20px', right: 0, background: '#fff', border: '1px solid #e5e7eb', borderRadius: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 1000, minWidth: '140px', }}
+                                <div
+                                  style={{
+                                    position: 'absolute',
+                                    top: '20px',
+                                    right: 0,
+                                    background: '#fff',
+                                    border: '1px solid #e5e7eb',
+                                    borderRadius: '6px',
+                                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                                    zIndex: 1000,
+                                    minWidth: '140px',
+                                  }}
                                   onClick={(e) => e.stopPropagation()}
                                 >
-                                  <div className="px-3 py-2 hover:bg-gray-100 text-sm"
+                                  {/* Isolate layer */}
+                                  <div
+                                    className="px-3 py-2 hover:bg-gray-100 text-sm"
                                     onClick={() => {
-                                      if (isIsolated) { loaderRef.current.unIsolateModel(m.id); setHiddenLayers(new Set()); }
-                                      else { loaderRef.current.isolateTypeVisibility(m.id, layer.typeId); setHiddenLayers(new Set(m.layers.map((l) => layerKey(m.id, l.typeId)).filter((k) => k !== key))); }
+                                      if (isIsolated) {
+                                        loaderRef.current.unIsolateModel(m.id);
+
+                                        setHiddenLayers(new Set());
+                                      } else {
+                                        loaderRef.current.isolateTypeVisibility(m.id, layer.typeId);
+
+                                        setHiddenLayers(
+                                          new Set(
+                                            m.layers
+                                              .map((l) => layerKey(m.id, l.typeId))
+                                              .filter((k) => k !== key),
+                                          ),
+                                        );
+                                      }
+
                                       setOpenMenuKey(null);
                                     }}
-                                  >{isIsolated ? 'Unisolate layer' : 'Isolate layer'}</div>
-                                  <div className="px-3 py-2 hover:bg-gray-100 text-sm" onClick={() => { setSelectedLayer([layer.typeId]); setOpenMenuKey(null); }}>Select layer</div>
+                                  >
+                                    {isIsolated ? 'Unisolate layer' : 'Isolate layer'}
+                                  </div>
+
+                                  {/* Select layer */}
+                                  <div
+                                    className="px-3 py-2 hover:bg-gray-100 text-sm"
+                                    onClick={() => {
+                                      // TODO: Select all item in the layer and highlight them in the viewer
+                                      setSelectedLayer([layer.typeId]);
+                                      setOpenMenuKey(null);
+                                    }}
+                                  >
+                                    Select layer
+                                  </div>
                                 </div>
                               )}
                             </span>
@@ -1782,57 +1224,131 @@ export default function IfcViewer({
                 </div>
               }
 
+              {/* Todos */}
               {state == 'todos' && (
-                <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden', width: '100%', }}>
-                  <TodoList projectId={projectId} onRestoreView={restoreState} onSelectTodo={onSelectTodo} onOpenDrawer={onOpenTodoDrawer} />
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    flex: 1,
+                    minHeight: 0,
+                    overflow: 'hidden',
+                    width: '100%',
+                  }}
+                >
+                  <TodoList
+                    projectId={projectId}
+                    onRestoreView={restoreState}
+                    onSelectTodo={onSelectTodo}
+                    onOpenDrawer={onOpenTodoDrawer}
+                  />
                 </div>
               )}
 
+              {/* Views */}
               {state == 'views' && (
-                <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden', width: '100%', }}>
-                  <ViewList projectId={projectId} ifcUrls={ifcUrls} onOpenDrawer={onOpenViewDrawer} onRestoreView={onRestoreView} onUpdateSnapshot={onUpdateSnapshot} />
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    flex: 1,
+                    minHeight: 0,
+                    overflow: 'hidden',
+                    width: '100%',
+                  }}
+                >
+                  <ViewList
+                    projectId={projectId}
+                    ifcUrls={ifcUrls}
+
+                    // OPTION EXTEND
+                    // currentUserId={currentUser?._id}
+                    // currentUserEmail={currentUser?.email}
+                    onOpenDrawer={onOpenViewDrawer}
+                    onRestoreView={onRestoreView}
+                    onUpdateSnapshot={onUpdateSnapshot}
+                  />
                 </div>
               )}
 
-              {state == 'organizer' && (
-                <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden', width: '100%', }}>
-                  <Organizer />
-                </div>
-              )}
-
+              {/* Data table */}
               {state == 'data-table' && (
-                <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden', width: '100%', }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    flex: 1,
+                    minHeight: 0,
+                    overflow: 'hidden',
+                    width: '100%',
+                  }}
+                >
                   <DataTable />
                 </div>
               )}
 
+              {/* Topics */}
               {state == 'topics' && (
-                <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden', width: '100%', }}>
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    flex: 1,
+                    minHeight: 0,
+                    overflow: 'hidden',
+                    width: '100%',
+                  }}
+                >
                   <Topics 
                     projectId={projectId} 
-                    capture3DState={async () =>{
+                    capture3DState={
+                      async () =>{
                         const snapshot = getSnapshot();
                         const context = getContext();
+
                         let thumbnailBase64 ="";
                         if(canvasRef.current && sceneRef.current) {
                           const renderer = sceneRef.current.getRenderer();
                           const scene = sceneRef.current.scene;
                           const camera = sceneRef.current.getCamera();
+
                           renderer.render(scene, camera);
                           thumbnailBase64 = canvasRef.current.toDataURL("image/png", 0.5);
                         }
-                        return { viewState: snapshot, items: context, thumbnail: thumbnailBase64 || snapshot?.thumbnail }
-                    }}
+                        return {
+                          viewState: snapshot,
+                          items: context,
+                          thumbnail: thumbnailBase64 || snapshot?.thumbnail
+                        }
+                      }
+                    }
                     onRestoreView={restoreState}
-                    onAddMarkerStart={(cb) => setMarkerCallback(() => cb)}
-                    onAddMarkerCancel={() => setMarkerCallback(null)}
+                    onAddMarkerStart={(cb) => { markerCallbackRef.current = cb; }}
+                    onAddMarkerCancel={() => { markerCallbackRef.current = null; }}
                   />
                 </div>
               )}
 
+              {/* Clash sets */}
               {state == 'clash-sets' && (
-                <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden', width: '100%', }}>
-                  <ClashSets onOpenNewClashDrawer={onOpenNewClashDrawer} projectId={projectId} onSelectClashItem={handleSelectClashItem} clashResults={clashResults} onRestoreClashSet={onRestoreClashSet} autoExpandedSetId={autoExpandedClashSetId} />
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    flex: 1,
+                    minHeight: 0,
+                    overflow: 'hidden',
+                    width: '100%',
+                  }}
+                >
+                  <ClashSets
+                    onOpenNewClashDrawer={onOpenNewClashDrawer}
+                    projectId={projectId}
+                    onSelectClashItem={handleSelectClashItem}
+                    clashResults={clashResults}
+                    onRestoreClashSet={onRestoreClashSet}
+                    autoExpandedSetId={autoExpandedClashSetId}
+                  />
                 </div>
               )}
             </div>
@@ -1840,53 +1356,103 @@ export default function IfcViewer({
         )}
 
         {/* 3D CANVAS */}
-        <div style={{ flex: 1, height: '100%', position: 'relative', overflow: 'hidden', alignItems: 'center', }}>
-          <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block', outline: 'none', }} />
-
-          {/* Area selection rectangle overlay */}
-          {selectionRect && (
-            <div className="absolute z-50 pointer-events-none"
-              style={{ left: selectionRect.x, top: selectionRect.y, width: selectionRect.w, height: selectionRect.h, border: '2px solid #2563eb', background: 'rgba(37, 99, 235, 0.12)', borderRadius: 6, }}
-            />
-          )}
+        <div
+          style={{
+            flex: 1,
+            height: '100%',
+            position: 'relative',
+            overflow: 'hidden',
+            alignItems: 'center',
+          }}
+        >
+          <canvas
+            ref={canvasRef}
+            style={{
+              width: '100%',
+              height: '100%',
+              display: 'block',
+            }}
+          />
 
           {cameraMode === 'walk' && (
             <div className="absolute top-4 right-4 z-30 animate-in fade-in slide-in-from-top-2 duration-500 pointer-events-none select-none">
               <div className="bg-black/60 backdrop-blur-sm text-white p-3 rounded-lg shadow-lg border border-white/10 w-auto min-w-[200px]">
+
+                {/* Header Compact */}
                 <div className="flex items-center gap-2 mb-2 pb-2 border-b border-white/10 text-blue-400">
                   <Footprints className="h-4 w-4" />
                   <span className="font-bold text-[10px] uppercase tracking-wider">Fly Mode Controls</span>
                 </div>
+
                 <div className="grid grid-cols-[1fr_auto] gap-y-2 gap-x-4 text-[11px] items-center">
+
+                  {/* Movement */}
                   <span className="text-slate-300 font-medium">Move</span>
-                  <div className="flex gap-1 justify-end"><Kbd>W</Kbd><Kbd>A</Kbd><Kbd>S</Kbd><Kbd>D</Kbd></div>
+                  <div className="flex gap-1 justify-end">
+                    <Kbd>W</Kbd><Kbd>A</Kbd><Kbd>S</Kbd><Kbd>D</Kbd>
+                  </div>
+
+                  {/* Elevation */}
                   <span className="text-slate-300 font-medium">Elevation</span>
-                  <div className="flex gap-1 justify-end"><Kbd>R</Kbd><span className="text-slate-500 self-center text-[10px]">/</span><Kbd>T</Kbd></div>
+                  <div className="flex gap-1 justify-end">
+                    <Kbd>R</Kbd>
+                    <span className="text-slate-500 self-center text-[10px]">/</span>
+                    <Kbd>T</Kbd>
+                  </div>
+
+                  {/* Speed */}
                   <span className="text-slate-300 font-medium">Sprint</span>
-                  <div className="flex gap-1 justify-end"><Kbd>Shift</Kbd></div>
+                  <div className="flex gap-1 justify-end">
+                    <Kbd>Shift</Kbd>
+                  </div>
+
+                  {/* Look */}
                   <span className="text-slate-300 font-medium">Look</span>
-                  <div className="flex items-center justify-end gap-1 text-slate-300"><Move className="h-3 w-3" /> Mouse</div>
+                  <div className="flex items-center justify-end gap-1 text-slate-300">
+                    <Move className="h-3 w-3" /> Mouse
+                  </div>
                 </div>
+
               </div>
             </div>
           )}
 
           {/* Selected Item Information */}
           {selectedItems.length > 0 && (
-            <div onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}
-              className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-slate-800/90 backdrop-blur text-white rounded-xl shadow-lg px-4 py-2 flex items-center gap-4 z-20"
+            <div
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => e.stopPropagation()}
+              className="absolute bottom-6 left-1/2 -translate-x-1/2 
+               bg-slate-800/90 backdrop-blur
+               text-white rounded-xl shadow-lg
+               px-4 py-2 flex items-center gap-4
+               z-20"
             >
-              <div className="text-sm"><span className="font-semibold">{selectedItems.length}</span> selected</div>
+              {/* Count */}
+              <div className="text-sm">
+                <span className="font-semibold">{selectedItems.length}</span> selected
+              </div>
+
               <div className="w-px h-5 bg-white/20" />
-              <button className="hover:text-blue-400 transition" title="View properties" onClick={() => { if (isPropertiesOpen) setIsPropertiesOpen(false); else handleShowProperties(); }}><Info /></button>
-              {viewOptions?.objectAttachments !== false && (
-                <button className="hover:text-blue-400 transition" title="Attachments"><Paperclip /></button>
-              )}
-              <button className="hover:text-blue-400 transition" title="Zoom to section" onClick={handleZoomToSection}><Shrink /></button>
-              <button className="hover:text-blue-400 transition" title="Clip box"><SquareScissors /></button>
-              <button className="hover:text-blue-400 transition" title="Show only selected object"><SquaresSubtract /></button>
+
+              {/* Info */}
+              <button
+                className="hover:text-blue-400 transition"
+                title="View properties"
+                onClick={() => {
+                  // Toggle Drawer
+                  if (isPropertiesOpen) setIsPropertiesOpen(false);
+                  else handleShowProperties();
+                }}
+              >
+                <Info />
+              </button>
+
+              {/* Visibility */}
               {selectedItems.length > 0 && (
-                <button className="hover:text-blue-400 transition" title="Toggle visibility"
+                <button
+                  className="hover:text-blue-400 transition"
+                  title="Toggle visibility"
                   onClick={() => {
                     const firstItem = selectedItems[0];
                     const firstKey = `${firstItem.modelID}-${firstItem.expressID}`;
@@ -1897,8 +1463,11 @@ export default function IfcViewer({
                       const updated = { ...prev };
                       selectedItems.forEach(item => {
                         const key = `${item.modelID}-${item.expressID}`;
-                        if (shouldHide) updated[key] = true;
-                        else delete updated[key];
+                        if (shouldHide) {
+                          updated[key] = true;
+                        } else {
+                          delete updated[key];
+                        }
                       });
                       return updated;
                     });
@@ -1906,37 +1475,71 @@ export default function IfcViewer({
                     selectedItems.forEach(item => {
                       const key = `${item.modelID}-${item.expressID}`;
                       const isItemCurrentlyHidden = hiddenItems[key];
-                      if ((shouldHide && !isItemCurrentlyHidden) || (!shouldHide && isItemCurrentlyHidden)) {
+
+                      if (shouldHide && !isItemCurrentlyHidden) {
+                        loaderRef.current.toggleItemVisibility(item.modelID, item.expressID);
+                      }
+                      else if (!shouldHide && isItemCurrentlyHidden) {
                         loaderRef.current.toggleItemVisibility(item.modelID, item.expressID);
                       }
                     });
 
-                    if (shouldHide) loaderRef.current.removeHighlight();
-                    else loaderRef.current.highlightItems(selectedItems);
+                    if (shouldHide) {
+                      loaderRef.current.removeHighlight();
+                    } else {
+                      loaderRef.current.highlightItems(selectedItems);
+                    }
                   }}
                 >
-                  {hiddenItems[`${selectedItems[0]?.modelID}-${selectedItems[0]?.expressID}`] ? <EyeOff /> : <Eye />}
+                  {/* Icon */}
+                  {hiddenItems[`${selectedItems[0]?.modelID}-${selectedItems[0]?.expressID}`] ? (
+                    <EyeOff />
+                  ) : (
+                    <Eye />
+                  )}
                 </button>
               )}
-              <div className="w-px h-5 bg-white/20" />
-              <div className="text-sm"><span className="font-semibold"></span> Change visibility <ChevronDown /></div>
             </div>
           )}
         </div>
       </div>
 
+      {/* --- BOTTOM DRAWER: DATA TABLE --- */}
+
       {isDataTable && (
-        <div className="absolute bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] animate-in slide-in-from-bottom-10 duration-300" style={{ height: '400px' }}>
+        <div
+          className="absolute bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] animate-in slide-in-from-bottom-10 duration-300"
+          style={{
+            height: '400px',
+          }}
+        >
           <DataTable ifcManager={loaderRef.current} />
         </div>
       )}
 
-      <PropertiesDrawer open={isPropertiesOpen} onOpenChange={setIsPropertiesOpen} data={propertiesData} loading={isLoadingProps} />
+      {/* RENDER PROPERTIES DRAWER */}
+      <PropertiesDrawer
+        open={isPropertiesOpen}
+        onOpenChange={setIsPropertiesOpen}
+        data={propertiesData}
+        loading={isLoadingProps}
+      />
 
-      <ModelPositionDrawer open={isPosDrawerOpen} onOpenChange={setIsPosDrawerOpen} modelId={posDrawerModel?.id ?? null} modelName={posDrawerModel?.name ?? ""} initialData={posDrawerData} onSave={handleSavePosition} />
+
+
+      {/* RENDER MODEL POSITION DRAWER */}
+      <ModelPositionDrawer
+        open={isPosDrawerOpen}
+        onOpenChange={setIsPosDrawerOpen}
+        modelId={posDrawerModel?.id ?? null}
+        modelName={posDrawerModel?.name ?? ""}
+        initialData={posDrawerData}
+        onSave={handleSavePosition}
+      />
     </div>
   );
 }
+
 
 function Kbd({ children }) {
   return (

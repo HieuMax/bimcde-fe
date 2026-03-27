@@ -1,8 +1,9 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { 
-  Plus, Search, Filter, 
-  MoreVertical, Trash2, Edit, Share2, ChevronDown, ChevronUp
+    Plus, Search, Filter, Calendar, 
+    User, AlertCircle, CheckCircle2, Clock, HelpCircle,
+    MoreVertical, Trash2, Edit, Share2
 } from 'lucide-react';
 import { TodoItem } from '@/types/explorer';
 
@@ -21,10 +22,8 @@ export default function TodosTab({
 }) {
   const [filter, setFilter] = useState<'all' | 'mine'>('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   
-  // State quản lý việc mở/đóng danh sách Closed
-  const [isClosedExpanded, setIsClosedExpanded] = useState(true);
+  const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
 
   useEffect(() => {
     const handleClickOutside = () => setActiveMenuId(null);
@@ -32,140 +31,53 @@ export default function TodosTab({
     return () => window.removeEventListener('click', handleClickOutside);
   }, [activeMenuId]);
 
-  // priority
-  const getDotColor = (priority?: string) => {
-     switch(priority) {
-        case 'Critical': return 'bg-[#d13438]'; 
-        case 'High': return 'bg-[#ff8c00]';   
-        case 'Low': return 'bg-[#00bfff]';   
-        case 'Normal': 
-        default: return 'bg-[#005a9e]';
+  const getStatusStyle = (status?: string) => {
+      switch(status) {
+          case 'Done': return { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200', icon: <CheckCircle2 size={12}/> };
+          case 'In Progress': return { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', icon: <Clock size={12}/> };
+          case 'On Hold': return { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200', icon: <AlertCircle size={12}/> };
+          default: return { bg: 'bg-gray-50', text: 'text-gray-600', border: 'border-gray-200', icon: <HelpCircle size={12}/> };
+      }
+  }
+
+  const getPriorityDotColor = (p?: string) => {
+     switch(p) {
+        case 'Urgent': return 'bg-red-500 shadow-sm shadow-red-200';
+        case 'High': return 'bg-orange-500 shadow-sm shadow-orange-200';
+        case 'Normal': return 'bg-blue-500';
+        case 'Low': return 'bg-slate-400';
+        default: return 'bg-gray-300';
      }
   }
 
-  // 1. Lọc theo user và search
   const filtered = todos.filter(t => {
       const matchUser = filter === 'mine' ? t.assignee === currentUser : true;
       const matchSearch = t.title.toLowerCase().includes(searchQuery.toLowerCase());
       return matchUser && matchSearch;
   });
 
-  // 2. Tách thành 2 danh sách: Đang mở và Đã đóng
-  const activeTodos = filtered.filter(t => t.status !== 'Closed');
-  const closedTodos = filtered.filter(t => t.status === 'Closed');
-
-  // 3. Hàm render UI cho 1 item Todo (Tái sử dụng cho cả 2 danh sách)
-  const renderTodoItem = (t: TodoItem) => {
-    return (
-      <div 
-        key={t._id} 
-        onClick={() => onSelectTodo(t)} 
-        className={`group cursor-pointer border-b border-gray-100 hover:bg-[#f3f2f1] transition-all bg-white p-3 relative flex items-start gap-3 ${t.status === 'Closed' ? 'opacity-70 bg-gray-50/50' : ''}`}
-      >
-        {/* Dấu chấm Priority (Cột trái) */}
-        <div className="pt-1 shrink-0">
-          <div className={`w-3.5 h-3.5 rounded-full ${getDotColor(t.priority)}`} />
-        </div>
-
-        {/* Nội dung Todo (Cột phải) */}
-        <div className="flex-1 min-w-0 pr-6 space-y-0.5">
-          {/* ID của Todo */}
-          <div className="text-[13px] text-gray-700 font-medium">
-            {(t as any).code || `THEB-${t._id.slice(-4).toUpperCase()}`}
-          </div>
-          
-          {/* Title */}
-          <div className="text-[14px] text-[#005a9e] font-normal truncate" title={t.title}>
-            {t.title}
-          </div>
-          
-          {/* Status */}
-          <div className="text-[12px] text-gray-500">
-            {t.status || 'Open'}
-          </div>
-          
-          {/* Assignee */}
-          <div className="text-[12px] text-gray-500 truncate">
-            {t.assignee ? `Assigned To ${t.assignee}` : 'Unassigned'}
-          </div>
-        </div>
-
-        {/* Nút Menu (3 chấm) */}
-        <div className={`absolute right-2 top-3 ${activeMenuId === t._id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}>
-            <button
-                onClick={(e) => {
-                    e.stopPropagation();
-                    setActiveMenuId(activeMenuId === t._id ? null : t._id);
-                }}
-                className="p-1 rounded hover:bg-gray-200 text-gray-600"
-            >
-                <MoreVertical size={16} />
-            </button>
-
-            {/* Dropdown Menu */}
-            {activeMenuId === t._id && (
-                <div 
-                    className="absolute right-0 top-6 w-32 bg-white rounded-md shadow-xl border border-gray-100 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100 origin-top-right"
-                    onClick={(e) => e.stopPropagation()}
-                >
-                    <button 
-                        onClick={() => {
-                            onSelectTodo(t);
-                            setActiveMenuId(null);
-                        }}
-                        className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 hover:text-[#005a9e] flex items-center gap-2"
-                    >
-                        <Edit size={12} /> Edit
-                    </button>
-                    {/* <button 
-                        className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 hover:text-[#005a9e] flex items-center gap-2"
-                        onClick={() => setActiveMenuId(null)}
-                    >
-                        <Share2 size={12} /> Share
-                    </button> */}
-                    <div className="h-[1px] bg-gray-100 my-0.5" />
-                    <button 
-                        onClick={() => {
-                            if(confirm(`Delete "${t.title}"?`)) {
-                                onDeleteTodo?.(t._id);
-                            }
-                            setActiveMenuId(null);
-                        }}
-                        className="w-full text-left px-3 py-2 text-xs text-[#d13438] hover:bg-red-50 flex items-center gap-2"
-                    >
-                        <Trash2 size={12} /> Delete
-                    </button>
-                </div>
-            )}
-        </div>
-      </div>
-    );
-  };
-
   return (
     <div className="flex flex-col h-full bg-white text-slate-700">
-      {/* HEADER */}
       <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between bg-white shrink-0">
         <h3 className="text-xs font-bold text-gray-500 uppercase tracking-widest">ToDos ({todos.length})</h3>
-        <button onClick={onCreateTodo} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-[#005a9e] text-white hover:bg-[#004578] transition-colors shadow-sm">
+        <button onClick={onCreateTodo} className="flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors shadow-sm">
           <Plus size={14} /><span className="text-xs font-bold">New</span>
         </button>
       </div>
 
-      {/* FILTER & SEARCH */}
       <div className="p-3 border-b border-gray-200 bg-gray-50/50 shrink-0 space-y-2">
         <div className="relative">
             <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
             <input 
                 type="text" placeholder="Search todos..." value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-8 pr-3 py-1.5 text-xs border border-gray-300 rounded bg-white focus:outline-none focus:border-[#005a9e] focus:ring-1 focus:ring-[#005a9e]"
+                className="w-full pl-8 pr-3 py-1.5 text-xs border border-gray-300 rounded bg-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
             />
         </div>
         <div className="flex items-center gap-2">
             <Filter size={12} className="text-gray-400" />
             <select
-                className="flex-1 bg-transparent text-xs font-medium text-gray-600 focus:outline-none cursor-pointer hover:text-[#005a9e]"
+                className="flex-1 bg-transparent text-xs font-medium text-gray-600 focus:outline-none cursor-pointer hover:text-blue-600"
                 value={filter}
                 onChange={e => setFilter(e.target.value as 'all' | 'mine')}
             >
@@ -176,37 +88,111 @@ export default function TodosTab({
       </div>
 
       {/* LIST */}
-      <div className="flex-1 overflow-y-auto custom-scrollbar">
+      <div className="flex-1 overflow-y-auto p-3 space-y-2 custom-scrollbar">
         {filtered.length === 0 ? (
            <div className="flex flex-col items-center justify-center h-40 text-gray-400 space-y-2">
-             <span className="text-xs">No tasks found</span>
+             <CheckCircle2 size={24} strokeWidth={1.5} className="opacity-20" /><span className="text-xs">No tasks found</span>
            </div>
         ) : (
-           <div className="flex flex-col pb-4">
-              {/* Danh sách Active */}
-              <div className="flex flex-col">
-                  {activeTodos.map(t => renderTodoItem(t))}
-              </div>
+            filtered.map(t => {
+                const style = getStatusStyle(t.status);
+                return (
+                <div 
+                    key={t._id} 
+                    onClick={() => onSelectTodo(t)} 
+                    className="group cursor-pointer rounded-lg border border-transparent border-b-gray-100 hover:border-gray-200 hover:bg-gray-50 transition-all bg-white p-3 relative pr-8"
+                >
+                    {/* Header Row */}
+                    <div className="flex items-center justify-between mb-2">
+                        <div className={`flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${style.bg} ${style.text} ${style.border}`}>
+                            {style.icon} {t.status || 'Open'}
+                        </div>
+                        {t.priority && (
+                             <div className="flex items-center gap-1.5" title={`Priority: ${t.priority}`}>
+                                <div className={`w-2.5 h-2.5 rounded-full ${getPriorityDotColor(t.priority)} ring-1 ring-white`} />
+                             </div>
+                        )}
+                    </div>
 
-              {/* Danh sách Closed (Accordion) */}
-              {closedTodos.length > 0 && (
-                 <div className="mt-2">
-                    <button 
-                       onClick={() => setIsClosedExpanded(!isClosedExpanded)}
-                       className="flex items-center justify-between w-full py-2.5 px-4 text-[13px] font-bold text-gray-800 hover:bg-gray-50 transition-colors border-y border-gray-200 bg-white"
-                    >
-                       <span>Closed ({closedTodos.length})</span>
-                       {isClosedExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                    </button>
+                    {/* Title */}
+                    <div className="text-sm font-semibold text-gray-800 mb-1 line-clamp-2 group-hover:text-blue-600 transition-colors">
+                        {t.title}
+                    </div>
+
+                    {/* Footer Row */}
+                    <div className="flex items-center gap-3 mt-2 text-[10px] text-gray-500">
+                        <div className="flex items-center gap-1">
+                            <User size={10} />
+                            <span className="truncate max-w-[80px]">
+                              {typeof t.createdBy === 'string' 
+                                ? t.createdBy 
+                                : (t.createdBy as any)?.fullName || 'Unknown'}
+                            </span>
+                        </div>
+                        {t.dueDate && (
+                             <div className={`flex items-center gap-1 ${new Date(t.dueDate) < new Date() ? 'text-red-500 font-medium' : ''}`}>
+                                <Calendar size={10} />
+                                <span>{new Date(t.dueDate).toLocaleDateString()}</span>
+                            </div>
+                        )}
+                    </div>
                     
-                    {isClosedExpanded && (
-                       <div className="flex flex-col bg-gray-50/30">
-                          {closedTodos.map(t => renderTodoItem(t))}
-                       </div>
+                    {t.completion !== undefined && t.completion > 0 && (
+                        <div className="mt-2 h-1 w-full bg-gray-100 rounded-full overflow-hidden">
+                            <div className="h-full bg-green-500" style={{ width: `${t.completion}%` }} />
+                        </div>
                     )}
-                 </div>
-              )}
-           </div>
+
+                    <div className={`absolute right-1 top-2 ${activeMenuId === t._id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}>
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveMenuId(activeMenuId === t._id ? null : t._id);
+                            }}
+                            className="p-1 rounded hover:bg-white hover:shadow-sm text-gray-400 hover:text-gray-700"
+                        >
+                            <MoreVertical size={16} />
+                        </button>
+
+                        {/* Dropdown Menu */}
+                        {activeMenuId === t._id && (
+                            <div 
+                                className="absolute right-0 top-6 w-32 bg-white rounded-md shadow-xl border border-gray-100 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100 origin-top-right"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                <button 
+                                    onClick={() => {
+                                        onSelectTodo(t);
+                                        setActiveMenuId(null);
+                                    }}
+                                    className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 hover:text-blue-600 flex items-center gap-2"
+                                >
+                                    <Edit size={12} /> Edit
+                                </button>
+                                <button 
+                                    className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 hover:text-blue-600 flex items-center gap-2"
+                                    onClick={() => setActiveMenuId(null)}
+                                >
+                                    <Share2 size={12} /> Share
+                                </button>
+                                <div className="h-[1px] bg-gray-100 my-0.5" />
+                                <button 
+                                    onClick={() => {
+                                        if(confirm(`Delete "${t.title}"?`)) {
+                                            onDeleteTodo?.(t._id);
+                                        }
+                                        setActiveMenuId(null);
+                                    }}
+                                    className="w-full text-left px-3 py-2 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2"
+                                >
+                                    <Trash2 size={12} /> Delete
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                </div>
+                );
+            })
         )}
       </div>
     </div>

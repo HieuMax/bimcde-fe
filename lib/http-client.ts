@@ -1,4 +1,4 @@
-const API_URL = "http://localhost:4000/api";
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 type FetchOptions = RequestInit & {
   params?: Record<string, string | number | undefined | null>;
@@ -27,39 +27,24 @@ async function request<T>(
 ): Promise<{ data: T; headers: Headers }> {
   const { params, headers, ...customConfig } = options;
 
-  const finalUrl = buildUrl(endpoint, params)
-  console.log(`[HTTP] ${options.method || 'GET'} ${finalUrl}`)
   // 1. Tự động lấy Token từ localStorage (Client-side only)
   const defaultHeaders: Record<string, string> = {
     "Content-Type": "application/json",
   };
 
-  const getCookieFromBrowser = (name: string) => {
-    if (typeof document === "undefined") return null;
-    const value = `; ${document.cookie}`;
-    const parts = value.split(`; ${name}=`);
-    if (parts.length === 2) return parts.pop()?.split(';').shift();
-    return null;
-    
-  };
   if (typeof window !== "undefined") {
-    const token = getCookieFromBrowser("accessToken"); 
-    
-    console.log("🔑 [HTTP] Token from Cookies:", token ? "✅ Found" : "❌ Not found");
-    
+    const token = localStorage.getItem("accessToken");
     if (token) {
       defaultHeaders.Authorization = `Bearer ${token}`;
     }
   }
-
-  console.log("📋 [HTTP] Headers:", defaultHeaders);
 
   // Merge headers (ưu tiên headers truyền vào)
   const config: RequestInit = {
     ...customConfig,
     headers: {
       ...defaultHeaders,
-      ...headers,
+      ...headers, // Nếu headers có 'Content-Type': undefined (cho FormData) -> nó sẽ override
     },
   };
 
@@ -97,9 +82,10 @@ async function request<T>(
     contentType &&
     (contentType.includes("application/zip") ||
       contentType.includes("application/octet-stream") ||
-      contentType.startsWith("image/") || 
-      contentType.includes("pdf"))
+      contentType.startsWith("image/") || // ⭐ FIX PNG / JPG
+      contentType.includes("pdf")) // ⭐ optional
   ) {
+    // Trick: Đánh dấu để trả về blob
     const blob = await response.blob();
     return { data: blob as unknown as T, headers: response.headers };
   }
@@ -136,4 +122,3 @@ export const httpClient = {
       body: options?.data ? JSON.stringify(options.data) : undefined,
     }),
 };
-

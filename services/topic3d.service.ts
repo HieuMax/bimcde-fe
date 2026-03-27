@@ -6,11 +6,9 @@ const api = apiClient();
 const BASE_URL = "/topic3d";
 
 export const topicService = {
-  /**
-   * Lấy danh sách topics theo Project ID (có hỗ trợ filter)
-   */
+
   getTopicsByProject: async (projectId: string, filters?: TopicFilters) => {
-    // Xây dựng query string từ filters (nếu có)
+    
     const queryParams = new URLSearchParams();
     if (filters?.status) queryParams.append("status", filters.status);
     if (filters?.search) queryParams.append("search", filters.search);

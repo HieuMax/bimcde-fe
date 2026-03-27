@@ -7,6 +7,7 @@ export interface IReleaseItem {
   size: number;
   mimeType?: string;
   modifiedBy: string; // Tên người sửa
+  modifiedById?: string; // ID người sửa [NEW]
   updatedAt: string; // Ngày sửa
   location: string;
   tags?: { name: string; color: string }[];
