@@ -37,6 +37,8 @@ export interface ActivityFilterParams {
   endDate?: string; // ISO date string
   page?: number;
   limit?: number;
+  /** Skip restoreStatus checks for faster response (e.g. recent activity widget) */
+  lightweight?: boolean;
 }
 
 export interface ActivityResponse {

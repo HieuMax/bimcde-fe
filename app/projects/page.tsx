@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import {
   Dialog,
   DialogContent,
@@ -18,7 +19,9 @@ import {
   PopoverTrigger,
   PopoverContent,
 } from "@/components/ui/popover";
-import { List, Grid, Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { format } from "date-fns";
+import { List, Grid, Loader2, CalendarIcon } from "lucide-react";
 import { Project } from "@/app/types/projectTypes";
 import { useApi } from "@/app/hooks/useApi";
 import { useRouter } from "next/navigation";
@@ -123,12 +126,13 @@ function PopoverProject() {
 //#region DIALOG FOR NEW PROJECT
 function NewProjectDialog({ onCreated }: { onCreated: () => void }) {
   const [open, setOpen] = useState(false);
+  const [dateError, setDateError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     name: "",
     description: "",
-    startDate: "",
-    endDate: "",
+    startDate: undefined as Date | undefined,
+    endDate: undefined as Date | undefined,
     thumbnail: null as string | null,
   });
   const { post } = useApi();
@@ -163,23 +167,26 @@ function NewProjectDialog({ onCreated }: { onCreated: () => void }) {
   }
 
   async function handleSubmit() {
+    if (!formData.startDate || !formData.endDate) {
+      setDateError("Please select both start date and end date.");
+      return;
+    }
+    if (formData.endDate < formData.startDate) {
+      setDateError("End date must be on or after start date.");
+      return;
+    }
+    setDateError(null);
+
     const newProject: Project = {
       name: formData.name,
       size: "0 MB",
       thumbnail: formData.thumbnail ?? DEFAULT_THUMBNAIL,
       lastAccessed: new Date().toString(),
       lastModifiedOn: new Date().toString(),
-      startDate: formData.startDate,
-      endDate: formData.endDate,
+      startDate: format(formData.startDate, "yyyy-MM-dd"),
+      endDate: format(formData.endDate, "yyyy-MM-dd"),
       description: formData.description,
     };
-    const formDataToSend = new FormData();
-    formDataToSend.append("project", JSON.stringify(newProject));
-    if (formData.thumbnail) {
-      // Chuyển thumbnail về tệp nếu có
-      const thumbnailFile = dataURLToFile(formData.thumbnail);
-      formDataToSend.append("thumbnail", thumbnailFile);
-    }
     try {
       const reponse = await post("/projects/createProject", newProject);
       if (reponse.success) {
@@ -187,10 +194,11 @@ function NewProjectDialog({ onCreated }: { onCreated: () => void }) {
         setFormData({
           name: "",
           description: "",
-          startDate: "",
-          endDate: "",
+          startDate: undefined,
+          endDate: undefined,
           thumbnail: null,
         });
+        setDateError(null);
 
         setOpen(false);
         onCreated();
@@ -198,17 +206,6 @@ function NewProjectDialog({ onCreated }: { onCreated: () => void }) {
     } catch {
       console.error("Failed to create project");
     }
-  }
-  // Hàm chuyển đổi Base64 thành File object
-  function dataURLToFile(dataURL: string) {
-    const byteString = atob(dataURL.split(",")[1]);
-    const mimeString = dataURL.split(",")[0].split(":")[1].split(";")[0];
-    const ab = new ArrayBuffer(byteString.length);
-    const ia = new Uint8Array(ab);
-    for (let i = 0; i < byteString.length; i++) {
-      ia[i] = byteString.charCodeAt(i);
-    }
-    return new Blob([ab], { type: mimeString });
   }
 
   return (
@@ -261,23 +258,80 @@ function NewProjectDialog({ onCreated }: { onCreated: () => void }) {
           <div className="flex gap-3">
             <div className="flex-1">
               <label className="text-sm">Start date</label>
-              <Input
-                type="date"
-                name="startDate"
-                value={formData.startDate}
-                onChange={handleChange}
-              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !formData.startDate && "text-muted-foreground"
+                    )}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {formData.startDate ? (
+                      format(formData.startDate, "PPP")
+                    ) : (
+                      <span>Pick a date</span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={formData.startDate}
+                    onSelect={(date) => {
+                      setFormData((prev) => {
+                        const next = { ...prev, startDate: date };
+                        if (date && prev.endDate && prev.endDate < date) {
+                          next.endDate = undefined;
+                        }
+                        return next;
+                      });
+                    }}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="flex-1">
               <label className="text-sm">End date</label>
-              <Input
-                type="date"
-                name="endDate"
-                value={formData.endDate}
-                onChange={handleChange}
-              />
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className={cn(
+                      "w-full justify-start text-left font-normal",
+                      !formData.endDate && "text-muted-foreground"
+                    )}>
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {formData.endDate ? (
+                      format(formData.endDate, "PPP")
+                    ) : (
+                      <span>Pick a date</span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <Calendar
+                    mode="single"
+                    selected={formData.endDate}
+                    disabled={(date) =>
+                      !!formData.startDate && date < formData.startDate
+                    }
+                    onSelect={(date) => {
+                      setFormData((prev) => ({ ...prev, endDate: date }));
+                    }}
+                    initialFocus
+                  />
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
+
+          {dateError && (
+            <p className="text-sm text-red-600" role="alert">
+              {dateError}
+            </p>
+          )}
 
           {/* Submit */}
           <Button

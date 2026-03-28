@@ -6,11 +6,22 @@ const api = apiClient();
 export const viewService = {
   getViews: async (
     projectId: string,
-    filters?: { type?: string; createdBy?: string }
+    filters?: {
+      type?: string;
+      createdBy?: string;
+      userIds?: string[];
+      groupIds?: string[];
+      startDate?: string;
+      endDate?: string;
+    },
   ) => {
     const params: Record<string, string> = { projectId };
     if (filters?.type) params.type = filters.type;
     if (filters?.createdBy) params.createdBy = filters.createdBy;
+    if (filters?.userIds) params.userIds = filters.userIds.join(",");
+    if (filters?.groupIds) params.groupIds = filters.groupIds.join(",");
+    if (filters?.startDate) params.startDate = filters.startDate;
+    if (filters?.endDate) params.endDate = filters.endDate;
 
     const data = await api.get("/views", { params });
     return data as ViewItem[];
