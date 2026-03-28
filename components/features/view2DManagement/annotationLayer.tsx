@@ -313,30 +313,65 @@ const AnnotationLayer = forwardRef<AnnotationLayerHandle, AnnotationLayerProps>(
         ctx.stroke();
       } else if (type === "measure" && ann.points && ann.points.length === 2) {
         const [p1, p2] = ann.points;
+        const DPI = 96;
+        const dx = p2.x - p1.x;
+        const dy = p2.y - p1.y;
+
+        const distancePx = Math.sqrt(dx * dx + dy * dy);
+        const distanceInch = distancePx / DPI;
+        const text = `${distanceInch.toFixed(1)}"`; // Thêm dấu " đại diện cho Inch
+
+        // 2. Thiết lập thông số Font
+        ctx.save();
+        const fontSize = 14 / zoom;
+        ctx.font = `bold ${fontSize}px Arial`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+
+        // Đo độ rộng của text để xác định khoảng hở (Gap)
+        const textWidth = ctx.measureText(text).width;
+        const gap = (textWidth + 8 / zoom) / 2; // Khoảng hở trắng mỗi bên
+
+        // 3. Tính toán toán học để ngắt đường kẻ (Vector math)
+        const midX = (p1.x + p2.x) / 2;
+        const midY = (p1.y + p2.y) / 2;
+        const angle = Math.atan2(dy, dx); // Góc của đường thẳng
+
+        // Tìm điểm bắt đầu ngắt và điểm kết thúc ngắt
+        const break1X = midX - Math.cos(angle) * gap;
+        const break1Y = midY - Math.sin(angle) * gap;
+        const break2X = midX + Math.cos(angle) * gap;
+        const break2Y = midY + Math.sin(angle) * gap;
+
+        // 4. Vẽ đoạn 1 (p1 -> break1)
         ctx.beginPath();
+        ctx.strokeStyle = ann.color || activeColor;
+        ctx.lineWidth = 2 / zoom;
         ctx.moveTo(p1.x, p1.y);
+        ctx.lineTo(break1X, break1Y);
+        ctx.stroke();
+
+        // 5. Vẽ đoạn 2 (break2 -> p2)
+        ctx.beginPath();
+        ctx.moveTo(break2X, break2Y);
         ctx.lineTo(p2.x, p2.y);
         ctx.stroke();
+
+        // 6. Vẽ đầu mút (Dots)
         ctx.fillStyle = ann.color || activeColor;
-        ctx.beginPath();
         const rad = 4 / zoom;
+        ctx.beginPath();
         ctx.arc(p1.x, p1.y, rad, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
         ctx.arc(p2.x, p2.y, rad, 0, Math.PI * 2);
         ctx.fill();
 
-        const dx = p2.x - p1.x,
-          dy = p2.y - p1.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        const midX = (p1.x + p2.x) / 2,
-          midY = (p1.y + p2.y) / 2;
-        ctx.save();
-        ctx.font = `${14 / zoom}px Arial`;
-        ctx.fillStyle = ann.color || activeColor;
-        ctx.strokeStyle = "white";
-        ctx.lineWidth = 3 / zoom;
-        const text = `${distance.toFixed(1)} px`;
-        ctx.strokeText(text, midX + 6, midY - 6);
-        ctx.fillText(text, midX + 6, midY - 6);
+        // 7. Vẽ Text (Inch) vào đúng khoảng trống ở giữa
+        // Không cần fillRect vì chúng ta đã chủ động không vẽ đè đường kẻ lên đây
+        ctx.fillStyle = ann.color || activeColor; // Hoặc "black" tùy giao diện của bạn
+        ctx.fillText(text, midX, midY);
+
         ctx.restore();
       } else if (ann.points && ann.points.length > 1) {
         const pts = ann.points;
@@ -772,23 +807,27 @@ const AnnotationLayer = forwardRef<AnnotationLayerHandle, AnnotationLayerProps>(
           const h = pos.y - startPos.y;
 
           if (activeTool === "text") {
-            const vW = visualX - startVisualPos.x;
-            const vH = visualY - startVisualPos.y;
             const isClick = Math.abs(w) < 15 || Math.abs(h) < 15;
+
+            // Chỉ lấy tọa độ Canvas (Tọa độ thực trên bản vẽ)
+            const finalCanvasX = isClick
+              ? startPos.x
+              : Math.min(startPos.x, pos.x);
+            const finalCanvasY = isClick
+              ? startPos.y
+              : Math.min(startPos.y, pos.y);
             const finalW = isClick ? 250 / zoom : Math.abs(w);
             const finalH = isClick ? 80 / zoom : Math.abs(h);
-            const finalVW = isClick ? 250 : Math.abs(vW);
-            const finalVH = isClick ? 80 : Math.abs(vH);
 
             setTextInput({
-              canvasX: w < 0 && !isClick ? pos.x : startPos.x,
-              canvasY: h < 0 && !isClick ? pos.y : startPos.y,
+              canvasX: finalCanvasX,
+              canvasY: finalCanvasY,
               w: finalW,
               h: finalH,
-              visualX: vW < 0 && !isClick ? visualX : startVisualPos.x,
-              visualY: vH < 0 && !isClick ? visualY : startVisualPos.y,
-              visualW: finalVW,
-              visualH: finalVH,
+              visualX: 0,
+              visualY: 0,
+              visualW: 0,
+              visualH: 0,
               text: "",
             });
           } else {
@@ -905,10 +944,10 @@ const AnnotationLayer = forwardRef<AnnotationLayerHandle, AnnotationLayerProps>(
             placeholder="Type here..."
             style={{
               position: "absolute",
-              left: textInput.visualX,
-              top: textInput.visualY,
-              width: textInput.visualW,
-              height: textInput.visualH,
+              left: textInput.canvasX,
+              top: textInput.canvasY,
+              width: textInput.w,
+              height: textInput.h,
               color: activeColor,
               backgroundColor: "rgba(255, 255, 255, 0.7)",
               border: `2px dashed ${activeColor}`,
