@@ -70,7 +70,7 @@ const projectSchema = z
     {
       message: "End date must be on or after start date",
       path: ["endDate"],
-    }
+    },
   );
 
 type ProjectFormData = z.infer<typeof projectSchema>;
@@ -244,13 +244,15 @@ export default function ProjectDetailsPage({
   return (
     <Form {...form}>
       <form onSubmit={handleSubmit(onSubmit)}>
-        <div className="px-4 py-6 md:p-8 bg-[#f4f5f8] min-h-screen space-y-6">
+        <div className="px-4 py-4 md:p-8 bg-[#f4f5f8] min-h-screen space-y-4">
           {/* HEADER */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <h1 className="text-xl font-semibold">Project Details</h1>
+            <h1 className="text-xl font-normal text-gray-800">
+              Project Details
+            </h1>
             <Button
               type="submit"
-              className="w-full sm:w-auto"
+              className="bg-[#406D87] hover:bg-[#345a70] px-6 py-4 rounded text-base font-medium flex items-center transition-colors disabled:opacity-50 outline-none ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
               disabled={!formState.isDirty || actionLoading}>
               {actionLoading && (
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -338,13 +340,15 @@ export default function ProjectDetailsPage({
                     control={control}
                     name="startDate"
                     render={({ field }) => {
-                      const dateValue = field.value instanceof Date
-                        ? field.value
-                        : field.value
-                          ? new Date(field.value as string)
-                          : null;
+                      const dateValue =
+                        field.value instanceof Date
+                          ? field.value
+                          : field.value
+                            ? new Date(field.value as string)
+                            : null;
 
-                      const isValidDate = dateValue && !isNaN(dateValue.getTime());
+                      const isValidDate =
+                        dateValue && !isNaN(dateValue.getTime());
 
                       return (
                         <FormItem className="flex flex-col">
@@ -355,7 +359,7 @@ export default function ProjectDetailsPage({
                                 variant="outline"
                                 className={cn(
                                   "w-full justify-start text-left font-normal",
-                                  !isValidDate && "text-muted-foreground"
+                                  !isValidDate && "text-muted-foreground",
                                 )}>
                                 <CalendarIcon className="mr-2 h-4 w-4" />
                                 {isValidDate ? (
@@ -365,15 +369,22 @@ export default function ProjectDetailsPage({
                                 )}
                               </Button>
                             </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="start">
+                            <PopoverContent
+                              className="w-auto p-0"
+                              align="start">
                               <Calendar
                                 mode="single"
                                 selected={isValidDate ? dateValue : undefined}
                                 onSelect={(date) => {
                                   field.onChange(date);
                                   // If endDate exists and is before new startDate, clear it
-                                  const endDateValue = form.getValues("endDate");
-                                  if (date && endDateValue && endDateValue < date) {
+                                  const endDateValue =
+                                    form.getValues("endDate");
+                                  if (
+                                    date &&
+                                    endDateValue &&
+                                    endDateValue < date
+                                  ) {
                                     form.setValue("endDate", null);
                                   }
                                 }}
@@ -391,13 +402,15 @@ export default function ProjectDetailsPage({
                     control={control}
                     name="endDate"
                     render={({ field }) => {
-                      const dateValue = field.value instanceof Date
-                        ? field.value
-                        : field.value
-                          ? new Date(field.value as string)
-                          : null;
+                      const dateValue =
+                        field.value instanceof Date
+                          ? field.value
+                          : field.value
+                            ? new Date(field.value as string)
+                            : null;
 
-                      const isValidDate = dateValue && !isNaN(dateValue.getTime());
+                      const isValidDate =
+                        dateValue && !isNaN(dateValue.getTime());
                       const startDateValue = form.getValues("startDate");
 
                       return (
@@ -409,7 +422,7 @@ export default function ProjectDetailsPage({
                                 variant="outline"
                                 className={cn(
                                   "w-full justify-start text-left font-normal",
-                                  !isValidDate && "text-muted-foreground"
+                                  !isValidDate && "text-muted-foreground",
                                 )}>
                                 <CalendarIcon className="mr-2 h-4 w-4" />
                                 {isValidDate ? (
@@ -419,15 +432,18 @@ export default function ProjectDetailsPage({
                                 )}
                               </Button>
                             </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="start">
+                            <PopoverContent
+                              className="w-auto p-0"
+                              align="start">
                               <Calendar
                                 mode="single"
                                 selected={isValidDate ? dateValue : undefined}
                                 disabled={(date) => {
                                   if (!startDateValue) return false;
-                                  const startDate = startDateValue instanceof Date
-                                    ? startDateValue
-                                    : new Date(startDateValue as string);
+                                  const startDate =
+                                    startDateValue instanceof Date
+                                      ? startDateValue
+                                      : new Date(startDateValue as string);
                                   return date < startDate;
                                 }}
                                 onSelect={field.onChange}

@@ -26,6 +26,7 @@ import {
 } from "../ui/dropdown-menu";
 import { useAuth } from "@/app/context/authContext";
 import { useRouter } from "next/navigation";
+import { BellComponent } from "./navbar/notification-bell";
 import ChatbotPanel from "@/components/chatbot/ChatbotPanel";
 
 export default function Header() {
@@ -86,6 +87,7 @@ export default function Header() {
       {/* RIGHT ACTIONS */}
       <div className="flex items-center gap-1">
         <HeaderIconBtn icon={<Search size={20} />} label="Search" />
+        <BellComponent></BellComponent>
         <HeaderIconBtn
           icon={<BotMessageSquare size={20} />}
           label="Chatbot"

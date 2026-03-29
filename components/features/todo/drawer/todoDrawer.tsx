@@ -34,6 +34,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useRouter } from "next/navigation";
 
 const status = [
   { name: "New", value: "new" },
@@ -74,6 +75,7 @@ export default function TodoDrawer({
   const [isDeleting, setIsDeleting] = useState(false);
   const { post, get, delete: deleteApi } = useApi();
   const { user } = useAuth();
+  const router = useRouter();
 
   const [isAttachment, setIsAttachment] = useState(false);
   const [ListCommentData, setListCommentData] = useState<any[]>([]);
@@ -214,8 +216,7 @@ export default function TodoDrawer({
       const response = await post(`/todo/update/${data._id}`, payload);
 
       if (response.success) {
-        setIsEdit(false);
-        // window.location.reload();
+        handleCloseDrawer();
       } else {
         alert("Failed to save todo. Please try again.");
       }
@@ -239,7 +240,7 @@ export default function TodoDrawer({
 
       if (response.success) {
         setIsDeleteDialogOpen(false);
-        window.location.reload();
+        handleCloseDrawer();
       } else {
         alert("Failed to delete todo. Please try again.");
       }
@@ -296,6 +297,7 @@ export default function TodoDrawer({
     const files = newFiles.map((file) => ({
       ...file,
       todoId: data._id,
+      location: file.url,
     }));
     try {
       const response = await post(`/todo/attachment/add`, files);
@@ -335,6 +337,35 @@ export default function TodoDrawer({
       alert("An error occurred while deleting the attachment.");
     } finally {
       setIsDeleting(false);
+    }
+  };
+
+  const handleViewFile = (item: any) => {
+    const isFile = "mimeType" in item;
+
+    // Folder → mở folder
+    if (!isFile) {
+      return;
+    }
+
+    const fileExt = item.name.split(".").pop()?.toLowerCase();
+    if (!fileExt) return;
+
+    const IFC_FILES = ["ifc"];
+    const DOC_FILES = ["docs", "pdf", "png", "jpg", "webp"];
+
+    // IFC → 3D Viewer
+    if (IFC_FILES.includes(fileExt)) {
+      router.push(
+        `/projects/${data.projectId}/viewer3d?urls=${encodeURIComponent(JSON.stringify([item.location]))}`,
+      );
+      return;
+    }
+
+    // DOC / PDF → Project Viewer
+    if (DOC_FILES.includes(fileExt)) {
+      router.push(`/projects/${data.projectId}/viewer/${item.fileId}`);
+      return;
     }
   };
 
@@ -419,9 +450,11 @@ export default function TodoDrawer({
                     {ListAttachment.map((file, index) => (
                       <div
                         key={file._id}
-                        className="flex items-center nowrap text-xs min-h-10 gap-2 cursor-pointer">
+                        className="flex items-center nowrap text-xs min-h-10 gap-2 ">
                         <File></File>
-                        <span className="overflow-hidden text-ellipsis whitespace-nowrap w-full">
+                        <span
+                          onClick={() => handleViewFile(file)}
+                          className="overflow-hidden cursor-pointer text-ellipsis whitespace-nowrap w-full">
                           {file.name}
                         </span>
                         <DropdownMenu>

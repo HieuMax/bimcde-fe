@@ -31,7 +31,12 @@ export default function CommentFormComponent({
   };
 
   const handleSubmitAttachment = (newFiles: any[]) => {
-    setAttachments((prev) => [...prev, ...newFiles]);
+    const updatedFiles = newFiles.map((file) => ({
+      ...file,
+      location: file.url,
+    }));
+
+    setAttachments((prev) => [...prev, ...updatedFiles]);
   };
   const handleRemoveAttachment = (index: number) => {
     setAttachments((prev) => prev.filter((_, i) => i !== index));
