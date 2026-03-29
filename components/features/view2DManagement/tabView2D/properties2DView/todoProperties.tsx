@@ -1,107 +1,517 @@
 'use client';
 
-import { MessageSquarePlus, Paperclip } from 'lucide-react';
-import { useState } from 'react';
+import { 
+  MessageSquarePlus, Paperclip, X, Edit2, ArrowLeft, Save, Loader2, Plus, MoreVertical,
+  TagIcon
+} from 'lucide-react';
+import { useState, useEffect } from 'react';
+
+import { useComments } from '@/components/features/explorer/hooks/useComments';
+import CommentList from '@/components/features/explorer/properties/components/comments/CommentList';
+import CommentInput from '@/components/features/explorer/properties/components/comments/CommentInput';
+import { todo2DService } from '@/services/todo2d.service';
+import { RecipientSelector } from '@/components/features/release/RecipientSelector';
+import { useTags } from '@/components/features/explorer/hooks/useTags';
+
+const formatDateForInput = (dateString?: string) => {
+  if (!dateString) return '';
+  try {
+    return new Date(dateString).toISOString().split('T')[0];
+  } catch (e) {
+    return '';
+  }
+};
 
 export default function TodoDetailPanel({
   todo,
+  projectId, // 👈 THÊM PROP NÀY ĐỂ TRUYỀN VÀO RECIPIENT SELECTOR
   onClose,
+  onUpdateSuccess,
+  initialEditMode = false
 }: {
   todo: any;
+  projectId: string; // Khai báo type
   onClose: () => void;
+  onUpdateSuccess?: (updatedTodo: any) => void;
+  initialEditMode?: boolean;
 }) {
-  if (!todo) return null;
 
-  /* ===== STATE ===== */
+  const [isEditing, setIsEditing] = useState(false);
+  const [loading, setLoading] = useState(false);
+  
+  const [editForm, setEditForm] = useState({
+    title: '',
+    description: '',
+    dueDate: '',
+    type: '',
+    priority: 'Normal',
+    status: 'Open',
+    completion: 0,
+    assignee: '',
+    tags: [] as string[]
+  });
+
+  const {
+    comments,
+    totalComments,
+    isLoading: isCommentsLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+    commentInput,
+    setCommentInput,
+    addComment,
+    isAdding: isAddingComment,
+    updateComment,
+    deleteComment,
+    currentUserId,
+  } = useComments(todo?._id || todo?.id || "", "todo" as any);
+
+  const { tags: availableTags, isLoading: isTagsLoading } = useTags(projectId);
+
+  useEffect(() => {
+    if (todo) {
+      setEditForm({
+        title: todo.title || '',
+        description: todo.description || '',
+        dueDate: formatDateForInput(todo.dueDate),
+        type: todo.type || 'Undefined',
+        priority: todo.priority || 'Normal',
+        status: todo.status || 'New',
+        completion: todo.completion || 0,
+        assignee: todo.assignee || '',
+        tags: todo.tags?.map((t: any) => typeof t === 'string' ? t : t._id) || []
+      });
+      setIsEditing(initialEditMode);
+    }
+  }, [todo, initialEditMode]);
+
   const [attachments, setAttachments] = useState<
     { id: string; name: string; size: number }[]
   >([]);
 
-  const [comments, setComments] = useState<
-    {
-      id: string;
-      text: string;
-      author: string;
-      createdAt: string;
-      attachments?: { name: string; size: number }[];
-    }[]
-  >([]);
+  if (!todo) return null;
 
-  const [isCommenting, setIsCommenting] = useState(false);
-  const [commentText, setCommentText] = useState('');
-  const [commentAttachments, setCommentAttachments] = useState<File[]>([]);
+  const priorityColor = (priority?: string) => {
+    switch (priority) {
+      case 'Urgent': return 'bg-red-500';
+      case 'High': return 'bg-orange-500';
+      case 'Normal': return 'bg-[#005a9e]'; // Màu xanh khớp với ảnh
+      case 'Low': return 'bg-gray-400';
+      default: return 'bg-[#005a9e]';
+    }
+  };
 
+  const handleSaveDetails = async () => {
+    if (!editForm.title.trim()) {
+      alert("Title is required!");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const payload = {
+        title: editForm.title.trim(),
+        description: editForm.description.trim(),
+        dueDate: editForm.dueDate || undefined,
+        type: editForm.type.trim(),
+        priority: editForm.priority,
+        status: editForm.status,
+        completion: Number(editForm.completion),
+        assignee: editForm.assignee.trim(),
+        tags: editForm.tags
+      };
+
+      const updated = await todo2DService.updateTodo(todo._id || todo.id, payload);
+      setIsEditing(false);
+      onUpdateSuccess?.(updated);
+    } catch (error) {
+      console.error("Update Todo failed:", error);
+      alert("Failed to update Todo");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+    setEditForm({
+      title: todo.title || '',
+      description: todo.description || '',
+      dueDate: formatDateForInput(todo.dueDate),
+      type: todo.type || 'Undefined',
+      priority: todo.priority || 'Normal',
+      status: todo.status || 'New',
+      completion: todo.completion || 0,
+      assignee: todo.assignee || '',
+      tags: todo.tags?.map((t: any) => typeof t === 'string' ? t : t._id) || []
+    });
+  };
+
+  // ==========================================
+  // GIAO DIỆN EDIT (SỬA LẠI ĐỂ CÓ RECIPIENT SELECTOR)
+  // ==========================================
+  if (isEditing) {
+    return (
+      <aside className="w-80 h-full bg-white border-l border-gray-300 flex flex-col shadow-2xl animate-in slide-in-from-right duration-300">
+        <header className="shrink-0 h-14 px-4 border-b border-gray-200 flex items-center justify-between bg-white sticky top-0 z-30">
+          <div className="flex items-center gap-3">
+            <button onClick={handleCancelEdit} className="text-gray-500 hover:text-gray-800 transition-colors">
+              <ArrowLeft size={18} />
+            </button>
+            <h2 className="text-base font-semibold text-gray-800">Edit Todo</h2>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-full text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors">
+            <X size={18} />
+          </button>
+        </header>
+
+        <main className="flex-1 overflow-y-auto p-5 space-y-4 custom-scrollbar">
+          <div>
+            <label className="block text-sm text-gray-500 mb-1">Title (Required)</label>
+            <input
+              value={editForm.title}
+              onChange={(e) => setEditForm({...editForm, title: e.target.value})}
+              autoFocus
+              className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm text-gray-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              disabled={loading}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm text-gray-500 mb-1">Description (Required)</label>
+            <textarea
+              value={editForm.description}
+              onChange={(e) => setEditForm({...editForm, description: e.target.value})}
+              rows={3}
+              className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm text-gray-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 resize-y"
+              disabled={loading}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm text-gray-500 mb-1">Due date</label>
+            <input
+              type="date"
+              value={editForm.dueDate}
+              onChange={(e) => setEditForm({...editForm, dueDate: e.target.value})}
+              className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm text-gray-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              disabled={loading}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm text-gray-500 mb-1">Type</label>
+            <select
+              value={editForm.type}
+              onChange={(e) => setEditForm({...editForm, type: e.target.value})}
+              className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm text-gray-800 bg-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              disabled={loading}
+            >
+              <option value="Issue">Issue</option>
+              <option value="Comment">Comment</option>
+              <option value="Undefined">Undefined</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm text-gray-500 mb-1">Priority</label>
+            <select
+              value={editForm.priority}
+              onChange={(e) => setEditForm({...editForm, priority: e.target.value})}
+              className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm text-gray-800 bg-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              disabled={loading}
+            >
+              <option value="Low">Low</option>
+              <option value="Normal">Normal</option>
+              <option value="High">High</option>
+              <option value="Urgent">Urgent</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm text-gray-500 mb-1">Status</label>
+            <select
+              value={editForm.status}
+              onChange={(e) => setEditForm({...editForm, status: e.target.value})}
+              className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm text-gray-800 bg-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              disabled={loading}
+            >
+              <option value="New">New</option>
+              <option value="Open">Open</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Done">Done</option>
+              <option value="On Hold">On Hold</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm text-gray-500 mb-1">Completion %</label>
+            <input
+              type="number"
+              min="0"
+              max="100"
+              value={editForm.completion}
+              onChange={(e) => {
+                const value = Math.max(0, Math.min(100, Number(e.target.value) || 0));
+                setEditForm({ ...editForm, completion: value });
+              }}
+              className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm text-gray-800 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+              disabled={loading}
+            />
+          </div>
+
+          {/* ===== ASSIGNEE (RecipientSelector) ===== */}
+          <div>
+            <label className="block mb-1 text-sm text-gray-500">
+              Assigned To
+            </label>
+            <RecipientSelector
+              projectId={projectId}
+              onChange={(selectedIds, selectedOptions) => {
+                setEditForm({
+                  ...editForm,
+                  assignee: selectedOptions.length > 0 ? selectedOptions[0].label : "",
+                });
+              }}
+            />
+            {/* Hiển thị người cũ nếu chưa chọn ai mới (Tùy chọn) */}
+            {editForm.assignee && (
+              <div className="mt-1 text-xs text-gray-400">
+                Current: {editForm.assignee}
+              </div>
+            )}
+          </div>
+
+          <div>
+            <label className="block text-sm text-gray-500 mb-1 flex items-center gap-1.5">
+              <TagIcon size={14} /> Tags
+            </label>
+            
+            <div className="p-3 border border-gray-300 rounded-sm bg-gray-50 flex flex-wrap gap-2 min-h-[60px]">
+              {isTagsLoading ? (
+                <div className="text-xs text-gray-400 flex items-center gap-2">
+                  <Loader2 size={12} className="animate-spin" /> Loading tags...
+                </div>
+              ) : availableTags?.length === 0 ? (
+                <div className="text-xs text-gray-400 italic">No tags available in this project.</div>
+              ) : (
+                availableTags?.map((tag: any) => {
+                  const isSelected = editForm.tags.includes(tag._id);
+                  return (
+                    <button
+                      key={tag._id}
+                      type="button"
+                      onClick={() => {
+                        if (isSelected) {
+                          setEditForm({ ...editForm, tags: editForm.tags.filter(t => t !== tag._id) });
+                        } else {
+                          setEditForm({ ...editForm, tags: [...editForm.tags, tag._id] });
+                        }
+                      }}
+                      className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-full border transition-all"
+                      style={{
+                        backgroundColor: isSelected ? (tag.color || '#3b82f6') : 'white',
+                        color: isSelected ? 'white' : '#4b5563',
+                        borderColor: isSelected ? (tag.color || '#3b82f6') : '#d1d5db',
+                      }}
+                    >
+                      <div 
+                        className="w-2 h-2 rounded-full" 
+                        style={{ backgroundColor: isSelected ? 'white' : (tag.color || '#000') }}
+                      />
+                      {tag.name}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+            <div className="text-[11px] text-gray-400 mt-1">Click to select/unselect tags</div>
+          </div>
+          
+        </main>
+
+        <footer className="shrink-0 border-t border-gray-200 bg-white p-4 flex items-center justify-end gap-4 z-40">
+          <button
+            onClick={handleCancelEdit}
+            disabled={loading}
+            className="text-sm font-semibold text-[#005a9e] hover:text-[#004578] disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSaveDetails}
+            disabled={loading}
+            className="flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white bg-[#005a9e] rounded hover:bg-[#004578] transition-colors disabled:opacity-70 shadow-sm"
+          >
+            {loading && <Loader2 size={14} className="animate-spin" />}
+            Save
+          </button>
+        </footer>
+      </aside>
+    );
+  }
+
+  // ==========================================
+  // GIAO DIỆN XEM CHI TIẾT (KHỚP VỚI ẢNH BẠN ĐƯA)
+  // ==========================================
   return (
-    <aside className="w-80 h-full bg-white border-l border-gray-300 flex flex-col">
-      {/* ===== Header ===== */}
-      <div className="p-4 border-b border-gray-300 flex items-center justify-between">
-        <div>
-          <div className="text-xs text-gray-500">{todo.code}</div>
-          <div className="font-semibold text-lg">{todo.title}</div>
+    <aside className="w-80 h-full bg-white border-l border-gray-200 flex flex-col shadow-2xl animate-in slide-in-from-right duration-300">
+      {/* ===== HEADER ===== */}
+      <div className="p-4 border-b border-gray-200 flex items-start justify-between bg-white sticky top-0 z-30">
+        <div className="flex-1 pr-4">
+          <div className="text-[13px] font-semibold text-gray-500 uppercase tracking-wide mb-1">
+            {todo.code || 'THEB-16'}
+          </div>
+          <div className="font-semibold text-lg text-gray-800 leading-tight">
+            {todo.title || '10deg'}
+          </div>
         </div>
-        <button onClick={onClose} className="text-gray-500 hover:text-black">
-          ✕
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          <button 
+            onClick={() => setIsEditing(true)}
+            className="text-gray-500 hover:text-[#005a9e] p-1 rounded transition-all"
+            title="Edit Todo"
+          >
+            <Edit2 size={16} />
+          </button>
+          <button onClick={onClose} className="text-gray-500 hover:text-gray-800 p-1 rounded transition-colors">
+            <X size={20} />
+          </button>
+        </div>
       </div>
 
-      {/* ===== Scrollable content ===== */}
-      <div className="flex-1 overflow-y-auto">
-        {/* Body */}
-        <div className="p-4 text-sm space-y-3">
-          <div>
-            <div className="text-gray-500">Status</div>
-            <div>{todo.status}</div>
-          </div>
+      {/* ===== SCROLLABLE CONTENT ===== */}
+      <div className="flex-1 overflow-y-auto custom-scrollbar">
+        {/* ===== DETAILS ===== */}
+        <div className="p-4 space-y-4">
+          <h3 className="text-[15px] font-semibold text-gray-800 mb-2">Details</h3>
 
-          <div>
-            <div className="text-gray-500">Assigned to</div>
-            <div>{todo.assignee ?? 'Unassigned'}</div>
-          </div>
+          <div className="space-y-4">
+            <div>
+              <div className="text-[13px] text-gray-500 mb-0.5">Description</div>
+              <div className="text-sm text-gray-800 whitespace-pre-wrap">
+                {todo.description || '--'}
+              </div>
+            </div>
 
-          <div>
-            <div className="text-gray-500">Created by</div>
-            <div>{todo.createdBy}</div>
+              {todo.tags && todo.tags.length > 0 && (
+              <div>
+                <div className="text-[13px] text-gray-500 mb-1">Tags</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {todo.tags.map((t: any) => {
+                     const tagId = typeof t === 'string' ? t : t._id;
+                     const foundTag = availableTags?.find((at: any) => at._id === tagId);
+                     const tagName = foundTag?.name || (typeof t === 'string' ? t : t.name) || 'Unknown Tag';
+                     const tagColor = foundTag?.color || '#9ca3af';
+
+                     return (
+                       <span 
+                         key={tagId} 
+                         className="px-2 py-0.5 text-[10px] font-semibold rounded text-white shadow-sm flex items-center gap-1"
+                         style={{ backgroundColor: tagColor }}
+                       >
+                         <TagIcon size={10} />
+                         {tagName}
+                       </span>
+                     );
+                  })}
+                </div>
+              </div>
+            )}
+            
+            <div>
+              <div className="text-[13px] text-gray-500 mb-0.5">Due date</div>
+              <div className="text-sm text-gray-800">
+                {todo.dueDate ? new Date(todo.dueDate).toLocaleDateString() : '--'}
+              </div>
+            </div>
+
+            <div>
+              <div className="text-[13px] text-gray-500 mb-0.5">Type</div>
+              <div className="text-sm text-gray-800">{todo.type || 'Undefined'}</div>
+            </div>
+
+            <div>
+              <div className="text-[13px] text-gray-500 mb-0.5">Priority</div>
+              <div className="flex items-center gap-1.5 text-sm text-gray-800">
+                <span className={`w-2.5 h-2.5 rounded-full ${priorityColor(todo.priority)}`} />
+                {todo.priority || 'Normal'}
+              </div>
+            </div>
+
+            <div>
+              <div className="text-[13px] text-gray-500 mb-0.5">Status</div>
+              <div className="text-sm text-gray-800">{todo.status || 'New'}</div>
+            </div>
+
+            <div>
+              <div className="text-[13px] text-gray-500 mb-0.5">Completion %</div>
+              <div className="text-sm text-gray-800">{todo.completion ?? 0}</div>
+            </div>
+
+            <div>
+              <div className="text-[13px] text-gray-500 mb-0.5">Assigned To</div>
+              <div className="text-sm text-gray-800">{todo.assignee || '--'}</div>
+            </div>
+
+            <div>
+              <div className="text-[13px] text-gray-500 mb-0.5">Created</div>
+              <div className="text-sm text-gray-800">
+                {todo.createdAt ? new Date(todo.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '--'} By{' '}
+                {typeof todo.createdBy === 'string' ? todo.createdBy : todo.createdBy?.fullName || 'Unknown'}
+              </div>
+            </div>
+
+            <div>
+              <div className="text-[13px] text-gray-500 mb-0.5">Modified</div>
+              <div className="text-sm text-gray-800">
+                {todo.updatedAt ? new Date(todo.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '--'} By{" "}
+                {typeof todo.updatedBy === 'string' ? todo.updatedBy : todo.updatedBy?.fullName || '--'}
+              </div>
+            </div>
           </div>
         </div>
 
         {/* ===== ATTACHMENTS ===== */}
-        <div className="mt-4 border-t px-4 pt-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="text-gray-600 text-sm">Attachments</div>
-
-            <label className="cursor-pointer text-blue-900 hover:text-blue-700">
-              <Paperclip size={16}/>
-              <input
-                type="file"
-                hidden
-                multiple
-                onChange={(e) => {
-                  if (!e.target.files) return;
-                  const files = Array.from(e.target.files).map(f => ({
-                    id: crypto.randomUUID(),
-                    name: f.name,
-                    size: f.size,
-                  }));
-                  setAttachments(prev => [...files, ...prev]);
-                }}
-              />
-            </label>
+        <div className="border-t border-gray-200 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-[15px] font-semibold text-gray-800">Attachments</h3>
+            <div className="flex items-center gap-2 text-gray-500">
+              <label className="cursor-pointer hover:text-gray-800 transition-colors p-1">
+                <Plus size={18} />
+                <input
+                  type="file"
+                  hidden
+                  multiple
+                  onChange={(e) => {
+                    if (!e.target.files) return;
+                    const files = Array.from(e.target.files).map((f) => ({
+                      id: crypto.randomUUID(),
+                      name: f.name,
+                      size: f.size,
+                    }));
+                    setAttachments((prev) => [...files, ...prev]);
+                  }}
+                />
+              </label>
+              <button className="hover:text-gray-800 transition-colors p-1">
+                <MoreVertical size={18} />
+              </button>
+            </div>
           </div>
 
           {attachments.length === 0 ? (
-            <div className="text-sm text-gray-400">No attachments</div>
+            <div className="text-sm text-gray-400 italic">No attachments</div>
           ) : (
             <div className="space-y-2">
-              {attachments.map(a => (
-                <div
-                  key={a.id}
-                  className="flex items-center justify-between text-sm"
-                >
-                  <div className="flex items-center gap-2 text-blue-600">
-                    <Paperclip/> {a.name}
+              {attachments.map((a) => (
+                <div key={a.id} className="flex items-center justify-between text-sm py-1">
+                  <div className="flex items-center gap-2 text-gray-800 truncate pr-2">
+                    <span className="truncate">{a.name}</span>
                   </div>
-                  <button className="text-gray-400 hover:text-gray-700">
-                    ⋮
+                  <button className="text-gray-400 hover:text-gray-700 shrink-0">
+                    <MoreVertical size={16} />
                   </button>
                 </div>
               ))}
@@ -110,127 +520,29 @@ export default function TodoDetailPanel({
         </div>
 
         {/* ===== COMMENTS LIST ===== */}
-        {comments.length > 0 && (
-          <div className="mt-6 border-t px-4 pt-4 space-y-4">
-            <div className="text-gray-500 text-sm">Comments</div>
-
-            {comments.map(c => (
-              <div key={c.id} className="text-sm">
-                <div className="font-medium text-gray-800">{c.author}</div>
-                <div className="text-gray-700 mt-1">{c.text}</div>
-
-                {c.attachments && c.attachments.length > 0 && (
-                  <div className="mt-2 space-y-1">
-                    {c.attachments.map((a, i) => (
-                      <div
-                        key={i}
-                        className="flex items-center gap-2 text-xs text-blue-600 hover:underline cursor-pointer"
-                      >
-                        📎 {a.name}
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                <div className="text-xs text-gray-400 mt-1">
-                  {new Date(c.createdAt).toLocaleString()}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        <div className="border-t border-gray-200 pt-4 pb-4">
+          <CommentList
+            comments={comments}
+            totalComments={totalComments}
+            isLoading={isCommentsLoading}
+            hasNextPage={hasNextPage}
+            isFetchingNextPage={isFetchingNextPage}
+            fetchNextPage={fetchNextPage}
+            currentUserId={currentUserId}
+            onUpdate={updateComment}
+            onDelete={deleteComment}
+          />
+        </div>
       </div>
 
       {/* ===== COMMENT COMPOSER ===== */}
-      <div className="border-t p-4">
-        {!isCommenting ? (
-          <button
-            onClick={() => setIsCommenting(true)}
-            className="flex items-center gap-2 text-sm text-gray-600 hover:text-blue-600"
-          >
-            <span className="w-6 h-6 rounded text-blue-900 flex items-center justify-center">
-              <MessageSquarePlus/>
-            </span>
-            Add a comment…
-          </button>
-        ) : (
-          <div className="space-y-3">
-            <textarea
-              autoFocus
-              value={commentText}
-              onChange={e => setCommentText(e.target.value)}
-              placeholder="Write a comment…"
-              rows={3}
-              className="w-full border rounded px-3 py-2 text-sm resize-none
-                         focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-
-            {/* Comment attachments */}
-            <div className="flex justify-end gap-2">
-              <div className="flex items-center gap-3 text-sm">
-              
-                <label className="flex items-center gap-2 text-blue-900 cursor-pointer hover:underline">
-                  <Paperclip size={16} />
-                  <input
-                    type="file"
-                    multiple
-                    hidden
-                    onChange={(e) => {
-                      if (!e.target.files) return;
-                      setCommentAttachments(prev => [
-                        ...prev,
-                        ...Array.from(e.target.files),
-                      ]);
-                    }}
-                  />
-                </label>
-
-                {commentAttachments.length > 0 && (
-                  <span className="text-xs text-gray-500">
-                    {commentAttachments.length} file(s)
-                  </span>
-                )}
-              </div>
-
-              <button
-                onClick={() => {
-                  setIsCommenting(false);
-                  setCommentText('');
-                  setCommentAttachments([]);
-                }}
-                className="px-3 py-1.5 text-sm border rounded hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-
-              <button
-                disabled={!commentText.trim()}
-                onClick={() => {
-                  setComments(prev => [
-                    {
-                      id: crypto.randomUUID(),
-                      text: commentText.trim(),
-                      author: 'loc loc',
-                      createdAt: new Date().toISOString(),
-                      attachments: commentAttachments.map(f => ({
-                        name: f.name,
-                        size: f.size,
-                      })),
-                    },
-                    ...prev,
-                  ]);
-                  setCommentText('');
-                  setCommentAttachments([]);
-                  setIsCommenting(false);
-                }}
-                className="px-4 py-1.5 text-sm rounded bg-blue-600
-                           text-white disabled:opacity-50"
-              >
-                Save
-              </button>
-            </div>
-          </div>
-        )}
+      <div className="border-t border-gray-200 bg-white z-10 shrink-0">
+        <CommentInput
+          value={commentInput}
+          onChange={setCommentInput}
+          onSend={addComment}
+          isSending={isAddingComment}
+        />
       </div>
     </aside>
   );

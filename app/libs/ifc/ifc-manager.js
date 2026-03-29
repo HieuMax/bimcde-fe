@@ -275,7 +275,7 @@ export class IfcManager {
 
     this.highlight(modelID, expressID);
 
-    return { modelID, expressID };
+    return { modelID, expressID, point: found.point };
   }
 
   async getIFCProps(modelID, expressID) {

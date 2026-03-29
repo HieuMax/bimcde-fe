@@ -10,7 +10,6 @@ import {
   ChevronRight,
   ChevronLeft,
   Camera,
-  FolderTree,
   Sheet,
   BadgeInfo,
   BookText,
