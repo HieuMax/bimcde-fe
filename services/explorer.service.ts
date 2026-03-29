@@ -1,5 +1,6 @@
-import { IExplorerResponse } from "@/types/explorer";
+import { IExplorerResponse, IFile } from "@/types/explorer";
 import { useApi as apiClient } from "@/app/hooks/useApi";
+import { httpClient } from "@/lib/http-client";
 
 interface FetchOptions {
   headers?: Record<string, string>;
@@ -224,4 +225,26 @@ export const explorerService = {
     const data = await api.get(`/files/${id}`);
     return data;
   },
+
+  getFileByShare: async (shareToken: string) => {
+    const res = await httpClient.get<{
+      projectId: string;
+      fileId: string;
+      viewId: string;
+      accessLevel: string;
+      type: string;
+    }>(`/share/${shareToken}`);
+
+    return res.data;
+  },
+
+  getFileDetailPublic: async (id: string, shareToken: string) => {
+    const data = await api.get(`/share/file/${id}`, {
+      params: {
+        shareToken: shareToken 
+      }
+    });
+    return data as IFile | any;
+  },
+
 };

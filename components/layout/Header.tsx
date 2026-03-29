@@ -10,7 +10,9 @@ import {
   Settings,
   RefreshCcw,
   LogOut,
+  BotMessageSquare
 } from "lucide-react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { useSidebar } from "@/app/context/SidebarProvider";
 import Image from "next/image";
@@ -24,10 +26,13 @@ import {
 } from "../ui/dropdown-menu";
 import { useAuth } from "@/app/context/authContext";
 import { useRouter } from "next/navigation";
+import ChatbotPanel from "@/components/chatbot/ChatbotPanel";
 
 export default function Header() {
   const { toggleSidebar, isCollapsed } = useSidebar();
   const projectName = "The Building";
+  const [isChatOpen, setIsChatOpen] = useState(false);
+
 
   const { logout, loading, error: authError, clearError } = useAuth();
   const router = useRouter();
@@ -38,6 +43,7 @@ export default function Header() {
   };
 
   return (
+    <>
     <header className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4 sticky top-0 z-50 shadow-sm flex-shrink-0">
       <div className="flex items-center gap-4">
         {/* --- TOGGLE SIDEBAR --- */}
@@ -80,6 +86,12 @@ export default function Header() {
       {/* RIGHT ACTIONS */}
       <div className="flex items-center gap-1">
         <HeaderIconBtn icon={<Search size={20} />} label="Search" />
+        <HeaderIconBtn
+          icon={<BotMessageSquare size={20} />}
+          label="Chatbot"
+          onClick={() => setIsChatOpen(!isChatOpen)}
+          isActive={isChatOpen}
+        />
         <HeaderIconBtn icon={<HelpCircle size={20} />} label="Help" />
         <HeaderIconBtn icon={<Grid size={20} />} label="Apps" />
         <DropdownMenu>
@@ -138,18 +150,27 @@ export default function Header() {
         </DropdownMenu>
       </div>
     </header>
+
+      <ChatbotPanel
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+      />
+    </>
   );
 }
 
 function HeaderIconBtn({
   icon,
   label,
+  onClick
 }: {
   icon: React.ReactNode;
   label: string;
+  onClick?: () => void;
 }) {
   return (
     <button
+      onClick={onClick}
       className="p-2 text-gray-500 hover:text-[#004B7D] hover:bg-gray-100 rounded-md transition-colors"
       title={label}>
       {icon}

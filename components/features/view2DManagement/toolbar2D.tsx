@@ -1,109 +1,200 @@
 'use client';
-import React from 'react';
+
+import React, { useState, useRef, useEffect } from 'react';
+import { useRouter, useParams } from 'next/navigation';
 import {
   ArrowLeft,
-  Hand,
-  MousePointerSquareDashed,
   Download,
   MoreHorizontal,
   Maximize,
+  Minimize,
+  FolderSearch,
+  View,
+  CircleCheckBig,
+  Package,
+  Share,
+  SendHorizonalIcon,
+  CalendarPlus2,
+  ImagePlus,
+  MousePointer,
+  HandMetal,
 } from 'lucide-react';
 
-export default function DetailToolbar({
-  name,
-  onBack,
-  onDownload,
-  onToggleFullscreen,
-}: {
+interface DetailToolbarProps {
   name: string;
   onBack: () => void;
-  onDownload: () => void;
   onToggleFullscreen?: () => void;
-}) {
+  isFullscreen?: boolean;
+  onShare?: () => void;
+  canShare?: boolean;
+  onOpenViewPanel?: () => void;
+  onOpenTodoPanel?: () => void;
+  canDownload?: boolean;
+}
+
+export default function DetailToolbar({
+  onToggleFullscreen,
+  isFullscreen = false,
+  onShare,
+  onOpenTodoPanel,
+  onOpenViewPanel,
+}: DetailToolbarProps) {
+  const router = useRouter();
+  const params = useParams();
+  const projectId = params?.projectId as string;
+
+  const [showNavMenu, setShowNavMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowNavMenu(false);
+      }
+    }
+    if (showNavMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () =>
+        document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showNavMenu]);
+
+  const navigationItems = [
+    { id: 'explorer', label: 'Explorer', icon: FolderSearch, path: `/projects/${projectId}/data/folder` },
+    { id: 'views', label: 'Views', icon: View, path: `/projects/${projectId}/data/views` },
+    { id: 'todo', label: 'ToDo', icon: CircleCheckBig, path: `/projects/${projectId}/todo` },
+    { id: 'releases', label: 'Releases', icon: Package, path: `/projects/${projectId}/data/releases` },
+  ];
+
+  const handleNavigation = (path: string) => {
+    router.push(path);
+    setShowNavMenu(false);
+  };
+
   return (
-    <header
-      className="
-        w-full h-14 px-6
-        bg-white border-b-2 border-slate-300
-        flex items-center justify-between
-        shadow-sm
-      "
-    >
-      {/* LEFT SECTION */}
-      <div className="flex items-center gap-4">
-        {/* Back Button */}
-        <button
-          onClick={onBack}
-          className="
-            flex items-center gap-2 px-3 py-2 rounded-lg
-            hover:bg-gray-100 transition
-            text-gray-700
-          "
-        >
-          <ArrowLeft size={18} className="text-gray-700" />
-          <span className="font-medium">Back</span>
-        </button>
+    <header className="w-full h-12 bg-white border-b border-slate-300 flex items-center px-1">
+      <div className="flex items-center h-full">
 
-        {/* Mode indicator / Title box */}
-        <div
-          className="
-            flex items-center gap-2
-            px-3 py-2 rounded-lg
-            bg-gray-50
-            border border-gray-200
-            text-gray-700
-            text-sm
-            shadow-inner
-          "
-        >
-          <Hand size={18} className="text-gray-500" />
-          <MousePointerSquareDashed size={18} className="text-gray-500" />
+        {/* ===== BACK + MENU ===== */}
+        <div className="relative h-full flex items-center" ref={menuRef}>
+          <button
+            type="button"                        
+            onClick={() => setShowNavMenu(!showNavMenu)}
+            className="h-10 px-3 flex items-center gap-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded"
+          >
+            <ArrowLeft size={16} />
+            Back
+          </button>
 
-          <span className="font-medium truncate max-w-[32vw]">
-            {name}
-          </span>
+          {showNavMenu && (
+            <div className="absolute top-full left-0 mt-1 w-32 bg-white rounded-md shadow-lg z-50 py-1">
+              {navigationItems.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => handleNavigation(item.path)}
+                    className="w-full px-3 py-2 flex items-center gap-3 text-sm hover:bg-blue-50"
+                  >
+                    <Icon size={16} />
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="w-px h-6 bg-slate-300 mx-2" />
+
+        {/* ===== TOOLS ===== */}
+        <div className="flex items-center gap-1">
+          <ToolButton icon={<HandMetal size={18} />} />
+          <ToolButton icon={<MousePointer size={18} />} />
+        </div>
+
+        <div className="w-px h-6 bg-slate-300 mx-2" />
+
+        <div className="flex items-center gap-1 z-10">
+          <ToolButton icon={<Share size={18} />} />
+          <ToolButton icon={<CircleCheckBig size={18} />} />
+          <ToolButton icon={<View size={18} />} />
+          <ToolButton icon={<Download size={18} />} />
+        </div>
+
+        <div className="w-px h-6 bg-slate-300 mx-2" />
+
+        {/* ===== CREATE ===== */}
+        <div className="flex items-center gap-1 z-10">
+          <ToolButton
+            icon={<ImagePlus size={18} />}
+            onClick={() => onOpenViewPanel?.()}    
+          />
+          <ToolButton
+            icon={<CalendarPlus2 size={18} />}
+            onClick={(e) => {
+              e.preventDefault();                  
+              e.stopPropagation();
+              onOpenTodoPanel?.();                
+            }}
+          />
+        </div>
+
+        <div className="w-px h-6 bg-slate-300 mx-2" />
+
+        {/* ===== SHARE ===== */}
+        <div className="flex items-center gap-1">
+          <ToolButton
+            icon={<SendHorizonalIcon size={18} />}
+            onClick={(e) => {
+              e.preventDefault();                  
+              e.stopPropagation();
+              onShare?.();
+            }}
+          />
+          <ToolButton icon={<MoreHorizontal size={18} />} />
         </div>
       </div>
 
-      {/* RIGHT SECTION */}
-      <div className="flex items-center gap-1">
-        {/* Fullscreen */}
-        <button
-          onClick={onToggleFullscreen}
-          className="
-            w-12 h-10 flex items-center justify-center
-            rounded-lg hover:bg-gray-100
-            transition text-gray-700
-          "
-          title="Fullscreen"
-        >
-          <Maximize size={18} />
-        </button>
-
-        {/* Download */}
-        <button
-          onClick={onDownload}
-          className="
-            w-10 h-10 flex items-center justify-center
-            rounded-lg hover:bg-gray-100
-            transition text-gray-700
-          "
-          title="Download"
-        >
-          <Download size={18} />
-        </button>
-
-        {/* More */}
-        <button
-          className="
-            w-10 h-10 flex items-center justify-center
-            rounded-lg hover:bg-gray-100
-            transition text-gray-700
-          "
-        >
-          <MoreHorizontal size={20} />
-        </button>
-      </div>
+      {/* ===== FULLSCREEN ===== */}
+      <button
+        type="button"                             
+        onClick={onToggleFullscreen}
+        className={`
+          w-12 h-10 flex items-center justify-center
+          rounded-lg transition text-gray-700
+          ${isFullscreen ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-100'}
+        `}
+      >
+        {isFullscreen ? <Minimize size={20} /> : <Maximize size={18} />}
+      </button>
     </header>
+  );
+}
+
+function ToolButton({
+  icon,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
+}) {
+  return (
+    <button
+      type="button"                              
+      onClick={onClick}
+      className="
+        w-9 h-9
+        flex items-center justify-center
+        rounded
+        text-gray-600
+        hover:bg-gray-100
+        transition
+        pointer-events-auto
+      "
+    >
+      {icon}
+    </button>
   );
 }
