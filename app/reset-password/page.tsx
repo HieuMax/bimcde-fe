@@ -1,5 +1,7 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,8 +13,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { ArrowLeft, Eye, EyeOff, Lock, ShieldCheck } from "lucide-react";
+import { useEffect } from "react";
 import { useApi } from "../hooks/useApi";
-import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 
 export default function ResetPasswordForm() {
@@ -25,8 +27,14 @@ export default function ResetPasswordForm() {
   const [success, setSuccess] = useState(false);
   const { post } = useApi();
 
-  const searchParams = useSearchParams();
-  const token = searchParams.get("token");
+  const [token, setToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      setToken(params.get("token"));
+    }
+  }, []);
 
   const passwordStrength = {
     hasLength: password.length >= 6,
