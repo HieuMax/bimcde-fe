@@ -10,6 +10,7 @@ import EditView from "./components/views/EditView";
 import MoveDestinationView from "../MoveDestinationView";
 import TagsView from "./views/TagsView";
 import { useQueryClient } from "@tanstack/react-query";
+import { explorerService } from "@/services/explorer.service";
 
 type ViewMode = "details" | "history" | "edit" | "move" | "tags";
 
@@ -71,11 +72,23 @@ export default function PropertiesPanel({
           {view === "edit" && (
             <EditView
               item={item}
+              projectId={projectId}
               onBack={() => setView("details")}
               onClose={onClose}
-              onSave={async (newName) => {
+              onSaveRename={async (newName) => {
                 await onRename(newName);
-                setView("details");
+              }}
+              onSaveTags={async (tagIds) => {
+                const isFile = "mimeType" in item;
+                if (isFile) {
+                  await explorerService.assignTags([item._id], tagIds);
+                } else {
+                  await explorerService.assignFolderTags([item._id], tagIds);
+                }
+                queryClient.invalidateQueries({ queryKey: ["explorer"] });
+                queryClient.invalidateQueries({
+                  queryKey: ["folder-tree", projectId],
+                });
               }}
             />
           )}

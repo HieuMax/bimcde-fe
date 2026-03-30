@@ -12,6 +12,7 @@ import CommentInput from "../comments/CommentInput";
 import { useComments } from "../../../hooks/useComments";
 import ShareFileDialog from "../../../dialogs/ShareFileDialog";
 import { useRouter, useParams } from "next/navigation";
+import { ALLOWED_FILE_EXTENSIONS } from "@/lib/explorer/uploadConstraints";
 
 interface Props {
   item: IFile | IFolder;
@@ -71,18 +72,20 @@ export default function DetailsView({
         ?.toLowerCase();
       if (!fileExt) return;
 
-      const IFC_FILES = ["ifc"];
-      const DOC_FILES = ["docs", "pdf", "png", "jpg", "webp"];
+      const IFC_SET = new Set(["ifc"]);
+      const DOC_SET = new Set(
+        ALLOWED_FILE_EXTENSIONS.filter((e) => e !== "ifc"),
+      );
 
       // IFC → 3D Viewer
-      if (IFC_FILES.includes(fileExt)) {
+      if (IFC_SET.has(fileExt)) {
         router.push(
           `/projects/${projectId}/viewer3d?urls=${encodeURIComponent(JSON.stringify([item.location]))}`
         );
         return;
       }
       // DOC / PDF → Project Viewer
-      if (DOC_FILES.includes(fileExt)) {
+      if (DOC_SET.has(fileExt)) {
         router.push(`/projects/${projectId}/viewer/${item._id}`);
         return;
       }
