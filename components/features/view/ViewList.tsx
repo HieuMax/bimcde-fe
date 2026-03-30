@@ -68,15 +68,14 @@ export const ViewList = () => {
 
   // Selection State
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [editIntent, setEditIntent] = useState(false);
 
   const handleTabChange = (val: "3D" | "2D") => {
-    setLoading(true);
-    setViews([]);
     setActiveTab(val);
-    setSelectedUserIds([]);
-    setSelectedGroupIds([]);
-    setDateRange({});
-    setSelectedIds(new Set()); // Reset selection
+    // Keep filters when switching tabs so they apply consistently.
+    // Reset selection/edit state to avoid stale panel state.
+    setSelectedIds(new Set());
+    setEditIntent(false);
     const newParams = new URLSearchParams(searchParams.toString());
     newParams.set("type", val);
     router.push(`${pathname}?${newParams.toString()}`);
@@ -109,6 +108,7 @@ export const ViewList = () => {
             isPublic: false,
             users: v.shareWith || [],
           },
+          tags: Array.isArray(v.tags) ? v.tags : [],
           viewState: v.viewState,
           // Keep original items so we can open correct 3D context
           items: v.items || [],
@@ -137,14 +137,6 @@ export const ViewList = () => {
       fetchViews();
     }
   }, [fetchViews]);
-
-  // Sync activeTab if URL changes externally
-  useEffect(() => {
-    const type = searchParams.get("type") as "3D" | "2D";
-    if (type && type !== activeTab) {
-      setActiveTab(type);
-    }
-  }, [searchParams, activeTab]);
 
   // --- SELECTION HANDLERS ---
   const handleSelectOne = (id: string) => {
@@ -175,6 +167,7 @@ export const ViewList = () => {
 
   const handleClearSelection = () => {
     setSelectedIds(new Set());
+    setEditIntent(false);
   };
 
   const handleDeselectItem = (id: string) => {
@@ -231,25 +224,56 @@ export const ViewList = () => {
       }
   };
 
-  const handleRename = async (view: IView, newName: string) => {
-    try {
-        if (view.type === "3D") {
-            await viewService3D.updateInfo(view._id, { title: newName });
-        } else {
-            await viewService.updateView(view._id, { name: newName });
-        }
-        toast.success("View renamed");
-        // Update local state
-        setViews(views.map(v => v._id === view._id ? { ...v, name: newName } : v));
-    } catch (error) {
-        toast.error("Failed to rename view");
+  const handleViewUpdate = async (
+    view: IView,
+    payload: { name: string; description: string; tagIds: string[] },
+  ) => {
+    if (view.type === "3D") {
+      const res = await viewService3D.updateInfo(view._id, {
+        title: payload.name,
+        description: payload.description || undefined,
+        tags: payload.tagIds,
+      });
+      setViews((prev) =>
+        prev.map((v) =>
+          v._id === view._id
+            ? {
+                ...v,
+                name: res.title,
+                description: res.description ?? "",
+                tags: Array.isArray(res.tags) ? res.tags : [],
+                updatedAt: res.updatedAt,
+              }
+            : v,
+        ),
+      );
+      return;
     }
+
+    const res = (await viewService.updateView(view._id, {
+      name: payload.name,
+      description: payload.description,
+      tags: payload.tagIds,
+    })) as IView;
+
+    setViews((prev) =>
+      prev.map((v) =>
+        v._id === view._id
+          ? {
+              ...v,
+              name: res.name,
+              description: res.description ?? "",
+              tags: res.tags ?? [],
+              updatedAt: res.updatedAt,
+            }
+          : v,
+      ),
+    );
   };
 
   const handleEdit = (view: IView) => {
-    // Logic edit: Có thể mở modal edit (bạn cần giữ lại Modal nếu muốn sửa tên/mô tả)
-    // Hoặc điều hướng tới trang Viewer để sửa
-    toast.info("Edit functionality coming soon");
+    setSelectedIds(new Set([view._id]));
+    setEditIntent(true);
   };
 
   const handleViewClick = (view: IView) => {
@@ -479,7 +503,7 @@ export const ViewList = () => {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => handleEdit(view)}>
-                          <Pencil className="mr-2 h-4 w-4" /> Rename
+                          <Pencil className="mr-2 h-4 w-4" /> Edit
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => handleViewClick(view)}>
                           <Box className="mr-2 h-4 w-4" /> Open in Viewer
@@ -521,8 +545,11 @@ export const ViewList = () => {
         {selectedCount === 1 && singleView ? (
           <ViewPropertiesPanel
             view={singleView}
+            projectId={projectId}
+            editIntent={editIntent}
+            onEditIntentHandled={() => setEditIntent(false)}
             onClose={handleClearSelection}
-            onRename={handleRename}
+            onUpdate={handleViewUpdate}
             onDelete={handleDelete}
             onOpen={handleViewClick}
           />

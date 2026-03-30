@@ -20,6 +20,8 @@ export interface IViewState {
   markupData?: any;
 }
 
+export type ViewTagRef = { _id: string; name: string; color: string };
+
 export interface IView {
   _id: string;
   projectId: string;
@@ -37,6 +39,8 @@ export interface IView {
     isPublic: boolean;
     users: string[]; // User IDs
   };
+  /** Populated tag docs (2D) or tag id strings (3D) */
+  tags?: (ViewTagRef | string)[];
   viewState: IViewState;
   createdAt: string;
   updatedAt: string;
@@ -54,6 +58,9 @@ export interface CreateViewDTO {
     isPublic?: boolean;
     users?: string[];
   };
+  tags?: string[];
 }
 
-export interface UpdateViewDTO extends Partial<CreateViewDTO> {}
+export interface UpdateViewDTO extends Partial<CreateViewDTO> {
+  tags?: string[];
+}

@@ -15,10 +15,16 @@ export const fileStatsService = {
     return Array.isArray(data) ? data : [];
   },
 
-  getProjectStorageUsed: async (projectId: string): Promise<number> => {
+  getProjectStorageStats: async (
+    projectId: string,
+  ): Promise<{ totalBytes: number; limitBytes: number }> => {
     const data = (await api.get("/files/stats/storage", {
       params: { projectId },
-    })) as { totalBytes?: number };
-    return data?.totalBytes ?? 0;
+    })) as { totalBytes?: number; limitBytes?: number };
+    const fallbackLimit = 500 * 1024 * 1024;
+    return {
+      totalBytes: data?.totalBytes ?? 0,
+      limitBytes: data?.limitBytes ?? fallbackLimit,
+    };
   },
 };
