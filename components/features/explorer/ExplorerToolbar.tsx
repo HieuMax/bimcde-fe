@@ -174,13 +174,7 @@ export default function ExplorerToolbar({
                 <FolderPlus className="mr-2 h-4 w-4" />
                 <span>Create folder</span>
               </DropdownMenuItem>
-              <DropdownMenuItem
-                // onClick={handleCreate3DModel}
-                className="cursor-pointer"
-              >
-                <Box className="mr-2 h-4 w-4" />
-                <span>Create 3D model</span>
-              </DropdownMenuItem>
+
               {/* Đường kẻ ngang */}
               <DropdownMenuSeparator />
               <DropdownMenuItem
