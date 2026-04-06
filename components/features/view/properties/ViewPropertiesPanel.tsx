@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { IView } from "@/types/view";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -72,6 +73,7 @@ export const ViewPropertiesPanel: React.FC<ViewPropertiesPanelProps> = ({
   onDelete,
   onOpen,
 }) => {
+  const router = useRouter();
   const [mode, setMode] = useState<"view" | "edit">("view");
   const [saving, setSaving] = useState(false);
   const [draft, setDraft] = useState({
@@ -127,12 +129,16 @@ export const ViewPropertiesPanel: React.FC<ViewPropertiesPanelProps> = ({
   };
 
   const handleSave = async () => {
-    const { errors: nextErrors, name, description, tagIds } =
-      validateViewEditInput({
-        nameRaw: draft.name,
-        descriptionRaw: draft.description,
-        tagIds: draft.tagIds,
-      });
+    const {
+      errors: nextErrors,
+      name,
+      description,
+      tagIds,
+    } = validateViewEditInput({
+      nameRaw: draft.name,
+      descriptionRaw: draft.description,
+      tagIds: draft.tagIds,
+    });
 
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) {
@@ -273,7 +279,10 @@ export const ViewPropertiesPanel: React.FC<ViewPropertiesPanelProps> = ({
             <div className="absolute inset-0 bg-black/0 hover:bg-black/10 transition-colors flex items-center justify-center opacity-0 hover:opacity-100">
               <Button
                 className="bg-white/90 text-black hover:bg-white shadow-sm"
-                onClick={() => onOpen(view)}
+                onClick={() => {
+                  onOpen(view);
+                  router.push(`/projects/${projectId}/viewer/${view._id}`);
+                }}
               >
                 Open View
               </Button>
@@ -288,7 +297,10 @@ export const ViewPropertiesPanel: React.FC<ViewPropertiesPanelProps> = ({
                 <Button
                   variant="ghost"
                   className="flex flex-col items-center gap-1 h-auto py-2 px-3 hover:bg-blue-50 hover:text-blue-600"
-                  onClick={() => onOpen(view)}
+                  onClick={() => {
+                    onOpen(view);
+                    router.push(`/projects/${projectId}/viewer/${view._id}`);
+                  }}
                 >
                   <Box className="h-5 w-5" />
                   <span className="text-[10px] uppercase font-semibold">
@@ -447,17 +459,13 @@ export const ViewPropertiesPanel: React.FC<ViewPropertiesPanelProps> = ({
                       if (errors.name)
                         setErrors((er) => ({ ...er, name: undefined }));
                     }}
-                    className={cn(
-                      "h-9",
-                      errors.name && "border-red-600",
-                    )}
+                    className={cn("h-9", errors.name && "border-red-600")}
                   />
                   {errors.name && (
                     <p className="text-xs text-red-600">{errors.name}</p>
                   )}
                   <p className="text-[10px] text-gray-400">
-                    Angle brackets and script-like patterns are removed on
-                    save.
+                    Angle brackets and script-like patterns are removed on save.
                   </p>
                 </div>
 
