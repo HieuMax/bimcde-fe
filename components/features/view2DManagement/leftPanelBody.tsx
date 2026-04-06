@@ -1,40 +1,43 @@
-'use client';
+"use client";
 
-import dynamic from 'next/dynamic';
-import { AnimatePresence, motion } from 'framer-motion';
+import dynamic from "next/dynamic";
+import { AnimatePresence, motion } from "framer-motion";
 
-import FileDetailTab from './tabView2D/detailTab';
-import TodosTab from './tabView2D/todoTab';
-import ViewsTab from './tabView2D/viewTab';
+import FileDetailTab from "./tabView2D/detailTab";
+import TodosTab from "./tabView2D/todoTab";
+import ViewsTab from "./tabView2D/viewTab";
 
-import { ViewItem, TodoItem, PageItem, IFile } from '@/types/explorer';
-import VersionHistoryPanel from './tabView2D/VersionHistoryPanel';
+import { ViewItem, TodoItem, PageItem, IFile } from "@/types/explorer";
+import { IView } from "@/types/view";
+import VersionHistoryPanel from "./tabView2D/VersionHistoryPanel";
 
-const PagesTab = dynamic(() => import('./tabView2D/pageTab'), { ssr: false });
+const PagesTab = dynamic(() => import("./tabView2D/pageTab"), { ssr: false });
 
-const CURRENT_USER = { name: 'hao nguyen' };
+const CURRENT_USER = { name: "hao nguyen" };
 
-type ActiveTool = 'filedetail' | 'page' | 'view' | 'todo' | 'history';
+type ActiveTab = "filedetail" | "page" | "view" | "todo" | "history";
 
 type LeftPanelBodyProps = {
-  activeTool: ActiveTool;
-  allowedKeys: ActiveTool[];
+  activeTab: ActiveTab;
+  allowedKeys: ActiveTab[];
+  // 🌟 Thêm currentUser để nhận tên người dùng động từ viewHome truyền xuống
+  currentUser?: string;
   data: {
     file: IFile | null;
-    view?: ViewItem | null;
+    view?: IView | null;
     pages: PageItem[];
     pageIndex: number;
-    views: ViewItem[];
+    views: IView[];
     todos: TodoItem[];
   };
   onSelectPage: (item: PageItem) => void;
-  onSelectView: (view: ViewItem) => void;
+  onSelectView: (view: IView) => void;
   onSelectTodo: (todo: TodoItem) => void;
   onCreateView: () => void;
   onCreateTodo: () => void;
   onDeleteView?: (id: string) => void;
   onDeleteTodo?: (id: string) => void;
-  onEditView?: (view: ViewItem) => void;
+  onEditView?: (view: IView) => void;
 
   onOpenVersion?: (version: any) => void;
   onDownloadVersion?: (version: any) => void;
@@ -44,8 +47,9 @@ type LeftPanelBodyProps = {
 
 export default function LeftPanelBody(props: LeftPanelBodyProps) {
   const {
-    activeTool,
+    activeTab,
     data,
+    currentUser = "Unknown User", // Fallback an toàn nếu không truyền
     onSelectPage,
     onSelectView,
     onSelectTodo,
@@ -56,38 +60,42 @@ export default function LeftPanelBody(props: LeftPanelBodyProps) {
     onEditView,
     onOpenVersion,
     onDownloadVersion,
-    onCloseHistory
+    onCloseHistory,
   } = props;
 
   return (
     <AnimatePresence mode="wait">
       <motion.div
-        key={activeTool}
+        key={activeTab}
         initial={{ opacity: 0, x: -12 }}
         animate={{ opacity: 1, x: 0 }}
         exit={{ opacity: 0, x: 12 }}
-        transition={{ duration: 0.18, ease: 'easeOut' }}
+        transition={{ duration: 0.18, ease: "easeOut" }}
         className="h-full"
       >
-        {activeTool === 'filedetail' && (
-          <FileDetailTab 
-            file={data.file} view={data.view ?? null} 
+        {activeTab === "filedetail" && (
+          <FileDetailTab
+            file={data.file}
+            view={data.view ?? null}
             onUpdateSuccess={props.onFileUpdated}
           />
         )}
 
-        {activeTool === 'history' && (
-          <VersionHistoryPanel 
-            file={data.file} 
-            onClose={() => onCloseHistory?.()} 
+        {activeTab === "history" && (
+          <VersionHistoryPanel
+            file={data.file}
+            onClose={() => onCloseHistory?.()}
             onOpenVersion={onOpenVersion}
-            onDownloadVersion={onDownloadVersion || ((ver) => {
-              if(ver.location) window.open(ver.location, "_blank");
-            })}
+            onDownloadVersion={
+              onDownloadVersion ||
+              ((ver) => {
+                if (ver.location) window.open(ver.location, "_blank");
+              })
+            }
           />
         )}
 
-        {activeTool === 'page' && (
+        {activeTab === "page" && (
           <PagesTab
             pages={data.pages}
             currentPageIndex={data.pageIndex}
@@ -96,10 +104,11 @@ export default function LeftPanelBody(props: LeftPanelBodyProps) {
           />
         )}
 
-        {activeTool === 'view' && (
+        {activeTab === "view" && (
           <ViewsTab
             views={data.views}
-            currentUser={CURRENT_USER.name}
+            // 🌟 Sử dụng biến currentUser động
+            currentUser={currentUser}
             onSelectView={onSelectView}
             onCreateView={onCreateView}
             onDeleteView={onDeleteView}
@@ -107,10 +116,11 @@ export default function LeftPanelBody(props: LeftPanelBodyProps) {
           />
         )}
 
-        {activeTool === 'todo' && (
+        {activeTab === "todo" && (
           <TodosTab
             todos={data.todos}
-            currentUser={CURRENT_USER.name}
+            // 🌟 Sử dụng biến currentUser động
+            currentUser={currentUser}
             onSelectTodo={onSelectTodo}
             onCreateTodo={onCreateTodo}
             onDeleteTodo={onDeleteTodo}

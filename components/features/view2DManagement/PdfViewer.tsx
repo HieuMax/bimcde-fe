@@ -1,17 +1,19 @@
-'use client';
+"use client";
 
-import { Document, Page, pdfjs } from 'react-pdf';
-import { useEffect, useRef, useState } from 'react';
+import { Document, Page, pdfjs } from "react-pdf";
+import { useEffect, useRef, useState } from "react";
 import {
   ZoomIn,
   ZoomOut,
   RotateCcw,
   ChevronLeft,
   ChevronRight,
-} from 'lucide-react';
+} from "lucide-react";
 
-pdfjs.GlobalWorkerOptions.workerSrc =
-  `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+// BỔ SUNG IMPORT TYPE
+import { ToolType, IAnnotation } from "@/types/view2d";
+
+pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 export default function PdfViewerClient({
   src,
@@ -24,6 +26,12 @@ export default function PdfViewerClient({
   onNext,
   onPageChange,
   onPageRendered,
+  // BỔ SUNG CÁC BIẾN DRAWING TỪ VIEWPORT TRUYỀN XUỐNG
+  activeTool = "cursor",
+  activeColor = "#000000",
+  annotations = [],
+  onAnnotationsChange,
+  showAnnotation = true,
 }: {
   src: string;
   currentPageIndex: number;
@@ -35,6 +43,12 @@ export default function PdfViewerClient({
   onNext: () => void;
   onPageChange?: (page: number) => void;
   onPageRendered?: () => void;
+  // BỔ SUNG KHAI BÁO TYPE
+  activeTool?: ToolType;
+  activeColor?: string;
+  annotations?: IAnnotation[];
+  onAnnotationsChange?: (anns: IAnnotation[]) => void;
+  showAnnotation?: boolean;
 }) {
   const [numPages, setNumPages] = useState(0);
   const [containerWidth, setContainerWidth] = useState(0);
@@ -52,7 +66,9 @@ export default function PdfViewerClient({
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
-            const pageNum = Number(entry.target.getAttribute('data-page-number'));
+            const pageNum = Number(
+              entry.target.getAttribute("data-page-number"),
+            );
             // Nếu phát hiện trang mới nằm giữa màn hình
             if (pageNum && pageNum !== currentPageIndexRef.current) {
               isScrollDriven.current = true; // Đánh dấu là do user cuộn chuột
@@ -63,8 +79,8 @@ export default function PdfViewerClient({
       },
       {
         root: containerRef.current,
-        rootMargin: '-40% 0px -40% 0px', // Bắt giao điểm ở khoảng giữa màn hình
-      }
+        rootMargin: "-40% 0px -40% 0px", // Bắt giao điểm ở khoảng giữa màn hình
+      },
     );
 
     const timeoutId = setTimeout(() => {
@@ -78,7 +94,7 @@ export default function PdfViewerClient({
       observer.disconnect();
     };
   }, [numPages, zoom, onPageChange]);
-  
+
   /* ===== OBSERVE WIDTH ===== */
   useEffect(() => {
     if (!containerRef.current) return;
@@ -95,16 +111,20 @@ export default function PdfViewerClient({
       isScrollDriven.current = false;
       return;
     }
-    
+
     if (pageRefs.current.has(currentPageIndex) && containerRef.current) {
       const el = pageRefs.current.get(currentPageIndex);
-      el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      el?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }, [currentPageIndex]);
 
   return (
     <div className="w-full h-full relative bg-[#6b6a73]">
-      <div ref={containerRef} className="absolute inset-0 overflow-y-auto p-2">
+      <div
+        ref={containerRef}
+        // Thêm CSS con trỏ chuột dựa theo công cụ vẽ
+        className={`absolute inset-0 overflow-y-auto p-2 ${activeTool !== "cursor" && activeTool !== "hand" ? "cursor-crosshair" : ""}`}
+      >
         <Document
           file={src}
           loading={null}
@@ -115,9 +135,11 @@ export default function PdfViewerClient({
             return (
               <div
                 key={pageNumber}
-                ref={(el) => el && pageRefs.current.set(pageNumber, el)}
+                ref={(el) => {
+                  if (el) pageRefs.current.set(pageNumber, el);
+                }}
                 data-page-number={pageNumber}
-                className="mb-4 flex justify-center"
+                className="mb-4 flex justify-center relative"
               >
                 <Page
                   pageNumber={pageNumber}
@@ -128,10 +150,12 @@ export default function PdfViewerClient({
                   renderAnnotationLayer={false}
                   onRenderSuccess={() => {
                     if (pageNumber === currentPageIndex) {
-                      onPageRendered?.(); 
+                      onPageRendered?.();
                     }
                   }}
                 />
+
+                {/* Nơi render Annotation Overlay sau này của bạn có thể đặt ở đây (absolute inset-0) */}
               </div>
             );
           })}
@@ -140,14 +164,24 @@ export default function PdfViewerClient({
 
       {/* ===== CONTROL BAR ===== */}
       <div className="absolute left-1/2 bottom-6 -translate-x-1/2 bg-[#2f2b36] text-white rounded-md px-2 py-2 flex items-center gap-3 shadow-lg z-50">
-        <button onClick={onPrev}><ChevronLeft size={18} /></button>
+        <button onClick={onPrev}>
+          <ChevronLeft size={18} />
+        </button>
         <div className="bg-white text-black px-3 rounded text-sm">
           {currentPageIndex} / {numPages}
         </div>
-        <button onClick={onNext}><ChevronRight size={18} /></button>
-        <button onClick={() => onZoom(-0.1)}><ZoomOut size={16} /></button>
-        <button onClick={() => onZoom(0.1)}><ZoomIn size={16} /></button>
-        <button onClick={() => onRotatePage(90)}><RotateCcw size={16} /></button>
+        <button onClick={onNext}>
+          <ChevronRight size={18} />
+        </button>
+        <button onClick={() => onZoom(-0.1)}>
+          <ZoomOut size={16} />
+        </button>
+        <button onClick={() => onZoom(0.1)}>
+          <ZoomIn size={16} />
+        </button>
+        <button onClick={() => onRotatePage(90)}>
+          <RotateCcw size={16} />
+        </button>
       </div>
     </div>
   );
