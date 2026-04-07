@@ -7,8 +7,6 @@ import {
   User,
   Menu,
   ExternalLink,
-  Settings,
-  RefreshCcw,
   LogOut,
   BotMessageSquare
 } from "lucide-react";
@@ -35,7 +33,7 @@ export default function Header() {
   const [isChatOpen, setIsChatOpen] = useState(false);
 
 
-  const { logout, loading, error: authError, clearError } = useAuth();
+  const { user, logout, loading, error: authError, clearError } = useAuth();
   const router = useRouter();
 
   const onLogout = async () => {
@@ -86,7 +84,6 @@ export default function Header() {
 
       {/* RIGHT ACTIONS */}
       <div className="flex items-center gap-1">
-        <HeaderIconBtn icon={<Search size={20} />} label="Search" />
         <BellComponent></BellComponent>
         <HeaderIconBtn
           icon={<BotMessageSquare size={20} />}
@@ -94,8 +91,6 @@ export default function Header() {
           onClick={() => setIsChatOpen(!isChatOpen)}
           isActive={isChatOpen}
         />
-        <HeaderIconBtn icon={<HelpCircle size={20} />} label="Help" />
-        <HeaderIconBtn icon={<Grid size={20} />} label="Apps" />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="ml-2 w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-300 transition-colors">
@@ -109,8 +104,8 @@ export default function Header() {
               <div className="w-12 h-12 rounded-full bg-gray-300 flex items-center justify-center mb-2">
                 <User size={24} />
               </div>
-              <p className="font-medium">Hiếu Bùi Tấn</p>
-              <p className="text-sm text-gray-500">buitanhieu000@gmail.com</p>
+              <p className="font-medium">{user?.fullName || "User"}</p>
+              <p className="text-sm text-gray-500">{user?.email || ""}</p>
             </div>
 
             {/* Menu items */}
@@ -120,24 +115,10 @@ export default function Header() {
                 className="flex justify-between items-center w-full cursor-pointer">
                 <div className="flex items-center gap-2">
                   <User size={16} />
-                  Trimble Profile
+                  Profile
                 </div>
                 <ExternalLink size={16} />
-              </Link>
-            </DropdownMenuItem>
-
-            <DropdownMenuSeparator />
-
-            <DropdownMenuItem className="flex items-center gap-2 cursor-pointer">
-              <Settings size={16} />
-              Application Preferences
-            </DropdownMenuItem>
-
-            <DropdownMenuSeparator />
-
-            <DropdownMenuItem className="flex items-center gap-2 cursor-pointer">
-              <RefreshCcw size={16} />
-              Check for updated license
+              </Link> 
             </DropdownMenuItem>
 
             <DropdownMenuSeparator />
