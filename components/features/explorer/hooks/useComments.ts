@@ -12,7 +12,7 @@ import { useAuth } from "@/app/context/authContext";
 
 export function useComments(
   targetId: string,
-  targetType: "file" | "folder" | "release" | "topic",
+  targetType: "file" | "folder" | "release" | "topic" | "view",
 ) {
   const queryClient = useQueryClient();
   const { user } = useAuth();

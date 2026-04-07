@@ -1,4 +1,5 @@
 import { ITag } from "./tag";
+import { ViewState } from "./view2d";
 
 export type ViewMode = "list" | "grid";
 
@@ -96,6 +97,8 @@ export interface ViewItem {
   pageIndex?: number;
   scale?: number;
   rotation?: number;
+
+  viewState?: ViewState;
 
   createdBy?: {
     _id: string;
