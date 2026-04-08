@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { explorerService } from "@/services/explorer.service";
 import { IFile, IFolder } from "@/types/explorer";
+import type { PromoteTargetStage } from "@/lib/explorer/cdePromote";
 import { AxiosError } from "axios";
 import { useAuth } from "@/app/context/authContext";
 
@@ -26,6 +27,10 @@ export function useExplorerActions(
     queryClient.invalidateQueries({ queryKey: ["explorer", projectId] });
     queryClient.invalidateQueries({ queryKey: ["folder-tree", projectId] });
     queryClient.invalidateQueries({ queryKey: ["explorer-move-nav"] });
+    queryClient.invalidateQueries({ queryKey: ["explorer-promote-nav"] });
+    queryClient.invalidateQueries({ queryKey: ["explorer-archive-move-nav"] });
+    queryClient.invalidateQueries({ queryKey: ["cde-root-folder"] });
+    queryClient.invalidateQueries({ queryKey: ["file-publish-readiness"] });
   };
 
   // 1. CREATE FOLDER
@@ -223,10 +228,57 @@ export function useExplorerActions(
       onSuccessCallback?.();
     } catch (error) {
       console.error(error);
+      toast.dismiss();
+      const msg =
+        error instanceof AxiosError &&
+        error.response?.data &&
+        typeof (error.response.data as ApiErrorResponse).message === "string"
+          ? (error.response.data as ApiErrorResponse).message
+          : "Move failed";
+      toast.error(msg);
     }
   };
 
-  // 7. DOWNLOAD
+  // 7. PROMOTE (ISO CDE)
+  const promoteFileMutation = useMutation({
+    mutationFn: async (args: {
+      fileId: string;
+      targetStage: PromoteTargetStage;
+      destinationFolderId?: string | null;
+    }) => {
+      return explorerService.promoteFile(
+        args.fileId,
+        args.targetStage,
+        args.destinationFolderId,
+      );
+    },
+    onSuccess: () => {
+      invalidateExplorer();
+      toast.success("Promoted: a copy was created in the destination");
+    },
+    onError: (err: AxiosError<ApiErrorResponse>) => {
+      const msg =
+        err.response?.data?.message || err.message || "Promote failed";
+      toast.error(msg);
+    },
+  });
+
+  const submitForReviewMutation = useMutation({
+    mutationFn: async (args: { fileId: string }) => {
+      return explorerService.submitFileForReview(args.fileId);
+    },
+    onSuccess: () => {
+      invalidateExplorer();
+      toast.success("Submitted for review");
+    },
+    onError: (err: AxiosError<ApiErrorResponse>) => {
+      const msg =
+        err.response?.data?.message || err.message || "Submit for review failed";
+      toast.error(msg);
+    },
+  });
+
+  // 8. DOWNLOAD
   const handleDownload = async (items: (IFile | IFolder)[]) => {
     if (items.length === 0) return;
 
@@ -272,6 +324,20 @@ export function useExplorerActions(
     toggleLockItems: handleBulkToggleLock,
     moveItems: handleMoveItems,
     downloadItems: handleDownload,
+    promoteFile: (
+      fileId: string,
+      targetStage: PromoteTargetStage,
+      destinationFolderId?: string | null,
+    ) =>
+      promoteFileMutation.mutateAsync({
+        fileId,
+        targetStage,
+        destinationFolderId,
+      }),
+    isPromoting: promoteFileMutation.isPending,
+    submitFileForReview: (fileId: string) =>
+      submitForReviewMutation.mutateAsync({ fileId }),
+    isSubmittingReview: submitForReviewMutation.isPending,
     // Expose loading states
     isCreating: createFolderMutation.isPending,
     isUploading: uploadFilesMutation.isPending,

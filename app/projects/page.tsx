@@ -23,6 +23,9 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { List, Grid, Loader2, CalendarIcon } from "lucide-react";
 import { Project } from "@/app/types/projectTypes";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
+import type { CdeWorkflowMode } from "@/types/explorer";
 import { useApi } from "@/app/hooks/useApi";
 import { useRouter } from "next/navigation";
 
@@ -134,6 +137,7 @@ function NewProjectDialog({ onCreated }: { onCreated: () => void }) {
     startDate: undefined as Date | undefined,
     endDate: undefined as Date | undefined,
     thumbnail: null as string | null,
+    workflowMode: "NORMAL" as CdeWorkflowMode,
   });
   const { post } = useApi();
 
@@ -186,6 +190,7 @@ function NewProjectDialog({ onCreated }: { onCreated: () => void }) {
       startDate: format(formData.startDate, "yyyy-MM-dd"),
       endDate: format(formData.endDate, "yyyy-MM-dd"),
       description: formData.description,
+      workflowMode: formData.workflowMode,
     };
     try {
       const reponse = await post("/projects/createProject", newProject);
@@ -197,6 +202,7 @@ function NewProjectDialog({ onCreated }: { onCreated: () => void }) {
           startDate: undefined,
           endDate: undefined,
           thumbnail: null,
+          workflowMode: "NORMAL",
         });
         setDateError(null);
 
@@ -252,6 +258,57 @@ function NewProjectDialog({ onCreated }: { onCreated: () => void }) {
               value={formData.description}
               onChange={handleChange}
             />
+          </div>
+
+          {/* CDE workflow mode */}
+          <div className="space-y-3 rounded-md border border-slate-200 bg-slate-50/80 p-4">
+            <div>
+              <p className="text-sm font-medium text-slate-900">
+                Kiểu quy trình / Workflow mode
+              </p>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Chọn trước khi tạo dự án; sau này không đổi được từ màn hình này.
+              </p>
+            </div>
+            <RadioGroup
+              value={formData.workflowMode}
+              onValueChange={(v) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  workflowMode: v as CdeWorkflowMode,
+                }))
+              }
+              className="grid gap-3">
+              <div className="flex items-start gap-3 rounded-md border border-transparent bg-white p-3 shadow-sm">
+                <RadioGroupItem value="NORMAL" id="wf-normal" className="mt-0.5" />
+                <div className="grid gap-0.5 flex-1">
+                  <Label htmlFor="wf-normal" className="font-medium cursor-pointer">
+                    Thông thường (Normal)
+                  </Label>
+                  <p className="text-xs text-slate-500">
+                    Phân quyền linh hoạt theo thư mục/tệp (ACL), giống ổ đĩa dùng
+                    chung.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 rounded-md border border-transparent bg-white p-3 shadow-sm">
+                <RadioGroupItem
+                  value="ISO_19650"
+                  id="wf-iso"
+                  className="mt-0.5"
+                />
+                <div className="grid gap-0.5 flex-1">
+                  <Label htmlFor="wf-iso" className="font-medium cursor-pointer">
+                    ISO 19650 (CDE)
+                  </Label>
+                  <p className="text-xs text-slate-500">
+                    Bốn giai đoạn WIP → Shared → Published → Archived; thư mục gốc
+                    chuẩn; promote tạo bản sao; chỉ Admin tạo nhóm và có thư mục
+                    nhóm dưới WIP/Shared.
+                  </p>
+                </div>
+              </div>
+            </RadioGroup>
           </div>
 
           {/* Dates */}

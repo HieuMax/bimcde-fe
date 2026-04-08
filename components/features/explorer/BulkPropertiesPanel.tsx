@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { IFile, IFolder } from "@/types/explorer";
+import { IFile, IFolder, CdeWorkflowMode } from "@/types/explorer";
+import { getIsoMoveRestrictEffectiveGroupId } from "@/lib/explorer/isoMove";
 import {
   Download,
   Trash2,
@@ -31,6 +32,7 @@ interface Props {
   onToggleLock: (action: "LOCK" | "UNLOCK") => void;
   onMoveItems: (destinationId: string) => Promise<void>;
   projectId: string;
+  workflowMode?: CdeWorkflowMode;
 }
 
 export default function BulkPropertiesPanel({
@@ -42,13 +44,37 @@ export default function BulkPropertiesPanel({
   onToggleLock,
   onMoveItems,
   projectId,
-
+  workflowMode = "NORMAL",
 }: Props) {
   const [view, setView] = useState<"list" | "move" | "tags">("list");
   const queryClient = useQueryClient();
   const router = useRouter();
 
+  const isoMoveGroup = getIsoMoveRestrictEffectiveGroupId(
+    workflowMode,
+    selectedItems,
+  );
+
   if (view === "move") {
+    if (isoMoveGroup === "mixed") {
+      return (
+        <div className="flex flex-col h-full bg-white border-l p-4">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold text-foreground">Move to...</h2>
+            <Button variant="ghost" size="icon" onClick={onClose}>
+              <X className="h-5 w-5" />
+            </Button>
+          </div>
+          <p className="text-sm text-muted-foreground mb-4">
+            In ISO 19650 mode, you can only move items that belong to the same
+            group together. Your selection includes items from different groups.
+          </p>
+          <Button variant="outline" onClick={() => setView("list")}>
+            Back
+          </Button>
+        </div>
+      );
+    }
     return (
       <div className="flex flex-col h-full bg-white border-l">
         <MoveDestinationView
@@ -58,6 +84,16 @@ export default function BulkPropertiesPanel({
           onMove={onMoveItems}
           sourceItemIds={selectedItems.map((i) => i._id)}
           projectId={projectId}
+          workflowMode={workflowMode}
+          restrictMoveToEffectiveGroupId={
+            isoMoveGroup === null ? null : isoMoveGroup
+          }
+          parentCdeRootStage={
+            selectedItems[0] &&
+            "parentCdeRootStage" in selectedItems[0]
+              ? selectedItems[0].parentCdeRootStage ?? null
+              : null
+          }
         />
       </div>
     );

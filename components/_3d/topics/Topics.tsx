@@ -1201,7 +1201,7 @@ export function Topics({
                             ))}
 
                             {/* Thông báo nếu thư mục rỗng */}
-                            {explorerData?.files?.length === 0 && explorerData?.folders?.length === 0 && (
+                            {explorerData?.files?.length === 0 && explorerData?.subFolders?.length === 0 && (
                                 <div className="text-sm text-slate-500 italic mt-4 text-center">This folder is empty</div>
                             )}
                         </div>

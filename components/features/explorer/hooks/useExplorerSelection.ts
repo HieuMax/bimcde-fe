@@ -3,6 +3,10 @@
 import { useState, useMemo } from "react";
 import { IFile, IFolder } from "@/types/explorer";
 
+function isBlockedFolder(item: IFile | IFolder): boolean {
+  return "totalSize" in item && (item as IFolder).cdeAccessible === false;
+}
+
 export function useExplorerSelection(
   files: IFile[],
   folders: IFolder[],
@@ -32,6 +36,8 @@ export function useExplorerSelection(
   // --- HANDLERS ---
   // 1. Single Select
   const handleRowClickSelect = (item: IFile | IFolder) => {
+    if (isBlockedFolder(item)) return;
+
     const isCurrentlySelectedSingle =
       selectedItems.length === 1 && selectedItems[0]._id === item._id;
 
@@ -44,6 +50,7 @@ export function useExplorerSelection(
 
   // 2. Multi Select (Checkbox)
   const handleCheckboxSelect = (item: IFile | IFolder) => {
+    if (isBlockedFolder(item)) return;
     setSelectedItems((prev) => {
       const exists = prev.find((i) => i._id === item._id);
       return exists ? prev.filter((i) => i._id !== item._id) : [...prev, item];
@@ -52,7 +59,7 @@ export function useExplorerSelection(
 
   // 3. Shift + Click
   const handleSetSelectedItems = (items: (IFile | IFolder)[]) => {
-    setSelectedItems(items);
+    setSelectedItems(items.filter((i) => !isBlockedFolder(i)));
   };
 
   const handleDeselectItem = (id: string) => {

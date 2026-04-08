@@ -1,4 +1,5 @@
-import { IExplorerResponse, IFile } from "@/types/explorer";
+import { FilePublishReadiness, IExplorerResponse, IFile } from "@/types/explorer";
+import type { PromoteTargetStage } from "@/lib/explorer/cdePromote";
 import { useApi as apiClient } from "@/app/hooks/useApi";
 import { httpClient } from "@/lib/http-client";
 import { client } from "@/app/utils/apiClient";
@@ -15,7 +16,9 @@ export const explorerService = {
     folderId: string | null,
     sortBy: string = "name",
     sortOrder: "asc" | "desc" = "asc",
-    options?: FetchOptions
+    options?: FetchOptions & {
+      restrictMoveToEffectiveGroupId?: string | null;
+    },
   ) => {
     const data = await api.get("/explorer/content", {
       params: {
@@ -23,10 +26,63 @@ export const explorerService = {
         folderId: folderId || undefined,
         sortBy,
         sortOrder,
+        ...(options?.restrictMoveToEffectiveGroupId
+          ? {
+              restrictMoveToEffectiveGroupId:
+                options.restrictMoveToEffectiveGroupId,
+            }
+          : {}),
       },
       headers: options?.headers,
     });
     return data as IExplorerResponse;
+  },
+
+  /** ISO: id of folder directly under a CDE root for this group (group “home”), or null */
+  getGroupHomeFolderId: async (
+    projectId: string,
+    groupId: string,
+    cdeStage: string = "WIP",
+  ) => {
+    const data = await api.get("/explorer/group-home-folder", {
+      params: { projectId, groupId, cdeStage },
+    });
+    return data as { folderId: string | null };
+  },
+
+  /** ISO: CDE root folder id (e.g. 3. Published) for promote destination picker */
+  getCdeRootFolderId: async (projectId: string, cdeStage: string) => {
+    const data = await api.get("/explorer/cde-root-folder", {
+      params: { projectId, cdeStage },
+    });
+    return data as { folderId: string | null };
+  },
+
+  promoteFile: async (
+    fileId: string,
+    targetStage: PromoteTargetStage,
+    destinationFolderId?: string | null,
+  ) => {
+    const body: {
+      targetStage: PromoteTargetStage;
+      destinationFolderId?: string;
+    } = { targetStage };
+    if (destinationFolderId && destinationFolderId.length > 0) {
+      body.destinationFolderId = destinationFolderId;
+    }
+    const data = await api.post(`/files/${fileId}/promote`, body);
+    return data;
+  },
+
+  submitFileForReview: async (fileId: string) => {
+    const data = await api.post(`/files/${fileId}/submit-review`, {});
+    return data;
+  },
+
+  /** ISO: checklist before Promote to Published (Shared file) */
+  getFilePublishReadiness: async (fileId: string) => {
+    const data = await api.get(`/files/${fileId}/publish-readiness`);
+    return data as FilePublishReadiness;
   },
 
   createFolder: async (payload: {
