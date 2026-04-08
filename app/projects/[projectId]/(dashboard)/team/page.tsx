@@ -123,6 +123,7 @@ export default function page({
 
     try {
       const response = await get(`/team/getMemberProject/${projectId}`);
+      console.log(response)
       if (response.success) {
         setMemberData(response.result || memberData);
         setMemberProjectCount(response.result.length || 0);

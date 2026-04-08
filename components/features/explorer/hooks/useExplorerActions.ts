@@ -16,7 +16,7 @@ export interface ApiErrorResponse {
 export function useExplorerActions(
   projectId: string,
   folderId: string | null,
-  onSuccessCallback?: () => void
+  onSuccessCallback?: () => void,
 ) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -45,20 +45,21 @@ export function useExplorerActions(
       invalidateExplorer();
       toast.success("Folder created successfully");
     },
-    onError: (err: AxiosError<ApiErrorResponse>) => {
-      const msg = err.response?.data?.message || err.message || "Unknown error";
-      toast.error(msg);
-    },
+    // Errors surfaced inline in CreateFolderDialog (no duplicate toast)
   });
 
   // 2. UPLOAD FILES
   const uploadFilesMutation = useMutation({
-    mutationFn: async (files: File[]) => {
+    mutationFn: async (args: {
+      files: File[];
+      onProgress?: (percent: number) => void;
+    }) => {
       return await explorerService.uploadFiles({
-        files,
+        files: args.files,
         projectId,
         folderId,
         userId: user!._id,
+        onProgress: args.onProgress,
       });
     },
     onSuccess: () => {
@@ -145,13 +146,13 @@ export function useExplorerActions(
         return await explorerService.toggleFileLock(
           item._id,
           action,
-          user!._id
+          user!._id,
         );
       } else {
         return await explorerService.toggleFolderLock(
           item._id,
           action,
-          user!._id
+          user!._id,
         );
       }
     },
@@ -165,10 +166,10 @@ export function useExplorerActions(
 
   const handleBulkToggleLock = async (
     items: (IFile | IFolder)[],
-    action: "LOCK" | "UNLOCK"
+    action: "LOCK" | "UNLOCK",
   ) => {
     const promises = items.map((item) =>
-      toggleLockMutation.mutateAsync({ item, action })
+      toggleLockMutation.mutateAsync({ item, action }),
     );
     try {
       await Promise.all(promises);
@@ -182,7 +183,7 @@ export function useExplorerActions(
   // 6. MOVE ITEMS
   const handleMoveItems = async (
     items: (IFile | IFolder)[],
-    destinationId: string
+    destinationId: string,
   ) => {
     if (items.length === 0) return;
     if (destinationId === (folderId || "")) {
@@ -206,7 +207,12 @@ export function useExplorerActions(
       if (folders.length > 0) {
         const destPayload = destinationId === "" ? "" : destinationId;
         const folderPromises = folders.map((folder) =>
-          explorerService.moveItem(folder._id, "folder", destPayload, user!._id)
+          explorerService.moveItem(
+            folder._id,
+            "folder",
+            destPayload,
+            user!._id,
+          ),
         );
         await Promise.all(folderPromises);
       }
@@ -256,7 +262,10 @@ export function useExplorerActions(
 
   return {
     createFolder: (name: string) => createFolderMutation.mutateAsync(name),
-    uploadFiles: (files: File[]) => uploadFilesMutation.mutateAsync(files),
+    uploadFiles: (
+      files: File[],
+      options?: { onProgress?: (percent: number) => void },
+    ) => uploadFilesMutation.mutateAsync({ files, ...options }),
     renameItem: (item: IFile | IFolder, newName: string) =>
       renameMutation.mutateAsync({ item, newName }),
     deleteItems: handleBulkDelete,

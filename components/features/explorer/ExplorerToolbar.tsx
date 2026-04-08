@@ -33,7 +33,12 @@ interface Props {
   onRefresh: () => void;
   isLoading: boolean;
   onCreateFolderClick: () => void;
-  onUpload: (files: File[]) => Promise<void>;
+  /** True when max folder nesting depth would be exceeded */
+  createFolderDisabled?: boolean;
+  onUpload: (
+    files: File[],
+    onProgress?: (percent: number) => void,
+  ) => Promise<void>;
   projectId: string; // Thêm projectId
 }
 
@@ -45,6 +50,7 @@ export default function ExplorerToolbar({
   onRefresh,
   isLoading,
   onCreateFolderClick,
+  createFolderDisabled = false,
   onUpload,
   projectId,
 }: Props) {
@@ -154,19 +160,21 @@ export default function ExplorerToolbar({
             {/* align="end" để menu căn lề phải với nút bấm */}
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuItem
-                onClick={onCreateFolderClick}
+                onClick={() => {
+                  if (!createFolderDisabled) onCreateFolderClick();
+                }}
+                disabled={createFolderDisabled}
                 className="cursor-pointer"
+                title={
+                  createFolderDisabled
+                    ? "Maximum folder nesting depth (7 levels) has been reached."
+                    : undefined
+                }
               >
                 <FolderPlus className="mr-2 h-4 w-4" />
                 <span>Create folder</span>
               </DropdownMenuItem>
-              <DropdownMenuItem
-                // onClick={handleCreate3DModel}
-                className="cursor-pointer"
-              >
-                <Box className="mr-2 h-4 w-4" />
-                <span>Create 3D model</span>
-              </DropdownMenuItem>
+
               {/* Đường kẻ ngang */}
               <DropdownMenuSeparator />
               <DropdownMenuItem

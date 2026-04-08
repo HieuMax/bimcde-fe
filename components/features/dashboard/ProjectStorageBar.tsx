@@ -4,10 +4,8 @@ import React from "react";
 import { HardDrive, Loader2 } from "lucide-react";
 import { useProjectStorage } from "./hooks/useProjectStorage";
 
-const LIMIT_GB = 5;
-
-function formatBytes(bytes: number): string {
-  return (bytes / (1024 * 1024 * 1024)).toFixed(2);
+function formatMb(bytes: number): string {
+  return (bytes / (1024 * 1024)).toFixed(1);
 }
 
 interface ProjectStorageBarProps {
@@ -49,8 +47,9 @@ export function ProjectStorageBar({ projectId }: ProjectStorageBarProps) {
     );
   }
 
-  const freeGB = formatBytes(freeBytes);
-  const fillColor = usedPercent >= 90 ? "#DC2626" : "#1D3F52"; // red when nearly full
+  const freeMb = formatMb(freeBytes);
+  const limitMb = formatMb(limitBytes);
+  const fillColor = usedPercent >= 90 ? "#DC2626" : "#1D3F52";
 
   return (
     <div className="flex items-center gap-3 pt-4 border-t border-gray-100 mt-4">
@@ -71,7 +70,7 @@ export function ProjectStorageBar({ projectId }: ProjectStorageBarProps) {
           />
         </div>
         <p className="text-xs text-gray-500 mt-1">
-          {freeGB} GB free of {LIMIT_GB} GB
+          {freeMb} MB free of {limitMb} MB
         </p>
       </div>
     </div>

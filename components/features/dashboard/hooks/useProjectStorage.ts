@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { fileStatsService } from "@/services/fileStats.service";
 
-const STORAGE_LIMIT_BYTES = 5 * 1024 * 1024 * 1024; // 5 GB
+const DEFAULT_LIMIT_BYTES = 500 * 1024 * 1024;
 
 export type UseProjectStorageResult = {
   usedBytes: number;
@@ -19,6 +19,7 @@ export function useProjectStorage(
   projectId: string | undefined,
 ): UseProjectStorageResult {
   const [usedBytes, setUsedBytes] = useState(0);
+  const [limitBytes, setLimitBytes] = useState(DEFAULT_LIMIT_BYTES);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,18 +27,21 @@ export function useProjectStorage(
     if (!projectId) {
       setLoading(false);
       setUsedBytes(0);
+      setLimitBytes(DEFAULT_LIMIT_BYTES);
       return;
     }
     setLoading(true);
     setError(null);
     try {
-      const total = await fileStatsService.getProjectStorageUsed(projectId);
-      setUsedBytes(total);
-      console.log(total);
+      const { totalBytes, limitBytes } =
+        await fileStatsService.getProjectStorageStats(projectId);
+      setUsedBytes(totalBytes);
+      setLimitBytes(limitBytes);
     } catch (err) {
       console.error("Failed to fetch project storage:", err);
       setError(err instanceof Error ? err.message : "Failed to load storage");
       setUsedBytes(0);
+      setLimitBytes(DEFAULT_LIMIT_BYTES);
     } finally {
       setLoading(false);
     }
@@ -47,7 +51,6 @@ export function useProjectStorage(
     fetchStorage();
   }, [fetchStorage]);
 
-  const limitBytes = STORAGE_LIMIT_BYTES;
   const freeBytes = Math.max(0, limitBytes - usedBytes);
   const usedPercent =
     limitBytes > 0 ? Math.min(100, (usedBytes / limitBytes) * 100) : 0;

@@ -10,7 +10,7 @@ interface ProjectMember {
   role: string;
   status: "Active" | "Removed";
   lastAccessed: string | null; // Can be a string or null if no date is available
-  email: String;
+  email: string;
 }
 
 export const columnsTable: ColumnDef<ProjectMember>[] = [
@@ -34,7 +34,7 @@ export const columnsTable: ColumnDef<ProjectMember>[] = [
     accessorKey: "fullName",
     header: "Name",
     cell: ({ row }) => (
-      <div className="capitalize">
+      <div className="">
         {/* Hiển thị tên */}
         <span className="font-semibold">{row.getValue("fullName")}</span>
         <div>

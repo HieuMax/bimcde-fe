@@ -60,6 +60,19 @@ import {
 import { TopicReferencesDialog } from "@/components/features/topics/TopicReferencesDialog";
 import { RecipientSelector } from "@/components/features/release/RecipientSelector";
 import type { TopicFilterOption } from "./filters/TopicsFilters";
+import {
+  DEFAULT_TOPIC_PRIORITIES,
+  DEFAULT_TOPIC_STATUSES,
+  DEFAULT_TOPIC_TYPES,
+  TOPIC_ATTACHMENTS_MAX_COUNT,
+  TOPIC_DESCRIPTION_MAX_LENGTH,
+  TOPIC_TAGS_MAX_COUNT,
+  TOPIC_TITLE_MAX_LENGTH,
+  validateTopicForm,
+  type TopicFormErrors,
+} from "@/lib/topics/topicFormValidation";
+import { toast } from "sonner";
+import { AxiosError } from "axios";
 
 function Pill({
   label,
@@ -158,10 +171,60 @@ export const TopicPropertiesPanel: React.FC<TopicPropertiesPanelProps> =
       NonNullable<Topic["attachments"]>
     >([]);
 
+    const [fieldErrors, setFieldErrors] = useState<TopicFormErrors>({});
+
+    const { user } = useAuth();
+
+    const allowedTypes = React.useMemo(() => {
+      const base =
+        topicTypes.length > 0
+          ? topicTypes.map((o) => o.value)
+          : [...DEFAULT_TOPIC_TYPES];
+      if (
+        variant === "edit" &&
+        topic.type &&
+        !base.includes(topic.type)
+      ) {
+        return [...base, topic.type];
+      }
+      return base;
+    }, [topicTypes, variant, topic.type]);
+
+    const allowedStatuses = React.useMemo(() => {
+      const base =
+        topicStatuses.length > 0
+          ? topicStatuses.map((o) => o.value)
+          : [...DEFAULT_TOPIC_STATUSES];
+      if (
+        variant === "edit" &&
+        topic.status &&
+        !base.includes(topic.status)
+      ) {
+        return [...base, topic.status];
+      }
+      return base;
+    }, [topicStatuses, variant, topic.status]);
+
+    const allowedPriorities = React.useMemo(() => {
+      const base =
+        topicPriorities.length > 0
+          ? topicPriorities.map((o) => o.value)
+          : [...DEFAULT_TOPIC_PRIORITIES];
+      if (
+        variant === "edit" &&
+        topic.priority &&
+        !base.includes(topic.priority)
+      ) {
+        return [...base, topic.priority];
+      }
+      return base;
+    }, [topicPriorities, variant, topic.priority]);
+
     useEffect(() => {
       setMode(variant === "create" ? "edit" : "view");
       setCoordinationOpen(false);
       setActiveTab("references");
+      setFieldErrors({});
       const def = variant === "create" ? createDefaults : undefined;
       setDraft({
         title: topic.title,
@@ -178,6 +241,7 @@ export const TopicPropertiesPanel: React.FC<TopicPropertiesPanelProps> =
     }, [topic, variant, createDefaults]);
 
     const handleCancelEdit = () => {
+      setFieldErrors({});
       if (variant === "create") {
         onClose();
         return;
@@ -197,19 +261,60 @@ export const TopicPropertiesPanel: React.FC<TopicPropertiesPanelProps> =
     };
 
     const handleSave = async () => {
-      if (!draft.title.trim()) return;
+      const {
+        errors: nextErrors,
+        title,
+        description,
+        assignee,
+        type,
+        priority,
+        status,
+        dueDateIso,
+        tags,
+      } = validateTopicForm({
+        titleRaw: draft.title,
+        descriptionRaw: draft.description,
+        assigneeRaw: draft.assignee,
+        type: draft.type,
+        priority: draft.priority,
+        status: draft.status,
+        dueDate: draft.dueDate,
+        tags: draft.tags,
+        allowedTypes,
+        allowedStatuses,
+        allowedPriorities,
+        pendingAttachmentsCount:
+          variant === "create" ? pendingAttachments.length : 0,
+      });
+
+      setFieldErrors(nextErrors);
+      if (Object.keys(nextErrors).length > 0) {
+        const first =
+          nextErrors.title ??
+          nextErrors.description ??
+          nextErrors.type ??
+          nextErrors.status ??
+          nextErrors.priority ??
+          nextErrors.dueDate ??
+          nextErrors.tags ??
+          nextErrors.references ??
+          nextErrors.assignee;
+        if (first) toast.error(first);
+        return;
+      }
+
       try {
         setSaving(true);
         if (variant === "create") {
           const created = await topicsService.createTopicItem(projectId, {
-            title: draft.title.trim(),
-            description: draft.description.trim(),
-            assignee: draft.assignee.trim(),
-            type: draft.type,
-            priority: draft.priority,
-            status: draft.status,
-            tags: draft.tags,
-            dueDate: draft.dueDate?.toISOString(),
+            title,
+            description,
+            assignee,
+            type,
+            priority,
+            status,
+            tags,
+            ...(dueDateIso ? { dueDate: dueDateIso } : {}),
             authorName: user?.fullName ?? "Unknown",
           });
           const createdTopic = {
@@ -231,18 +336,20 @@ export const TopicPropertiesPanel: React.FC<TopicPropertiesPanelProps> =
               attachments: pendingAttachments.length,
             };
           }
+          toast.success("Topic created");
           onSaveTopic(createdTopic);
         } else {
           const updatedTopic = await topicsService.updateTopicItem(topic.id, {
-            title: draft.title.trim(),
-            description: draft.description.trim(),
-            assignee: draft.assignee.trim(),
-            type: draft.type,
-            priority: draft.priority,
-            status: draft.status,
-            tags: draft.tags,
-            dueDate: draft.dueDate?.toISOString() ?? null,
+            title,
+            description,
+            assignee,
+            type,
+            priority,
+            status,
+            tags,
+            dueDate: dueDateIso ?? null,
           });
+          toast.success("Topic updated");
           onSaveTopic({
             ...topic,
             ...updatedTopic,
@@ -250,12 +357,16 @@ export const TopicPropertiesPanel: React.FC<TopicPropertiesPanelProps> =
           });
           setMode("view");
         }
+      } catch (error) {
+        console.error(error);
+        const msg =
+          (error as AxiosError<{ message?: string }>)?.response?.data
+            ?.message ?? "Failed to save topic";
+        toast.error(msg);
       } finally {
         setSaving(false);
       }
     };
-
-    const { user } = useAuth();
     const {
       comments,
       totalComments,
@@ -420,31 +531,68 @@ export const TopicPropertiesPanel: React.FC<TopicPropertiesPanelProps> =
             {mode === "edit" ? (
               <div className="space-y-5">
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-medium text-gray-500">
-                    Title <span className="text-red-500">*</span>
-                  </Label>
+                  <div className="flex justify-between gap-2">
+                    <Label className="text-xs font-medium text-gray-500">
+                      Title <span className="text-red-500">*</span>
+                    </Label>
+                    <span className="text-[10px] text-gray-400 tabular-nums">
+                      {draft.title.length}/{TOPIC_TITLE_MAX_LENGTH}
+                    </span>
+                  </div>
                   <Input
                     value={draft.title}
-                    onChange={(e) =>
-                      setDraft((d) => ({ ...d, title: e.target.value }))
-                    }
+                    maxLength={TOPIC_TITLE_MAX_LENGTH}
+                    onChange={(e) => {
+                      setDraft((d) => ({ ...d, title: e.target.value }));
+                      if (fieldErrors.title)
+                        setFieldErrors((fe) => ({ ...fe, title: undefined }));
+                    }}
                     disabled={saving}
-                    className="h-9"
+                    className={cn(
+                      "h-9 border-gray-300",
+                      fieldErrors.title && "border-red-600",
+                    )}
                   />
+                  {fieldErrors.title && (
+                    <p className="text-xs text-red-600">{fieldErrors.title}</p>
+                  )}
+                  <p className="text-[10px] text-gray-400">
+                    Script tags and angle brackets are removed on save.
+                  </p>
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-medium text-gray-500">
-                    Description
-                  </Label>
+                  <div className="flex justify-between gap-2">
+                    <Label className="text-xs font-medium text-gray-500">
+                      Description
+                    </Label>
+                    <span className="text-[10px] text-gray-400 tabular-nums">
+                      {draft.description.length}/{TOPIC_DESCRIPTION_MAX_LENGTH}
+                    </span>
+                  </div>
                   <Textarea
                     value={draft.description}
-                    onChange={(e) =>
-                      setDraft((d) => ({ ...d, description: e.target.value }))
-                    }
+                    maxLength={TOPIC_DESCRIPTION_MAX_LENGTH}
+                    onChange={(e) => {
+                      setDraft((d) => ({ ...d, description: e.target.value }));
+                      if (fieldErrors.description)
+                        setFieldErrors((fe) => ({
+                          ...fe,
+                          description: undefined,
+                        }));
+                    }}
                     disabled={saving}
-                    className="min-h-[90px] resize-none"
+                    className={cn(
+                      "min-h-[90px] resize-none border-gray-300",
+                      fieldErrors.description && "border-red-600",
+                    )}
+                    placeholder="Plain text; HTML-like patterns are stripped on save."
                   />
+                  {fieldErrors.description && (
+                    <p className="text-xs text-red-600">
+                      {fieldErrors.description}
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-1.5">
@@ -469,25 +617,39 @@ export const TopicPropertiesPanel: React.FC<TopicPropertiesPanelProps> =
                       setDraft((d) => ({
                         ...d,
                         assigneeIds: ids,
-                        assignee: options?.[0]?.label ?? "",
+                        assignee: options?.[0]?.label ?? ids[0] ?? "",
                       }));
+                      if (fieldErrors.assignee)
+                        setFieldErrors((fe) => ({ ...fe, assignee: undefined }));
                     }}
                     disabled={saving}
                   />
+                  {fieldErrors.assignee && (
+                    <p className="text-xs text-red-600">
+                      {fieldErrors.assignee}
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-1.5">
                   <Label className="text-xs font-medium text-gray-500">
-                    Type
+                    Type <span className="text-red-500">*</span>
                   </Label>
                   <Select
                     value={draft.type}
-                    onValueChange={(v) =>
-                      setDraft((d) => ({ ...d, type: v as TopicType }))
-                    }
+                    onValueChange={(v) => {
+                      setDraft((d) => ({ ...d, type: v as TopicType }));
+                      if (fieldErrors.type)
+                        setFieldErrors((fe) => ({ ...fe, type: undefined }));
+                    }}
                     disabled={saving}
                   >
-                    <SelectTrigger className="h-9">
+                    <SelectTrigger
+                      className={cn(
+                        "h-9",
+                        fieldErrors.type && "border-red-600",
+                      )}
+                    >
                       <SelectValue placeholder="Select type" />
                     </SelectTrigger>
                     <SelectContent>
@@ -511,20 +673,33 @@ export const TopicPropertiesPanel: React.FC<TopicPropertiesPanelProps> =
                       ))}
                     </SelectContent>
                   </Select>
+                  {fieldErrors.type && (
+                    <p className="text-xs text-red-600">{fieldErrors.type}</p>
+                  )}
                 </div>
 
                 <div className="space-y-1.5">
                   <Label className="text-xs font-medium text-gray-500">
-                    Priority
+                    Priority <span className="text-red-500">*</span>
                   </Label>
                   <Select
                     value={draft.priority}
-                    onValueChange={(v) =>
-                      setDraft((d) => ({ ...d, priority: v as TopicPriority }))
-                    }
+                    onValueChange={(v) => {
+                      setDraft((d) => ({ ...d, priority: v as TopicPriority }));
+                      if (fieldErrors.priority)
+                        setFieldErrors((fe) => ({
+                          ...fe,
+                          priority: undefined,
+                        }));
+                    }}
                     disabled={saving}
                   >
-                    <SelectTrigger className="h-9">
+                    <SelectTrigger
+                      className={cn(
+                        "h-9",
+                        fieldErrors.priority && "border-red-600",
+                      )}
+                    >
                       <SelectValue placeholder="Select priority" />
                     </SelectTrigger>
                     <SelectContent>
@@ -538,20 +713,32 @@ export const TopicPropertiesPanel: React.FC<TopicPropertiesPanelProps> =
                       ))}
                     </SelectContent>
                   </Select>
+                  {fieldErrors.priority && (
+                    <p className="text-xs text-red-600">
+                      {fieldErrors.priority}
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-1.5">
                   <Label className="text-xs font-medium text-gray-500">
-                    Status
+                    Status <span className="text-red-500">*</span>
                   </Label>
                   <Select
                     value={draft.status}
-                    onValueChange={(v) =>
-                      setDraft((d) => ({ ...d, status: v as TopicStatus }))
-                    }
+                    onValueChange={(v) => {
+                      setDraft((d) => ({ ...d, status: v as TopicStatus }));
+                      if (fieldErrors.status)
+                        setFieldErrors((fe) => ({ ...fe, status: undefined }));
+                    }}
                     disabled={saving}
                   >
-                    <SelectTrigger className="h-9">
+                    <SelectTrigger
+                      className={cn(
+                        "h-9",
+                        fieldErrors.status && "border-red-600",
+                      )}
+                    >
                       <SelectValue placeholder="Select status" />
                     </SelectTrigger>
                     <SelectContent>
@@ -599,24 +786,44 @@ export const TopicPropertiesPanel: React.FC<TopicPropertiesPanelProps> =
                       <DateCalendar
                         mode="single"
                         selected={draft.dueDate}
-                        onSelect={(d) =>
-                          setDraft((x) => ({ ...x, dueDate: d ?? undefined }))
-                        }
+                        onSelect={(d) => {
+                          setDraft((x) => ({ ...x, dueDate: d ?? undefined }));
+                          if (fieldErrors.dueDate)
+                            setFieldErrors((fe) => ({
+                              ...fe,
+                              dueDate: undefined,
+                            }));
+                        }}
                         initialFocus
                       />
                     </PopoverContent>
                   </Popover>
+                  {fieldErrors.dueDate && (
+                    <p className="text-xs text-red-600">
+                      {fieldErrors.dueDate}
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-medium text-gray-500">
-                    Tags
-                  </Label>
+                  <div className="flex justify-between gap-2">
+                    <Label className="text-xs font-medium text-gray-500">
+                      Tags
+                    </Label>
+                    <span className="text-[10px] text-gray-400 tabular-nums">
+                      {draft.tags.length}/{TOPIC_TAGS_MAX_COUNT}
+                    </span>
+                  </div>
                   <MultiSelect
                     values={draft.tags}
-                    onValuesChange={(values) =>
-                      setDraft((d) => ({ ...d, tags: values }))
-                    }
+                    onValuesChange={(values) => {
+                      setDraft((d) => ({
+                        ...d,
+                        tags: values.slice(0, TOPIC_TAGS_MAX_COUNT),
+                      }));
+                      if (fieldErrors.tags)
+                        setFieldErrors((fe) => ({ ...fe, tags: undefined }));
+                    }}
                   >
                     <MultiSelectTrigger className="w-full justify-between" />
                     <MultiSelectContent>
@@ -636,6 +843,9 @@ export const TopicPropertiesPanel: React.FC<TopicPropertiesPanelProps> =
                       ))}
                     </MultiSelectContent>
                   </MultiSelect>
+                  {fieldErrors.tags && (
+                    <p className="text-xs text-red-600">{fieldErrors.tags}</p>
+                  )}
                 </div>
 
                 <div className="space-y-1.5">
@@ -650,6 +860,17 @@ export const TopicPropertiesPanel: React.FC<TopicPropertiesPanelProps> =
                     <Plus className="w-4 h-4" />
                     Add References
                   </button>
+                  <p className="text-[10px] text-gray-400">
+                    Up to {TOPIC_ATTACHMENTS_MAX_COUNT} references per topic
+                    {variant === "create"
+                      ? " (counted before you save)."
+                      : "."}
+                  </p>
+                  {fieldErrors.references && (
+                    <p className="text-xs text-red-600">
+                      {fieldErrors.references}
+                    </p>
+                  )}
                   {variant === "create" ? (
                     pendingAttachments.length > 0 && (
                       <div className="mt-2 space-y-1 min-w-0">
@@ -1016,7 +1237,7 @@ export const TopicPropertiesPanel: React.FC<TopicPropertiesPanelProps> =
               </Button>
               <Button
                 onClick={handleSave}
-                disabled={saving || !draft.title.trim()}
+                disabled={saving}
                 className="bg-[#005F9E] hover:bg-[#004B7D] text-white"
               >
                 {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

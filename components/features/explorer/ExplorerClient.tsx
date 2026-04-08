@@ -27,6 +27,7 @@ import { useExplorerSelection } from "./hooks/useExplorerSelection";
 import { useExplorerActions } from "./hooks/useExplorerActions";
 import { ViewMode, IFile, IFolder } from "@/types/explorer";
 import { useAuth } from "@/app/context/authContext";
+import { wouldExceedMaxNesting } from "./utils/getFolderDepthFromAncestors";
 
 // --- [OPTIMIZATION] DYNAMIC IMPORTS (Lazy Loading) ---
 // Chỉ tải code khi cần hiển thị. Giúp trang load ban đầu nhanh hơn hẳn.
@@ -45,7 +46,7 @@ const CreateFolderDialog = dynamic(
   () => import("./dialogs/CreateFolderDialog"),
   {
     ssr: false,
-  }
+  },
 );
 
 const MoreActionsDialog = dynamic(() => import("./dialogs/MoreActionDialog"), {
@@ -94,9 +95,14 @@ export default function ExplorerClient({ projectId, folderId }: Props) {
   // --- ACTIONS HOOK ---
   const actions = useExplorerActions(projectId, folderId, handleClearSelection);
 
+  const createFolderBlockedByDepth = wouldExceedMaxNesting(
+    ancestors,
+    currentFolder,
+  );
+
   // --- DRAG & DROP ---
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
   );
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -116,7 +122,7 @@ export default function ExplorerClient({ projectId, folderId }: Props) {
     if (!targetData || !("totalSize" in targetData.item)) return;
 
     const isDraggingSelected = selectedItems.some(
-      (i) => i._id === draggedItemId
+      (i) => i._id === draggedItemId,
     );
     let itemsToMove: (IFile | IFolder)[] = [];
 
@@ -135,7 +141,7 @@ export default function ExplorerClient({ projectId, folderId }: Props) {
   const getDragOverlayContent = () => {
     if (!activeDragId) return null;
     const isDraggingSelected = selectedItems.some(
-      (i) => i._id === activeDragId
+      (i) => i._id === activeDragId,
     );
     const dragCount = isDraggingSelected ? selectedItems.length : 1;
 
@@ -189,8 +195,9 @@ export default function ExplorerClient({ projectId, folderId }: Props) {
             onRefresh={() => refetch()}
             isLoading={isLoading && !isPlaceholderData}
             onCreateFolderClick={() => setIsCreateOpen(true)}
-            onUpload={async (files) => {
-              await actions.uploadFiles(files);
+            createFolderDisabled={createFolderBlockedByDepth}
+            onUpload={async (files, onProgress) => {
+              await actions.uploadFiles(files, { onProgress });
             }}
             ancestors={ancestors}
             projectId={projectId}
@@ -252,7 +259,8 @@ export default function ExplorerClient({ projectId, folderId }: Props) {
               onSubmit={async (name) => {
                 await actions.createFolder(name);
               }}
-              currentFolderName={currentFolder?.name}
+              currentFolderName={currentFolder?.name ?? "Explorer"}
+              nestingBlocked={createFolderBlockedByDepth}
             />
           )}
 

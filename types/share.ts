@@ -1,0 +1,1 @@
+export type ViewerMode = "NORMAL" | "PUBLIC_SHARE" | "INTERNAL_SHARE";

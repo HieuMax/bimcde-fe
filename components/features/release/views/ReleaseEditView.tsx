@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
-import { IRelease } from "@/types/release";
+import { IRelease, UpdateReleaseDTO } from "@/types/release";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,6 +18,15 @@ import { cn } from "@/lib/utils";
 import { releaseService } from "@/services/release.service";
 import { toast } from "sonner";
 import { RecipientSelector, RecipientOption } from "../RecipientSelector";
+import {
+  RELEASE_NAME_MAX_LENGTH,
+  RELEASE_NOTE_MAX_LENGTH,
+  dueDateToPayloadString,
+  isDueDateInFuture,
+  validateCreateReleaseInput,
+  type CreateReleaseFieldErrors,
+} from "@/lib/release/createReleaseValidation";
+import { AxiosError } from "axios";
 
 interface ReleaseEditViewProps {
   release: IRelease;
@@ -42,42 +51,60 @@ const ReleaseEditView: React.FC<ReleaseEditViewProps> = ({
     if (!release.recipients) return [];
     return release.recipients.map((r: any) => ({
       id: r._id,
-      label: r.fullName || r.name || "Unknown", // Fallback name
+      label: r.fullName || r.name || "Unknown",
       email: r.email,
-      type: "USER", // Mặc định là USER, nếu BE trả về flag isGroup thì check tại đây
+      type: "USER",
     }));
   }, [release.recipients]);
 
-  // [UPDATE] State lưu mảng ID recipients thay vì string
   const [recipientIds, setRecipientIds] = useState<string[]>(
     release.recipients?.map((r) => (typeof r === "string" ? r : r._id)) || [],
   );
 
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<CreateReleaseFieldErrors>({});
 
   const handleSaveChanges = async () => {
-    if (!name.trim()) {
-      toast.error("Name is required");
+    const {
+      errors: nextErrors,
+      name: safeName,
+      dueIso,
+      note,
+    } = validateCreateReleaseInput({
+      nameRaw: name,
+      dueDate,
+      noteRaw: description,
+      noteEnabled: true,
+    });
+
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      if (nextErrors.name) toast.error(nextErrors.name);
+      else if (nextErrors.dueDate) toast.error(nextErrors.dueDate);
+      else if (nextErrors.note) toast.error(nextErrors.note);
       return;
     }
 
     try {
       setLoading(true);
 
-      const payload = {
-        name,
-        description,
-        dueDate,
-        recipients: recipientIds, // Gửi mảng ID trực tiếp
+      const payload: UpdateReleaseDTO = {
+        name: safeName,
+        dueDate: dueIso,
+        recipients: recipientIds,
+        description: note.length > 0 ? note : "",
       };
 
       await releaseService.updateRelease(release._id, payload);
 
       toast.success("Release updated successfully");
-      await onSave(name);
+      await onSave(safeName);
     } catch (error) {
       console.error(error);
-      toast.error("Failed to update release");
+      const msg =
+        (error as AxiosError<{ message?: string }>)?.response?.data?.message ||
+        "Failed to update release";
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -85,7 +112,6 @@ const ReleaseEditView: React.FC<ReleaseEditViewProps> = ({
 
   return (
     <div className="flex flex-col h-full bg-white">
-      {/* Header */}
       <div className="flex items-center gap-2 p-4 border-b min-h-[60px]">
         <Button
           variant="ghost"
@@ -98,24 +124,41 @@ const ReleaseEditView: React.FC<ReleaseEditViewProps> = ({
         <h3 className="font-semibold text-gray-800">Edit Release</h3>
       </div>
 
-      {/* Form Body */}
       <div className="flex-1 p-4 space-y-5 overflow-y-auto">
-        {/* Name */}
         <div className="space-y-1.5">
-          <Label className="text-xs font-medium text-gray-500">
-            Name <span className="text-red-500">*</span>
-          </Label>
+          <div className="flex justify-between gap-2">
+            <Label className="text-xs font-medium text-gray-500">
+              Name <span className="text-red-500">*</span>
+            </Label>
+            <span className="text-xs text-gray-400 tabular-nums">
+              {name.length}/{RELEASE_NAME_MAX_LENGTH}
+            </span>
+          </div>
           <Input
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            maxLength={RELEASE_NAME_MAX_LENGTH}
+            onChange={(e) => {
+              setName(e.target.value);
+              if (errors.name) setErrors((prev) => ({ ...prev, name: undefined }));
+            }}
             disabled={loading}
-            className="h-9"
+            className={cn(
+              "h-9 border-gray-300 focus-visible:ring-1 focus-visible:ring-[#005F9E]",
+              errors.name && "border-red-600 focus-visible:ring-red-600",
+            )}
           />
+          {errors.name && (
+            <p className="text-xs text-red-600 mt-1">{errors.name}</p>
+          )}
+          <p className="text-[10px] text-gray-400">
+            Angle brackets and script-like tags are removed on save.
+          </p>
         </div>
 
-        {/* Due Date */}
         <div className="space-y-1.5">
-          <Label className="text-xs font-medium text-gray-500">Due date</Label>
+          <Label className="text-xs font-medium text-gray-500">
+            Due date <span className="text-red-500">*</span>
+          </Label>
           <Popover>
             <PopoverTrigger asChild>
               <Button
@@ -124,6 +167,7 @@ const ReleaseEditView: React.FC<ReleaseEditViewProps> = ({
                 className={cn(
                   "w-full h-9 justify-start text-left font-normal border-gray-300",
                   !dueDate && "text-muted-foreground",
+                  errors.dueDate && "border-red-600",
                 )}
               >
                 <CalendarIcon className="mr-2 h-4 w-4 opacity-50" />
@@ -138,14 +182,23 @@ const ReleaseEditView: React.FC<ReleaseEditViewProps> = ({
               <Calendar
                 mode="single"
                 selected={dueDate}
-                onSelect={setDueDate}
+                onSelect={(date) => {
+                  setDueDate(date);
+                  if (errors.dueDate)
+                    setErrors((prev) => ({ ...prev, dueDate: undefined }));
+                }}
+                disabled={(date) =>
+                  !isDueDateInFuture(dueDateToPayloadString(date))
+                }
                 initialFocus
               />
             </PopoverContent>
           </Popover>
+          {errors.dueDate && (
+            <p className="text-xs text-red-600 mt-1">{errors.dueDate}</p>
+          )}
         </div>
 
-        {/* Recipients [UPDATE] */}
         <div className="space-y-1.5">
           <Label className="text-xs font-medium text-gray-500">
             Recipients
@@ -163,20 +216,36 @@ const ReleaseEditView: React.FC<ReleaseEditViewProps> = ({
           </p>
         </div>
 
-        {/* Notes */}
         <div className="space-y-1.5">
-          <Label className="text-xs font-medium text-gray-500">Notes</Label>
+          <div className="flex justify-between gap-2">
+            <Label className="text-xs font-medium text-gray-500">
+              Notes
+            </Label>
+            <span className="text-xs text-gray-400 tabular-nums">
+              {description.length}/{RELEASE_NOTE_MAX_LENGTH}
+            </span>
+          </div>
           <Textarea
             value={description}
-            onChange={(e) => setDescription(e.target.value)}
+            maxLength={RELEASE_NOTE_MAX_LENGTH}
+            onChange={(e) => {
+              setDescription(e.target.value);
+              if (errors.note)
+                setErrors((prev) => ({ ...prev, note: undefined }));
+            }}
             disabled={loading}
-            className="min-h-[100px] resize-none"
-            placeholder="Add notes about this release..."
+            className={cn(
+              "min-h-[100px] resize-none border-gray-300 focus-visible:ring-1 focus-visible:ring-[#005F9E]",
+              errors.note && "border-red-600",
+            )}
+            placeholder="Plain text only; HTML-like content is stripped on save."
           />
+          {errors.note && (
+            <p className="text-xs text-red-600">{errors.note}</p>
+          )}
         </div>
       </div>
 
-      {/* Footer */}
       <div className="p-4 border-t flex justify-end gap-2 bg-gray-50">
         <Button
           variant="ghost"

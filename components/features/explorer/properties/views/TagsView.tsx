@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { ArrowLeft, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,16 +32,17 @@ export default function TagsView({
   const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set());
   const [isCreating, setIsCreating] = useState(false);
 
-  // Initialize selected tags from initialTags (if single item)
+  const initialTagsSignature = useMemo(
+    () => (initialTags ?? []).map((t) => t._id).sort().join(","),
+    [initialTags],
+  );
+
   useEffect(() => {
-    console.log("--------------- DEBUG TAGS VIEW ---------------");
-    console.log("ProjectId:", projectId);
-    console.log("Is Loading:", isLoading);
-    console.log("All Tags (Raw from Hook):", allTags);
-    if (initialTags.length > 0) {
-      setSelectedTagIds(new Set(initialTags.map((t) => t._id)));
-    }
-  }, [initialTags]);
+    const ids = initialTagsSignature
+      ? initialTagsSignature.split(",").filter(Boolean)
+      : [];
+    setSelectedTagIds(new Set(ids));
+  }, [initialTagsSignature]);
 
   const filteredTags = allTags?.filter((tag: ITag) =>
     tag.name.toLowerCase().includes(search.toLowerCase())
@@ -63,11 +64,9 @@ export default function TagsView({
       const promises = [];
 
       if (fileIds.length > 0) {
-        // TODO: Implement assignTags method in explorerService
         promises.push(explorerService.assignTags(fileIds, tags));
       }
       if (folderIds.length > 0) {
-        // TODO: Implement assignFolderTags method in explorerService
         promises.push(explorerService.assignFolderTags(folderIds, tags));
       }
 
