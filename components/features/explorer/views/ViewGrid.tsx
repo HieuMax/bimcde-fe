@@ -35,6 +35,8 @@ function DraggableCard({
   onCheckboxClick: (item: IFolder | IFile) => void;
 }) {
   const isFolder = "totalSize" in item;
+  const folderBlocked =
+    isFolder && (item as IFolder).cdeAccessible === false;
   const isFileLocked = !isFolder && (item as IFile).isLocked;
 
   // --- LOGIC DND ---
@@ -46,12 +48,13 @@ function DraggableCard({
   } = useDraggable({
     id: item._id,
     data: { item, type: isFolder ? "folder" : "file" },
+    disabled: folderBlocked,
   });
 
   const { setNodeRef: setDropRef, isOver } = useDroppable({
     id: item._id,
     data: { item },
-    disabled: !isFolder,
+    disabled: !isFolder || folderBlocked,
   });
 
   const setNodeRef = (node: HTMLElement | null) => {
@@ -65,6 +68,7 @@ function DraggableCard({
 
   const handleCheckboxInteraction = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (folderBlocked) return;
     onCheckboxClick(item);
   };
 
@@ -78,36 +82,56 @@ function DraggableCard({
         {...listeners}
         onClick={handleCardInteraction}
         className={cn(
-          "group relative flex items-center gap-3 px-4 py-3 rounded-lg border cursor-pointer transition-all duration-200 bg-white select-none",
-          isSelected
-            ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500"
-            : "border-slate-200 hover:bg-slate-50 hover:shadow-sm",
-          isOver && "ring-2 ring-blue-400 bg-blue-100"
+          "group relative flex items-center gap-3 px-4 py-3 rounded-lg border transition-all duration-200 bg-white select-none",
+          folderBlocked
+            ? "cursor-not-allowed bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100"
+            : cn(
+                "cursor-pointer",
+                isSelected
+                  ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500"
+                  : "border-slate-200 hover:bg-slate-50 hover:shadow-sm",
+              ),
+          isOver && "ring-2 ring-blue-400 bg-blue-100",
         )}
       >
         {/* Checkbox Area */}
-        <div className="flex items-center justify-center size-5 shrink-0">
-          <Checkbox
-            checked={isSelected}
-            onClick={handleCheckboxInteraction}
-            className={cn(
-              "data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600 size-5 border-slate-400 bg-white shadow-sm transition-opacity z-20",
-              isSelected
-                ? "opacity-100"
-                : "opacity-0 group-hover:opacity-100 absolute"
-            )}
-          />
+        <div className="flex items-center justify-center size-5 shrink-0 relative">
+          {!folderBlocked && (
+            <Checkbox
+              checked={isSelected}
+              onClick={handleCheckboxInteraction}
+              className={cn(
+                "data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600 size-5 border-slate-400 bg-white shadow-sm transition-opacity z-20",
+                isSelected
+                  ? "opacity-100"
+                  : "opacity-0 group-hover:opacity-100 absolute",
+              )}
+            />
+          )}
           {/* Folder Icon: */}
           <FolderIcon
             className={cn(
-              "size-5 text-slate-600 fill-slate-600 transition-opacity",
+              "size-5 transition-opacity",
+              folderBlocked
+                ? "text-slate-400 fill-slate-300"
+                : "text-slate-600 fill-slate-600",
               isSelected ? "opacity-0" : "group-hover:opacity-0"
             )}
           />
+          {folderBlocked && !isSelected && (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+              <span className="rounded-full bg-white/95 p-1 shadow-sm border border-slate-200">
+                <LockKeyhole className="size-3.5 text-slate-600" />
+              </span>
+            </div>
+          )}
         </div>
 
         <span
-          className="truncate text-sm font-medium text-slate-700 flex-1"
+          className={cn(
+            "truncate text-sm font-medium flex-1",
+            folderBlocked ? "text-slate-500" : "text-slate-700"
+          )}
           title={item.name}
         >
           {item.name}
@@ -218,34 +242,38 @@ export default function ViewGrid({
   const allItems = [...folders, ...files];
 
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(
-    null
+    null,
   );
 
-  // [LOGIC MỚI] Xử lý click vào Card
+  const isBlockedFolder = (i: IFolder | IFile) =>
+    "totalSize" in i && (i as IFolder).cdeAccessible === false;
+
   const handleCardClickWithEvent = (
     e: React.MouseEvent,
-    item: IFolder | IFile
+    item: IFolder | IFile,
   ) => {
     const currentIndex = allItems.findIndex((i) => i._id === item._id);
 
-    // 1. Nếu giữ Shift -> Thực hiện chọn nhiều (Multi-Select)
     if (e.shiftKey && lastSelectedIndex !== null && lastSelectedIndex !== -1) {
-      e.preventDefault(); // Ngăn việc bôi đen text trình duyệt
+      e.preventDefault();
       const start = Math.min(lastSelectedIndex, currentIndex);
       const end = Math.max(lastSelectedIndex, currentIndex);
-      const itemsToSelect = allItems.slice(start, end + 1);
+      const itemsToSelect = allItems
+        .slice(start, end + 1)
+        .filter((i) => !isBlockedFolder(i));
       onMultiSelect(itemsToSelect);
+      setLastSelectedIndex(currentIndex);
+      return;
     }
-    // 2. Nếu giữ Ctrl/Meta -> Thực hiện Toggle Select (tùy chọn thêm cho UX tốt hơn)
-    else if (e.ctrlKey || e.metaKey) {
+
+    if (isBlockedFolder(item)) return;
+
+    if (e.ctrlKey || e.metaKey) {
       onCheckboxClick(item);
-    }
-    // 3. Click bình thường -> NAVIGATE luôn (Không Select)
-    else {
+    } else {
       onNavigate(item);
     }
 
-    // Lưu lại index để phục vụ Shift Click lần sau
     setLastSelectedIndex(currentIndex);
   };
 

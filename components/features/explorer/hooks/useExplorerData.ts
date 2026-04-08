@@ -3,7 +3,12 @@
 import { useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { explorerService } from "@/services/explorer.service";
-import { IFile, IFolder } from "@/types/explorer";
+import {
+  IFile,
+  IFolder,
+  CdeWorkflowMode,
+  CdeCapabilities,
+} from "@/types/explorer";
 
 export type SortConfig = {
   key: "name" | "date" | "size";
@@ -45,11 +50,20 @@ export function useExplorerData(projectId: string, folderId: string | null) {
     }));
   };
 
+  const workflowMode: CdeWorkflowMode = data?.workflowMode ?? "NORMAL";
+  const cdeCapabilities: CdeCapabilities = data?.cdeCapabilities ?? {
+    isProjectAdmin: false,
+    isGroupLeader: false,
+    leaderGroupIds: [],
+  };
+
   return {
     folders: data?.subFolders || ([] as IFolder[]),
     files: data?.files || ([] as IFile[]),
     currentFolder: data?.currentFolder || null,
     ancestors: data?.ancestors || [],
+    workflowMode,
+    cdeCapabilities,
     isLoading,
     isPlaceholderData,
     refetch,

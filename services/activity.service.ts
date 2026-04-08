@@ -1,4 +1,8 @@
-import { ActivityFilterParams, ActivityResponse } from "@/types/activity";
+import {
+  ActivityFilterParams,
+  ActivityItemFilterParams,
+  ActivityResponse,
+} from "@/types/activity";
 import { useApi as apiClient } from "@/app/hooks/useApi";
 
 const api = apiClient();
@@ -23,6 +27,46 @@ export const activityService = {
     // BE returns { data, pagination } - normalize to ActivityResponse
     if (raw && typeof raw === "object" && "pagination" in raw && raw.pagination) {
       const pagination = raw.pagination as { total?: number; page?: number; limit?: number; totalPages?: number };
+      return {
+        data: (raw.data ?? []) as ActivityResponse["data"],
+        total: pagination.total ?? 0,
+        page: pagination.page ?? 1,
+        limit: pagination.limit ?? 20,
+        totalPages: pagination.totalPages ?? 0,
+      } as ActivityResponse;
+    }
+    return raw as ActivityResponse;
+  },
+
+  getActivitiesForItem: async ({
+    projectId,
+    fileId,
+    folderId,
+    page,
+    limit,
+    lightweight,
+  }: ActivityItemFilterParams) => {
+    const queryParams: Record<string, string | number | boolean> = {
+      projectId,
+    };
+    if (fileId) queryParams.fileId = fileId;
+    if (folderId) queryParams.folderId = folderId;
+    if (page !== undefined) queryParams.page = page;
+    if (limit !== undefined) queryParams.limit = limit;
+    if (lightweight !== undefined) {
+      queryParams.lightweight = lightweight ? "true" : "false";
+    }
+
+    const raw = await api.get("/activities/item", {
+      params: queryParams,
+    });
+    if (raw && typeof raw === "object" && "pagination" in raw && raw.pagination) {
+      const pagination = raw.pagination as {
+        total?: number;
+        page?: number;
+        limit?: number;
+        totalPages?: number;
+      };
       return {
         data: (raw.data ?? []) as ActivityResponse["data"],
         total: pagination.total ?? 0,

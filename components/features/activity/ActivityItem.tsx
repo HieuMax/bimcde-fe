@@ -18,6 +18,7 @@ import { toast } from "sonner";
 
 interface ActivityItemProps {
   activity: IActivity;
+  projectId: string;
   onRefresh?: () => void;
 }
 
@@ -54,6 +55,7 @@ const getActionDescription = (activity: IActivity) => {
 
 export const ActivityItem: React.FC<ActivityItemProps> = ({
   activity,
+  projectId,
   onRefresh,
 }) => {
   const [restoring, setRestoring] = useState(false);
@@ -85,6 +87,30 @@ export const ActivityItem: React.FC<ActivityItemProps> = ({
     }
   };
 
+  const getTargetHref = () => {
+    if (activity.target.itemModel === "File") {
+      return activity.fileFolderId
+        ? `/projects/${projectId}/data/folder?folderId=${activity.fileFolderId}`
+        : null;
+    }
+    if (activity.target.itemModel === "Folder") {
+      return `/projects/${projectId}/data/folder?folderId=${activity.target.itemId}`;
+    }
+    return null;
+  };
+  const targetHref = getTargetHref();
+
+  const renderTargetName = (label: string, className: string) => {
+    if (!targetHref) {
+      return <span className={className}>{label}</span>;
+    }
+    return (
+      <Link href={targetHref} className={className}>
+        {label}
+      </Link>
+    );
+  };
+
   // [NEW] Hàm render nội dung hành động để xử lý Rename đặc biệt
   const renderActionContent = () => {
     const { actionType, target, metaData } = activity;
@@ -103,12 +129,10 @@ export const ActivityItem: React.FC<ActivityItemProps> = ({
           <span className="text-gray-400 text-xs">➔</span>
 
           {/* Tên mới (Link) */}
-          <Link
-            href="#"
-            className="text-[#005F9E] hover:underline font-medium ml-1"
-          >
-            {metaData.newName || target.itemName}
-          </Link>
+          {renderTargetName(
+            metaData.newName || target.itemName,
+            "text-[#005F9E] hover:underline font-medium ml-1",
+          )}
         </div>
       );
     }
@@ -117,9 +141,10 @@ export const ActivityItem: React.FC<ActivityItemProps> = ({
     return (
       <div className="text-sm text-gray-500 mb-1">
         {getActionDescription(activity)}{" "}
-        <Link href="#" className="text-[#005F9E] hover:underline font-medium">
-          {activity.target.itemName}
-        </Link>
+        {renderTargetName(
+          activity.target.itemName,
+          "text-[#005F9E] hover:underline font-medium",
+        )}
       </div>
     );
   };

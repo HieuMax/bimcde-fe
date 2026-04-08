@@ -52,7 +52,14 @@ export default function HistoryView({ item, onBack }: Props) {
                 : (ver as IFolderVersion).name;
 
               const versionUser = isFileVersion
-                ? (ver as IFileVersion).uploadedBy
+                ? (() => {
+                    const uploader = (ver as IFileVersion).uploadedBy;
+                    if (typeof uploader === "string") return uploader;
+                    if (uploader && typeof uploader === "object") {
+                      return uploader.fullName || uploader.email || "Unknown";
+                    }
+                    return "Unknown";
+                  })()
                 : (ver as IFolderVersion).updatedBy;
 
               const versionSize = isFileVersion

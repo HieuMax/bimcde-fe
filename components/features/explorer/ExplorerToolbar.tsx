@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { IFolder, ViewMode } from "@/types/explorer";
+import { IFolder, ViewMode, CdeWorkflowMode } from "@/types/explorer";
 import UploadFileDialog from "./dialogs/UploadFileDialog";
 import {
   LayoutGrid,
@@ -39,7 +39,8 @@ interface Props {
     files: File[],
     onProgress?: (percent: number) => void,
   ) => Promise<void>;
-  projectId: string; // Thêm projectId
+  projectId: string;
+  workflowMode?: CdeWorkflowMode;
 }
 
 export default function ExplorerToolbar({
@@ -53,6 +54,7 @@ export default function ExplorerToolbar({
   createFolderDisabled = false,
   onUpload,
   projectId,
+  workflowMode = "NORMAL",
 }: Props) {
   // 2. State quản lý đóng mở Dialog Upload
   const [isUploadOpen, setIsUploadOpen] = useState(false);
@@ -67,7 +69,15 @@ export default function ExplorerToolbar({
   return (
     <>
       <div className="flex items-center justify-between p-4 sticky top-0 z-10">
-        <nav className="flex items-center text-sm text-slate-600 overflow-hidden">
+        <nav className="flex items-center text-sm text-slate-600 overflow-hidden gap-2">
+          {workflowMode === "ISO_19650" && (
+            <span
+              className="shrink-0 rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-900"
+              title="ISO 19650 CDE workflow: WIP → Shared → Published → Archived"
+            >
+              ISO 19650
+            </span>
+          )}
           {/* 1. Nút Home (Root) */}
           <Link
             href={`/projects/${projectId}/data`}

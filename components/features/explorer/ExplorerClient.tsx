@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic"; // [QUAN TRỌNG] Import dynamic
 import {
@@ -28,6 +28,7 @@ import { useExplorerActions } from "./hooks/useExplorerActions";
 import { ViewMode, IFile, IFolder } from "@/types/explorer";
 import { useAuth } from "@/app/context/authContext";
 import { wouldExceedMaxNesting } from "./utils/getFolderDepthFromAncestors";
+import { toast } from "sonner";
 
 // --- [OPTIMIZATION] DYNAMIC IMPORTS (Lazy Loading) ---
 // Chỉ tải code khi cần hiển thị. Giúp trang load ban đầu nhanh hơn hẳn.
@@ -66,6 +67,7 @@ export default function ExplorerClient({ projectId, folderId }: Props) {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isMoreOpen, setIsMoreOpen] = useState(false);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
+  const [openActivityTick, setOpenActivityTick] = useState(0);
 
   // --- DATA HOOK ---
   const {
@@ -78,6 +80,8 @@ export default function ExplorerClient({ projectId, folderId }: Props) {
     refetch,
     sortConfig,
     handleSort,
+    workflowMode,
+    cdeCapabilities,
   } = useExplorerData(projectId, folderId);
 
   // --- SELECTION HOOK ---
@@ -96,9 +100,13 @@ export default function ExplorerClient({ projectId, folderId }: Props) {
   const actions = useExplorerActions(projectId, folderId, handleClearSelection);
 
   const createFolderBlockedByDepth = wouldExceedMaxNesting(
-    ancestors,
-    currentFolder,
+    ancestors as IFolder[],
+    currentFolder as IFolder | null,
   );
+
+  useEffect(() => {
+    setOpenActivityTick(0);
+  }, [singleFreshItem?._id]);
 
   // --- DRAG & DROP ---
   const sensors = useSensors(
@@ -164,6 +172,10 @@ export default function ExplorerClient({ projectId, folderId }: Props) {
     if ("mimeType" in item) {
       router.push(`/projects/${projectId}/viewer/${item._id}`);
     } else {
+      if ((item as IFolder).cdeAccessible === false) {
+        toast.error("You do not have access to this folder.");
+        return;
+      }
       router.push(`/projects/${projectId}/data?folderId=${item._id}`);
     }
   };
@@ -201,6 +213,7 @@ export default function ExplorerClient({ projectId, folderId }: Props) {
             }}
             ancestors={ancestors}
             projectId={projectId}
+            workflowMode={workflowMode}
           />
 
           <div
@@ -273,6 +286,7 @@ export default function ExplorerClient({ projectId, folderId }: Props) {
                 actions.toggleLockItems([singleFreshItem!], action)
               }
               currentUserId={user!._id}
+              onOpenActivity={() => setOpenActivityTick((t) => t + 1)}
             />
           )}
         </div>
@@ -316,6 +330,26 @@ export default function ExplorerClient({ projectId, folderId }: Props) {
                 actions.toggleLockItems(freshSelectedItems, action)
               }
               projectId={projectId}
+              workflowMode={workflowMode}
+              cdeCapabilities={cdeCapabilities}
+              onPromote={async (targetStage, destinationFolderId) => {
+                if (!singleFreshItem || !("mimeType" in singleFreshItem)) return;
+                await actions.promoteFile(
+                  singleFreshItem._id,
+                  targetStage,
+                  destinationFolderId,
+                );
+                handleClearSelection();
+              }}
+              isPromoting={actions.isPromoting}
+              onSubmitForReview={async () => {
+                if (!singleFreshItem || !("mimeType" in singleFreshItem)) return;
+                await actions.submitFileForReview(singleFreshItem._id);
+                handleClearSelection();
+              }}
+              isSubmittingReview={actions.isSubmittingReview}
+              currentUserId={user?._id}
+              openActivityTick={openActivityTick}
             />
           ) : freshSelectedItems.length > 1 ? (
             <BulkPropertiesPanel
@@ -331,6 +365,7 @@ export default function ExplorerClient({ projectId, folderId }: Props) {
                 actions.moveItems(freshSelectedItems, destId)
               }
               projectId={projectId}
+              workflowMode={workflowMode}
             />
           ) : null}
         </aside>
