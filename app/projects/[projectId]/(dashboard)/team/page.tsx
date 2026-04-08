@@ -13,10 +13,13 @@ import { Input } from "@/components/ui/input";
 
 import { Search, ChevronDown, EllipsisVertical, Loader2 } from "lucide-react";
 
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { DataTable } from "@/components/features/team/DataTable";
-import { columnsTable } from "@/components/features/team/column";
+import { getTeamTableColumns } from "@/components/features/team/column";
 import { useApi } from "@/app/hooks/useApi";
+import { useAuth } from "@/app/context/authContext";
+import { toast } from "sonner";
+import { Toaster } from "@/components/ui/sonner";
 import {
   Dialog,
   DialogContent,
@@ -98,7 +101,11 @@ export default function page({
   const [isOpenDrawer, setIsOpenDrawer] = useState(false);
   const [rowSelection, setRowSelection] = useState({});
 
+  const { user } = useAuth();
   const { get, post, put, delete: deleteApi } = useApi();
+  const [updatingGroupRoleUserId, setUpdatingGroupRoleUserId] = useState<
+    string | null
+  >(null);
 
   const getAllUser = async () => {
     try {
@@ -305,6 +312,72 @@ export default function page({
   };
 
   // Lọc dữ liệu dựa trên checkbox
+  const isProjectAdmin = useMemo(() => {
+    if (!user?._id || !memberPorject?.length) return false;
+    const me = memberPorject.find(
+      (m: any) => String(m.userId) === String(user._id)
+    );
+    return me?.role === "admin";
+  }, [user?._id, memberPorject]);
+
+  const showGroupMemberRoleCol = activeGroup._id !== "all";
+
+  const handleGroupMemberRoleChange = useCallback(
+    async (targetUserId: string, role: "GROUP_LEADER" | "GROUP_MEMBER") => {
+      if (activeGroup._id === "all") return;
+      setUpdatingGroupRoleUserId(targetUserId);
+      try {
+        const res = await put(
+          `/team/updateGroupMemberRole/${activeGroup._id}`,
+          {
+            userId: targetUserId,
+            role,
+          }
+        );
+        if (res.success) {
+          toast.success("Đã cập nhật vai trò trong nhóm.");
+          const response = await get(
+            `/team/getMemberGroup/${activeGroup._id}`
+          );
+          if (response.success) {
+            setMemberData(response.result || []);
+            setMemberGroup(response.result || null);
+          }
+        } else {
+          toast.error(
+            (res.message as string) ||
+              (res.error as string) ||
+              "Không thể cập nhật."
+          );
+        }
+      } catch (e) {
+        console.error(e);
+        toast.error("Lỗi khi cập nhật vai trò trong nhóm.");
+      } finally {
+        setUpdatingGroupRoleUserId(null);
+      }
+    },
+    [activeGroup._id, put, get]
+  );
+
+  const tableColumns = useMemo(
+    () =>
+      getTeamTableColumns({
+        showGroupMemberRole: showGroupMemberRoleCol,
+        projectAdmin: isProjectAdmin,
+        onGroupMemberRoleChange: isProjectAdmin
+          ? handleGroupMemberRoleChange
+          : undefined,
+        updatingUserId: updatingGroupRoleUserId,
+      }),
+    [
+      showGroupMemberRoleCol,
+      isProjectAdmin,
+      handleGroupMemberRoleChange,
+      updatingGroupRoleUserId,
+    ]
+  );
+
   const filteredData = memberData.filter((m: any) => {
     const roleMatch =
       (!roleFilter.user && !roleFilter.admin) ||
@@ -388,7 +461,19 @@ export default function page({
             {/* filter table */}
             <div className="  border-b h-16 w-full">
               <div className="flex justify-between p-4 pr-28 items-center h-full">
-                <h3 className="font-semibold text-lg">All project members</h3>
+                <div>
+                  <h3 className="font-semibold text-lg">
+                    {activeGroup._id === "all"
+                      ? "All project members"
+                      : `Members — ${activeGroup.name}`}
+                  </h3>
+                  {showGroupMemberRoleCol && isProjectAdmin && (
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Phân quyền Group Leader / Group Member (ISO 19650): dùng cột
+                      &quot;Trong nhóm&quot;.
+                    </p>
+                  )}
+                </div>
                 <div className="flex items-center">
                   {!isSearch && (
                     <div>
@@ -483,7 +568,7 @@ export default function page({
 
             {/* data table */}
             <DataTable
-              columns={columnsTable}
+              columns={tableColumns}
               data={filteredData}
               isDrawer={isOpenDrawer}
               onRowSelectionChange={handleRowSelectionChange}></DataTable>
@@ -614,6 +699,7 @@ export default function page({
         data={rowSelection}
         groupData={groupData}
         activeGroup={activeGroup}></TeamDrawer>
+      <Toaster richColors position="top-center" />
     </div>
   );
 }

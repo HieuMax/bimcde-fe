@@ -109,7 +109,11 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({ projectId }) => {
         ) : (
           <div className="bg-white">
             {activities.map((activity) => (
-              <ActivityItem key={activity._id} activity={activity} />
+              <ActivityItem
+                key={activity._id}
+                activity={activity}
+                projectId={projectId}
+              />
             ))}
           </div>
         )}

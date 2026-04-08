@@ -1,9 +1,10 @@
 // components/features/explorer/MoveDestinationView.tsx
 "use client";
 
-import { useState } from "react";
+import { useLayoutEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { explorerService } from "@/services/explorer.service";
+import type { CdeWorkflowMode } from "@/types/explorer";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Folder, ChevronRight, ArrowLeft, Loader2, X } from "lucide-react";
@@ -16,7 +17,14 @@ interface Props {
   title?: string;
   sourceItemIds: string[];
   projectId: string;
+  /** ISO 19650: only list folders in the same group subtree as the item(s) being moved */
+  workflowMode?: CdeWorkflowMode;
+  restrictMoveToEffectiveGroupId?: string | null;
+  /** ISO: CDE stage of the item’s folder chain — used to open at that stage’s group home (e.g. WIP vs Shared) */
+  parentCdeRootStage?: string | null;
 }
+
+const CDE_STAGES = new Set(["WIP", "SHARED", "PUBLISHED", "ARCHIVED"]);
 
 export default function MoveDestinationView({
   onBack,
@@ -25,13 +33,74 @@ export default function MoveDestinationView({
   title = "Move to...",
   sourceItemIds,
   projectId,
+  workflowMode = "NORMAL",
+  restrictMoveToEffectiveGroupId,
+  parentCdeRootStage,
 }: Props) {
-  const [currentFolderId, setCurrentFolderId] = useState<string | null>(null);
+  const [browseFolderId, setBrowseFolderId] = useState<string | null>(null);
   const [isMoving, setIsMoving] = useState(false);
+  const [navReady, setNavReady] = useState(false);
+
+  const isoRestrict =
+    workflowMode === "ISO_19650" && restrictMoveToEffectiveGroupId
+      ? restrictMoveToEffectiveGroupId
+      : undefined;
+
+  const needsGroupHome =
+    workflowMode === "ISO_19650" && !!restrictMoveToEffectiveGroupId;
+
+  const stageForGroupHome = useMemo(() => {
+    if (
+      parentCdeRootStage &&
+      CDE_STAGES.has(parentCdeRootStage)
+    ) {
+      return parentCdeRootStage;
+    }
+    return "WIP";
+  }, [parentCdeRootStage]);
+
+  const { data: groupHomeData } = useQuery({
+    queryKey: [
+      "group-home-folder",
+      projectId,
+      restrictMoveToEffectiveGroupId,
+      stageForGroupHome,
+    ],
+    queryFn: () =>
+      explorerService.getGroupHomeFolderId(
+        projectId,
+        restrictMoveToEffectiveGroupId!,
+        stageForGroupHome,
+      ),
+    enabled: needsGroupHome && !!restrictMoveToEffectiveGroupId,
+  });
+
+  useLayoutEffect(() => {
+    if (!needsGroupHome) {
+      setBrowseFolderId(null);
+      setNavReady(true);
+      return;
+    }
+    if (groupHomeData === undefined) {
+      setNavReady(false);
+      return;
+    }
+    setBrowseFolderId(groupHomeData.folderId ?? null);
+    setNavReady(true);
+  }, [needsGroupHome, groupHomeData]);
 
   const { data, isLoading } = useQuery({
-    queryKey: ["explorer-move-nav", projectId, currentFolderId],
-    queryFn: () => explorerService.getContent(projectId, currentFolderId),
+    queryKey: [
+      "explorer-move-nav",
+      projectId,
+      browseFolderId,
+      isoRestrict ?? "",
+    ],
+    queryFn: () =>
+      explorerService.getContent(projectId, browseFolderId, "name", "asc", {
+        restrictMoveToEffectiveGroupId: isoRestrict,
+      }),
+    enabled: navReady,
   });
 
   const subFolders = data?.subFolders || [];
@@ -41,7 +110,7 @@ export default function MoveDestinationView({
   const handleMoveClick = async () => {
     setIsMoving(true);
     try {
-      await onMove(currentFolderId || "");
+      await onMove(browseFolderId || "");
     } catch (error) {
       console.error(error);
     } finally {
@@ -50,10 +119,10 @@ export default function MoveDestinationView({
   };
 
   const handleBackNav = () => {
-    if (!currentFolderId) {
+    if (!browseFolderId) {
       onBack();
     } else {
-      setCurrentFolderId(parentId);
+      setBrowseFolderId(parentId);
     }
   };
 
@@ -90,15 +159,23 @@ export default function MoveDestinationView({
       </div>
 
       {/* Warning Box */}
-      <div className="bg-yellow-50 p-3 m-4 mb-2 rounded border border-yellow-100 text-xs text-yellow-800 leading-relaxed">
-        Please note: Folder(s) existing with same name in the destination folder
-        will be ignored.
+      <div className="bg-yellow-50 p-3 m-4 mb-2 rounded border border-yellow-100 text-xs text-yellow-800 leading-relaxed space-y-1">
+        <p>
+          Please note: Folder(s) existing with same name in the destination folder
+          will be ignored.
+        </p>
+        {isoRestrict && (
+          <p>
+            ISO 19650: only destinations within the same group folder tree are
+            listed.
+          </p>
+        )}
       </div>
 
       {/* Folder List */}
       <ScrollArea className="flex-1">
         <div className="flex flex-col p-2">
-          {isLoading ? (
+          {isLoading || !navReady ? (
             <div className="space-y-2 p-2">
               <Skeleton className="h-8 w-full" />
               <Skeleton className="h-8 w-full" />
@@ -111,7 +188,7 @@ export default function MoveDestinationView({
               return (
                 <div
                   key={folder._id}
-                  onClick={() => !isDisabled && setCurrentFolderId(folder._id)}
+                  onClick={() => !isDisabled && setBrowseFolderId(folder._id)}
                   className={`
                     flex items-center justify-between p-3 rounded cursor-pointer transition-colors
                     ${
@@ -133,7 +210,7 @@ export default function MoveDestinationView({
             })
           )}
 
-          {!isLoading && subFolders.length === 0 && (
+          {navReady && !isLoading && subFolders.length === 0 && (
             <div className="text-center text-xs text-slate-400 py-10">
               No sub-folders
             </div>
@@ -146,7 +223,7 @@ export default function MoveDestinationView({
         <Button
           className="w-full bg-[#005F9E] hover:bg-[#004B7D]"
           onClick={handleMoveClick}
-          disabled={isMoving}
+          disabled={isMoving || !navReady}
         >
           {isMoving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
           Move here

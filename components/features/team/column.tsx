@@ -2,21 +2,30 @@ import { ColumnDef } from "@tanstack/react-table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { ArrowUpDown } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
-// Define the structure of the project member
-interface ProjectMember {
-  name: string;
-  employer: string;
-  role: string;
-  status: "Active" | "Removed";
-  lastAccessed: string | null; // Can be a string or null if no date is available
-  email: string;
+/** Row shape for project-wide or single-group member table */
+export interface TeamMemberRow {
+  fullName?: string;
+  email?: string;
+  /** Project-level role: admin | user */
+  role?: string;
+  userId?: string;
+  lastAccessed?: string | Date | null;
+  /** Present when listing members of one group (ISO CDE) */
+  groupMemberRole?: "GROUP_LEADER" | "GROUP_MEMBER";
+  projectId?: string;
 }
 
-export const columnsTable: ColumnDef<ProjectMember>[] = [
+const teamBaseColumns: ColumnDef<TeamMemberRow>[] = [
   {
     id: "select",
-
     cell: ({ row }) => (
       <div className="relative h-12 w-10 bg-[url('https://resources.connect.trimble.com/thumb/user.png')]  bg-cover group-hover:bg-none  data-[state=checked:bg-none has-[button[data-state=checked]]:bg-none">
         <Checkbox
@@ -38,7 +47,6 @@ export const columnsTable: ColumnDef<ProjectMember>[] = [
         {/* Hiển thị tên */}
         <span className="font-semibold">{row.getValue("fullName")}</span>
         <div>
-          {/* Hiển thị email */}
           <a
             href={`mailto:${row.original.email}`}
             className="text-sm text-[#005f9e] hover:underline">
@@ -48,13 +56,13 @@ export const columnsTable: ColumnDef<ProjectMember>[] = [
       </div>
     ),
   },
-
   {
     accessorKey: "role",
-    header: "Role",
-    cell: ({ row }) => <div className="capitalize">{row.getValue("role")}</div>,
+    header: "Role (project)",
+    cell: ({ row }) => (
+      <div className="capitalize">{row.getValue("role")}</div>
+    ),
   },
-
   {
     accessorKey: "lastAccessed",
     header: ({ column }) => {
@@ -71,16 +79,86 @@ export const columnsTable: ColumnDef<ProjectMember>[] = [
     cell: ({ row }) => (
       <div className="">
         {row.original.lastAccessed
-          ? new Date(row.original.lastAccessed).toLocaleString("en-US", {
-              month: "short",
-              day: "2-digit",
-              year: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-              hour12: true,
-            })
+          ? new Date(row.original.lastAccessed as string | Date).toLocaleString(
+              "en-US",
+              {
+                month: "short",
+                day: "2-digit",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: true,
+              }
+            )
           : ""}
       </div>
     ),
   },
 ];
+
+export type GroupMemberRoleOption = "GROUP_LEADER" | "GROUP_MEMBER";
+
+export function getTeamTableColumns(options: {
+  showGroupMemberRole: boolean;
+  projectAdmin: boolean;
+  onGroupMemberRoleChange?: (
+    userId: string,
+    role: GroupMemberRoleOption
+  ) => Promise<void>;
+  updatingUserId?: string | null;
+}): ColumnDef<TeamMemberRow>[] {
+  if (!options.showGroupMemberRole) {
+    return [...teamBaseColumns];
+  }
+
+  const groupCol: ColumnDef<TeamMemberRow> = {
+    id: "groupMemberRole",
+    header: "Trong nhóm (ISO)",
+    cell: ({ row }) => {
+      const gr = row.original.groupMemberRole;
+      const uid = row.original.userId
+        ? String(row.original.userId)
+        : "";
+      if (!gr) {
+        return <span className="text-sm text-muted-foreground">—</span>;
+      }
+      const label =
+        gr === "GROUP_LEADER" ? "Group Leader" : "Group Member";
+      if (!options.projectAdmin || !options.onGroupMemberRoleChange) {
+        return <div className="text-sm">{label}</div>;
+      }
+      const busy = options.updatingUserId === uid;
+      return (
+        <div onClick={(e) => e.stopPropagation()} className="min-w-[160px]">
+          <Select
+            value={gr}
+            disabled={busy}
+            onValueChange={(v) =>
+              options.onGroupMemberRoleChange!(
+                uid,
+                v as GroupMemberRoleOption
+              )
+            }>
+            <SelectTrigger className="h-9 w-full border-slate-300">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="GROUP_LEADER">Group Leader</SelectItem>
+              <SelectItem value="GROUP_MEMBER">Group Member</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      );
+    },
+  };
+
+  const cols = [...teamBaseColumns];
+  cols.splice(3, 0, groupCol);
+  return cols;
+}
+
+/** Default columns (all project members view — no group role column). */
+export const columnsTable: ColumnDef<TeamMemberRow>[] = getTeamTableColumns({
+  showGroupMemberRole: false,
+  projectAdmin: false,
+});

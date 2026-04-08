@@ -25,6 +25,17 @@ export interface IActivity {
   createdAt: string;
   isRestorable?: boolean;
   restoreStatus?: "NONE" | "RESTORED" | "RESTORABLE";
+  /** Set by GET /activities/item for File targets — explorer folder deep link */
+  fileFolderId?: string | null;
+}
+
+export interface ActivityItemFilterParams {
+  projectId: string;
+  fileId?: string;
+  folderId?: string;
+  page?: number;
+  limit?: number;
+  lightweight?: boolean;
 }
 
 export interface ActivityFilterParams {

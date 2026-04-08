@@ -10,6 +10,16 @@ export interface IFolderVersion {
   createdAt: string;
 }
 
+/** Project CDE workflow (from explorer API) */
+export type CdeWorkflowMode = "ISO_19650" | "NORMAL";
+
+export interface CdeCapabilities {
+  isProjectAdmin: boolean;
+  isGroupLeader: boolean;
+  /** ISO: groups where the user is GROUP_LEADER (for folder panel scope). */
+  leaderGroupIds?: string[];
+}
+
 export interface IFolder {
   _id: string;
   name: string;
@@ -22,6 +32,16 @@ export interface IFolder {
   versions?: IFolderVersion[];
   hasChildren?: boolean;
   tags?: ITag[];
+  /** ISO: false = other team’s folder (visible but not openable) */
+  cdeAccessible?: boolean;
+  /** ISO: CDE root stage (WIP / SHARED / …) derived from parent chain */
+  parentCdeRootStage?: string | null;
+  /** ISO: first group id walking up from this folder (for leader scope) */
+  effectiveGroupId?: string | null;
+  /** ISO: creator account id (not display name) */
+  createdById?: string;
+  /** ISO: folder “home” gắn với group (tạo khi createGroup, ngay dưới 1. WIP / 2. Shared) */
+  isGroupHomeFolder?: boolean;
 }
 
 export interface IFileVersion {
@@ -75,6 +95,38 @@ export interface IFile {
   lastAccessed?: string; 
 
   permission?: "VIEW" | "DOWNLOAD" ;
+
+  /** Denormalized CDE stage on file (optional) */
+  cdeStage?: string;
+  workflowStatus?:
+    | "WIP_DRAFT"
+    | "SUBMITTED_FOR_REVIEW"
+    | "COORDINATED"
+    | "PUBLISHED"
+    | "ARCHIVED";
+  submittedForReviewVersion?: number | null;
+  /** WIP file: last version already promoted to Shared (leader); promote hidden until new submit */
+  wipPromotedToSharedVersion?: number | null;
+  /** Shared file: last version promoted to Published; Promote to Published hidden until new revision */
+  sharedPromotedToPublishedVersion?: number | null;
+  /** CDE root stage derived from parent folder chain (ISO promote UI) */
+  parentCdeRootStage?: string | null;
+  /** ISO: effective group from parent folder chain (move within same group) */
+  effectiveGroupId?: string | null;
+}
+
+/** GET /files/:id/publish-readiness (ISO Shared→Published checklist) */
+export interface FilePublishReadiness {
+  openTodosCount: number;
+  linkedTopicsTotal: number;
+  linkedTopicsResolved: number;
+  currentVersionIsLatestInShared: boolean;
+  sharedRevisionEligibleForPublish: boolean;
+  sharedCurrentVersion: number;
+  canPublish: boolean;
+  eligibleContext: boolean;
+  contextMessage?: string;
+  isProjectAdmin: boolean;
 }
 
 // Merge PageItem
@@ -152,6 +204,8 @@ export interface IExplorerResponse {
   }[];
   subFolders: IFolder[];
   files: IFile[];
+  workflowMode: CdeWorkflowMode;
+  cdeCapabilities: CdeCapabilities;
 }
 
 export interface FileDetailResponse {
