@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -10,7 +10,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { ArrowLeft, Eye, EyeOff, Lock, ShieldCheck } from "lucide-react";
+import {
+  AlertCircle,
+  ArrowLeft,
+  Eye,
+  EyeOff,
+  Lock,
+  ShieldCheck,
+} from "lucide-react";
 import { useApi } from "../hooks/useApi";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
@@ -23,63 +30,107 @@ export default function ResetPasswordForm() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
-  const { post } = useApi();
+  const [isValidToken, setIsValidToken] = useState<boolean | null>(null);
+  const { get, post } = useApi();
 
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
 
   const passwordStrength = {
     hasLength: password.length >= 6,
-    // hasUpperCase: /[A-Z]/.test(password),
-    // hasLowerCase: /[a-z]/.test(password),
-    // hasNumber: /[0-9]/.test(password),
-    // hasSpecial: /[!@#$%^&*]/.test(password),
   };
-
-  //   const isStrongPassword =
-  //     Object.values(passwordStrength).filter(Boolean).length >= 3;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
 
     if (!password || !confirmPassword) {
-      setError("Vui lòng nhập mật khẩu");
+      setError("Please enter a password");
       return;
     }
 
     if (password.length < 6) {
-      setError("Mật khẩu phải có ít nhất 6 ký tự");
+      setError("Password must be at least 6 characters");
       return;
     }
 
     if (password !== confirmPassword) {
-      setError("Mật khẩu không khớp");
+      setError("Passwords do not match");
       return;
     }
-
-    // if (!isStrongPassword) {
-    //   setError(
-    //     "Mật khẩu không đủ mạnh. Vui lòng sử dụng ít nhất 3 tiêu chí khác nhau",
-    //   );
-    //   return;
-    // }
 
     setIsLoading(true);
 
     try {
-      // Simulate API call
       const res = await post("/accounts/reset-password", { token, password });
 
       if (res.success) {
         setSuccess(true);
       }
     } catch (err) {
-      setError("Có lỗi xảy ra. Vui lòng thử lại");
+      setError("Something went wrong. Please try again");
     } finally {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (!token) {
+      setIsValidToken(false);
+      return;
+    }
+
+    const verifyToken = async () => {
+      try {
+        const res = await get(`/accounts/verify-reset-token?token=${token}`);
+        setIsValidToken(res.valid);
+      } catch (error) {
+        setIsValidToken(false);
+      }
+    };
+
+    verifyToken();
+  }, [token]);
+
+  if (isValidToken === null) {
+    return (
+      <main className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="max-w-md w-full">
+          <CardContent className="pt-6 text-center">
+            <div className="flex justify-center mb-4">
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+            </div>
+            <p className="text-sm text-muted-foreground">Verifying link...</p>
+          </CardContent>
+        </Card>
+      </main>
+    );
+  }
+
+  if (!isValidToken) {
+    return (
+      <main className="min-h-screen bg-background flex items-center justify-center p-4">
+        <Card className="max-w-md w-full">
+          <CardHeader className="text-center space-y-4">
+            <div className="flex justify-center">
+              <div className="rounded-full bg-destructive/10 p-3">
+                <AlertCircle className="h-6 w-6 text-destructive" />
+              </div>
+            </div>
+            <CardTitle className="text-2xl">Invalid Link</CardTitle>
+            <CardDescription>
+              This link has expired or has already been used.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link href="/forgot-password">
+              <Button className="w-full">Request a new link</Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </main>
+    );
+  }
 
   if (success) {
     return (
@@ -92,17 +143,15 @@ export default function ResetPasswordForm() {
                   <ShieldCheck className="h-8 w-8 text-primary" />
                 </div>
               </div>
-              <CardTitle className="text-2xl">
-                Mật khẩu đã được thay đổi
-              </CardTitle>
+              <CardTitle className="text-2xl">Password Updated</CardTitle>
               <CardDescription className="text-base">
-                Mật khẩu của bạn đã được đặt lại thành công. Bạn có thể đăng
-                nhập với mật khẩu mới.
+                Your password has been successfully reset. You can now log in
+                with your new password.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 text-center">
               <Link className="underline" href="/login">
-                Chuyển hướng đến trang đăng nhập
+                Go to login page
               </Link>
             </CardContent>
           </Card>
@@ -118,12 +167,12 @@ export default function ResetPasswordForm() {
           <CardHeader className="text-center space-y-4">
             <div className="flex justify-center">
               <div className="rounded-full bg-primary/10 p-3">
-                <Lock className="h-6 w-6 text-[#406D87]  text-primary" />
+                <Lock className="h-6 w-6 text-[#406D87]" />
               </div>
             </div>
-            <CardTitle className="text-2xl">Tạo mật khẩu mới</CardTitle>
+            <CardTitle className="text-2xl">Create New Password</CardTitle>
             <CardDescription className="text-base">
-              Hãy tạo mật khẩu mạnh để bảo vệ tài khoản của bạn
+              Please create a strong password to secure your account
             </CardDescription>
           </CardHeader>
 
@@ -131,16 +180,15 @@ export default function ResetPasswordForm() {
             <form onSubmit={handleSubmit} className="space-y-4">
               {error && <p>{error}</p>}
 
-              {/* Password Input */}
               <div className="space-y-2">
                 <label htmlFor="password" className="text-sm font-medium">
-                  Mật khẩu mới
+                  New Password
                 </label>
                 <div className="relative">
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
-                    placeholder="Nhập mật khẩu"
+                    placeholder="Enter password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     disabled={isLoading}
@@ -160,11 +208,10 @@ export default function ResetPasswordForm() {
                 </div>
               </div>
 
-              {/* Password Strength Indicators */}
               {password && (
                 <div className="space-y-2 text-sm">
                   <p className="font-medium text-foreground">
-                    Độ mạnh của mật khẩu:
+                    Password strength:
                   </p>
                   <div className="space-y-1.5">
                     <div className="flex items-center gap-2">
@@ -179,91 +226,24 @@ export default function ResetPasswordForm() {
                             ? "text-foreground"
                             : "text-muted-foreground"
                         }>
-                        Ít nhất 6 ký tự
+                        At least 6 characters
                       </span>
                     </div>
-                    {/* <div className="flex items-center gap-2">
-                      <div
-                        className={`h-2 w-2 rounded-full ${
-                          passwordStrength.hasUpperCase
-                            ? "bg-primary"
-                            : "bg-muted"
-                        }`}
-                      />
-                      <span
-                        className={
-                          passwordStrength.hasUpperCase
-                            ? "text-foreground"
-                            : "text-muted-foreground"
-                        }>
-                        Chứa chữ hoa (A-Z)
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div
-                        className={`h-2 w-2 rounded-full ${
-                          passwordStrength.hasLowerCase
-                            ? "bg-primary"
-                            : "bg-muted"
-                        }`}
-                      />
-                      <span
-                        className={
-                          passwordStrength.hasLowerCase
-                            ? "text-foreground"
-                            : "text-muted-foreground"
-                        }>
-                        Chứa chữ thường (a-z)
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div
-                        className={`h-2 w-2 rounded-full ${
-                          passwordStrength.hasNumber ? "bg-primary" : "bg-muted"
-                        }`}
-                      />
-                      <span
-                        className={
-                          passwordStrength.hasNumber
-                            ? "text-foreground"
-                            : "text-muted-foreground"
-                        }>
-                        Chứa số (0-9)
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div
-                        className={`h-2 w-2 rounded-full ${
-                          passwordStrength.hasSpecial
-                            ? "bg-primary"
-                            : "bg-muted"
-                        }`}
-                      />
-                      <span
-                        className={
-                          passwordStrength.hasSpecial
-                            ? "text-foreground"
-                            : "text-muted-foreground"
-                        }>
-                        Chứa ký tự đặc biệt (!@#$%^&*)
-                      </span>
-                    </div> */}
                   </div>
                 </div>
               )}
 
-              {/* Confirm Password Input */}
               <div className="space-y-2">
                 <label
                   htmlFor="confirmPassword"
                   className="text-sm font-medium">
-                  Xác nhận mật khẩu
+                  Confirm Password
                 </label>
                 <div className="relative">
                   <Input
                     id="confirmPassword"
                     type={showConfirmPassword ? "text" : "password"}
-                    placeholder="Nhập lại mật khẩu"
+                    placeholder="Re-enter password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     disabled={isLoading}
@@ -283,7 +263,6 @@ export default function ResetPasswordForm() {
                 </div>
               </div>
 
-              {/* Match Indicator */}
               {confirmPassword && (
                 <div
                   className={`flex items-center gap-2 text-sm ${
@@ -299,8 +278,8 @@ export default function ResetPasswordForm() {
                     }`}
                   />
                   {password === confirmPassword
-                    ? "Mật khẩu khớp"
-                    : "Mật khẩu không khớp"}
+                    ? "Passwords match"
+                    : "Passwords do not match"}
                 </div>
               )}
 
@@ -311,10 +290,10 @@ export default function ResetPasswordForm() {
                 {isLoading ? (
                   <div className="flex items-center gap-2">
                     <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                    Đang cập nhật...
+                    Updating...
                   </div>
                 ) : (
-                  "Cập nhật mật khẩu"
+                  "Update Password"
                 )}
               </Button>
             </form>
@@ -324,7 +303,7 @@ export default function ResetPasswordForm() {
                 href="/login"
                 className="inline-flex items-center gap-2 text-sm text-primary hover:underline">
                 <ArrowLeft className="h-4 w-4" />
-                Quay lại
+                Back
               </Link>
             </div>
           </CardContent>

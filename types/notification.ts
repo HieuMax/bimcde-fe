@@ -4,6 +4,7 @@ export interface INotification {
   title: string;
   content: string;
   isRead: boolean;
+  url?: string;
   createdAt: string;
   updatedAt: string;
 }

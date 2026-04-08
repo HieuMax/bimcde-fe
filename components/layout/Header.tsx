@@ -30,7 +30,7 @@ export default function Header() {
   const { toggleSidebar, isCollapsed } = useSidebar();
   const projectName = "The Building";
 
-  const { logout, loading, error: authError, clearError } = useAuth();
+  const { logout, loading, error: authError, clearError, user } = useAuth();
   const router = useRouter();
 
   const onLogout = async () => {
@@ -97,8 +97,8 @@ export default function Header() {
               <div className="w-12 h-12 rounded-full bg-gray-300 flex items-center justify-center mb-2">
                 <User size={24} />
               </div>
-              <p className="font-medium">Hiếu Bùi Tấn</p>
-              <p className="text-sm text-gray-500">buitanhieu000@gmail.com</p>
+              <p className="font-medium">{user?.fullName}</p>
+              <p className="text-sm text-gray-500">{user?.email}</p>
             </div>
 
             {/* Menu items */}
@@ -108,7 +108,7 @@ export default function Header() {
                 className="flex justify-between items-center w-full cursor-pointer">
                 <div className="flex items-center gap-2">
                   <User size={16} />
-                  Trimble Profile
+                  BIMCDE Profile
                 </div>
                 <ExternalLink size={16} />
               </Link>
