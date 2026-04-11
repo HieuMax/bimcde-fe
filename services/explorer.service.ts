@@ -58,6 +58,14 @@ export const explorerService = {
     return data as { folderId: string | null };
   },
 
+  /** Last change inside folder + descendants (files + subfolders), for Properties panel */
+  getFolderSubtreeActivity: async (projectId: string, folderId: string) => {
+    const data = await api.get("/explorer/folder-subtree-activity", {
+      params: { projectId, folderId },
+    });
+    return data as { lastModifiedAt: string | null; lastModifiedBy: string | null };
+  },
+
   promoteFile: async (
     fileId: string,
     targetStage: PromoteTargetStage,

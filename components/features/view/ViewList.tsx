@@ -276,46 +276,64 @@ export const ViewList = () => {
     setEditIntent(true);
   };
 
+  /**
+   * Open a saved 3D view from Data → Views: same contract as ViewerClient.switchContextAndReload
+   * and explorer IFC open (viewer3d?urls=encodeURIComponent(JSON.stringify([...]))).
+   * Backend exposes GET /views3d?projectId=… only (no GET by id); list rows already include items + viewState.
+   */
   const handleViewClick = (view: IView) => {
     if (view.type === "3D") {
-      (async () => {
-        try {
-          // Ensure we have the full view payload (especially items/fileUrl)
-          const fullView: any =
-            (view as any)?.items?.length ? view : await viewService3D.getById(view._id);
+      const row = view as IView & {
+        items?: { fileUrl?: string; modelId?: string; expressId?: string[] }[];
+      };
+      const items = row.items ?? [];
 
-          const targetUrls = Array.from(
-            new Set(
-              (fullView.items || [])
-                .map((i: any) => i?.fileUrl)
-                .filter(Boolean) as string[],
-            ),
-          );
+      const targetUrls = Array.from(
+        new Set(
+          items
+            .map((i) => i?.fileUrl)
+            .filter(Boolean) as string[],
+        ),
+      );
 
-          if (targetUrls.length === 0) {
-            toast.error("This 3D view has no model context (missing file URLs).");
-            return;
-          }
+      if (targetUrls.length === 0) {
+        toast.error("This 3D view has no model context (missing file URLs).");
+        return;
+      }
 
-          // Make Viewer3D auto-open the view after context switch
-          const pendingKey = `bimcde_pending_todo_${projectId}`;
-          sessionStorage.setItem(
-            pendingKey,
-            JSON.stringify({ todo: fullView, mode: "view", type: "view" }),
-          );
+      if (!view.viewState) {
+        toast.error("This 3D view has no saved camera/state.");
+        return;
+      }
 
-          router.push(
-            `/projects/${projectId}/viewer3d?urls=${encodeURIComponent(
-              JSON.stringify(targetUrls),
-            )}`,
-          );
-        } catch (error) {
-          console.error("Failed to open 3D view in viewer", error);
-          toast.error("Failed to open view in 3D viewer");
-        }
-      })();
+      const todoForViewer = {
+        _id: view._id,
+        title: view.name,
+        projectId: view.projectId,
+        items,
+        viewState: view.viewState,
+        createdBy: view.createdBy,
+      };
+
+      const pendingKey = `bimcde_pending_todo_${projectId}`;
+      const clashKey = `bimcde_pending_clash_${projectId}`;
+      sessionStorage.removeItem(clashKey);
+      sessionStorage.removeItem(pendingKey);
+      sessionStorage.setItem(
+        pendingKey,
+        JSON.stringify({
+          todo: todoForViewer,
+          mode: "view",
+          type: "view",
+        }),
+      );
+
+      const newUrlsParams = JSON.stringify(targetUrls);
+      window.location.href = `/projects/${projectId}/viewer3d?urls=${encodeURIComponent(
+        newUrlsParams,
+      )}`;
     } else {
-      router.push(`/projects/${projectId}/viewer?viewId=${view._id}`);
+      router.push(`/projects/${projectId}/viewer/${view._id}`);
     }
   };
 

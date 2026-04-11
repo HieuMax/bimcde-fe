@@ -66,11 +66,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setError(null);
       } else {
         setUser(null);
-        setError("Không thể tải thông tin người dùng.");
+        setError("Unable to load user profile.");
       }
     } catch (error: any) {
-      console.error("Lỗi khi lấy thông tin người dùng", error);
-      setError("Lỗi khi lấy thông tin người dùng.");
+      console.error("Failed to load user information", error);
+      setError("Failed to load user information.");
       setUser(null);
     } finally {
       setLoading(false);
@@ -80,7 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const refreshAccessToken = async (): Promise<boolean> => {
     const refreshToken = getCookie("refreshToken");
     if (!refreshToken) {
-      setError("Không có refreshToken, vui lòng đăng nhập lại.");
+      setError("No refresh token. Please sign in again.");
       setUser(null);
       deleteCookie("accessToken");
       deleteCookie("refreshToken");
@@ -97,14 +97,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         );
         return true;
       } else {
-        setError(response.message || "Làm mới token thất bại.");
+        setError(response.message || "Failed to refresh token.");
         setUser(null);
         deleteCookie("accessToken");
         deleteCookie("refreshToken");
         return false;
       }
     } catch (error: any) {
-      setError("Lỗi khi làm mới token.");
+      setError("Failed to refresh token.");
       console.error("Refresh token error:", error);
       setUser(null);
       deleteCookie("accessToken");
@@ -168,12 +168,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         await fetchUser();
         return true;
       } else {
-        setError(response.message || "Đăng nhập không thành công.");
+        setError(response.message || "Sign-in failed.");
         return false;
       }
     } catch (error: any) {
       setError(
-        error.response?.message || "Đăng nhập thất bại. Vui lòng thử lại."
+        error.response?.message || "Sign-in failed. Please try again."
       );
       console.error("Login error:", error);
       return false;
@@ -200,12 +200,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (response.success) {
         return response;
       } else {
-        setError(response.message || "Đăng ký không thành công.");
+        setError(response.message || "Registration failed.");
         return response.message;
       }
     } catch (error: any) {
       setError(
-        error.response?.message || "Đăng ký thất bại. Vui lòng thử lại."
+        error.response?.message || "Registration failed. Please try again."
       );
       console.error("Register error:", error);
       return error;

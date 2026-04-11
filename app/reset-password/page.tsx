@@ -52,17 +52,17 @@ export default function ResetPasswordForm() {
     setError("");
 
     if (!password || !confirmPassword) {
-      setError("Vui lòng nhập mật khẩu");
+      setError("Please enter your password");
       return;
     }
 
     if (password.length < 6) {
-      setError("Mật khẩu phải có ít nhất 6 ký tự");
+      setError("Password must be at least 6 characters");
       return;
     }
 
     if (password !== confirmPassword) {
-      setError("Mật khẩu không khớp");
+      setError("Passwords do not match");
       return;
     }
 
@@ -83,7 +83,7 @@ export default function ResetPasswordForm() {
         setSuccess(true);
       }
     } catch (err) {
-      setError("Có lỗi xảy ra. Vui lòng thử lại");
+      setError("Something went wrong. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -101,16 +101,16 @@ export default function ResetPasswordForm() {
                 </div>
               </div>
               <CardTitle className="text-2xl">
-                Mật khẩu đã được thay đổi
+                Password updated
               </CardTitle>
               <CardDescription className="text-base">
-                Mật khẩu của bạn đã được đặt lại thành công. Bạn có thể đăng
-                nhập với mật khẩu mới.
+                Your password has been reset successfully. You can sign in with your
+                new password.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 text-center">
               <Link className="underline" href="/login">
-                Chuyển hướng đến trang đăng nhập
+                Go to sign in
               </Link>
             </CardContent>
           </Card>
@@ -129,9 +129,9 @@ export default function ResetPasswordForm() {
                 <Lock className="h-6 w-6 text-[#406D87]  text-primary" />
               </div>
             </div>
-            <CardTitle className="text-2xl">Tạo mật khẩu mới</CardTitle>
+            <CardTitle className="text-2xl">Create a new password</CardTitle>
             <CardDescription className="text-base">
-              Hãy tạo mật khẩu mạnh để bảo vệ tài khoản của bạn
+              Choose a strong password to protect your account
             </CardDescription>
           </CardHeader>
 
@@ -142,13 +142,13 @@ export default function ResetPasswordForm() {
               {/* Password Input */}
               <div className="space-y-2">
                 <label htmlFor="password" className="text-sm font-medium">
-                  Mật khẩu mới
+                  New password
                 </label>
                 <div className="relative">
                   <Input
                     id="password"
                     type={showPassword ? "text" : "password"}
-                    placeholder="Nhập mật khẩu"
+                    placeholder="Enter password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     disabled={isLoading}
@@ -172,7 +172,7 @@ export default function ResetPasswordForm() {
               {password && (
                 <div className="space-y-2 text-sm">
                   <p className="font-medium text-foreground">
-                    Độ mạnh của mật khẩu:
+                    Password strength:
                   </p>
                   <div className="space-y-1.5">
                     <div className="flex items-center gap-2">
@@ -265,13 +265,13 @@ export default function ResetPasswordForm() {
                 <label
                   htmlFor="confirmPassword"
                   className="text-sm font-medium">
-                  Xác nhận mật khẩu
+                  Confirm password
                 </label>
                 <div className="relative">
                   <Input
                     id="confirmPassword"
                     type={showConfirmPassword ? "text" : "password"}
-                    placeholder="Nhập lại mật khẩu"
+                    placeholder="Re-enter password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     disabled={isLoading}
@@ -307,8 +307,8 @@ export default function ResetPasswordForm() {
                     }`}
                   />
                   {password === confirmPassword
-                    ? "Mật khẩu khớp"
-                    : "Mật khẩu không khớp"}
+                    ? "Passwords match"
+                    : "Passwords do not match"}
                 </div>
               )}
 
@@ -319,10 +319,10 @@ export default function ResetPasswordForm() {
                 {isLoading ? (
                   <div className="flex items-center gap-2">
                     <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
-                    Đang cập nhật...
+                    Updating...
                   </div>
                 ) : (
-                  "Cập nhật mật khẩu"
+                  "Update password"
                 )}
               </Button>
             </form>
@@ -332,7 +332,7 @@ export default function ResetPasswordForm() {
                 href="/login"
                 className="inline-flex items-center gap-2 text-sm text-primary hover:underline">
                 <ArrowLeft className="h-4 w-4" />
-                Quay lại
+                Back
               </Link>
             </div>
           </CardContent>

@@ -147,6 +147,7 @@ export default function ToolbarSection({
       workflowMode,
       parentStageForArchive,
       cdeCapabilities,
+      isFile ? undefined : { folder: folderItem ?? null },
     ) &&
     !!onOpenArchiveMove;
 

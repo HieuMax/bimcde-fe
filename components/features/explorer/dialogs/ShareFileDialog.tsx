@@ -106,7 +106,7 @@ export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
     onSuccess: (data: any) => {
       const token = data.token || data.shareToken || data?.share?.token;
       if (!token) {
-        toast.error("Lỗi server: Không nhận được token.");
+        toast.error("Server error: token not received.");
         return;
       }
 
@@ -280,7 +280,7 @@ export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
                  </div>
                  <div className="flex gap-2">
                     <Input value={shareLink} readOnly className="bg-white font-mono text-xs" />
-                    <Button size="icon" onClick={() => { navigator.clipboard.writeText(shareLink); toast.success("Đã copy!"); }}>
+                    <Button size="icon" onClick={() => { navigator.clipboard.writeText(shareLink); toast.success("Copied!"); }}>
                        <Copy size={16}/>
                     </Button>
                  </div>

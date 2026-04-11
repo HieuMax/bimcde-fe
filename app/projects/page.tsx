@@ -49,7 +49,7 @@ export default function ProjectsPage() {
       if (res.success) {
         setProjects(res.result || []);
       } else {
-        console.error("Lỗi khi tải danh sách dự án:", res.data.message);
+        console.error("Failed to load project list:", res.data.message);
       }
     } catch (e) {
       console.error("Failed to load project list:", e);
@@ -79,14 +79,16 @@ export default function ProjectsPage() {
           <Button
             variant="ghost"
             onClick={() => setView("grid")}
-            className={view === "grid" ? "bg-gray-300" : ""}>
+            className={view === "grid" ? "bg-gray-300" : ""}
+          >
             <Grid size={18} />
           </Button>
 
           <Button
             variant="ghost"
             onClick={() => setView("list")}
-            className={view === "list" ? "bg-gray-300" : ""}>
+            className={view === "list" ? "bg-gray-300" : ""}
+          >
             <List size={18} />
           </Button>
 
@@ -142,7 +144,7 @@ function NewProjectDialog({ onCreated }: { onCreated: () => void }) {
   const { post } = useApi();
 
   function handleChange(
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -264,10 +266,11 @@ function NewProjectDialog({ onCreated }: { onCreated: () => void }) {
           <div className="space-y-3 rounded-md border border-slate-200 bg-slate-50/80 p-4">
             <div>
               <p className="text-sm font-medium text-slate-900">
-                Kiểu quy trình / Workflow mode
+                Workflow mode
               </p>
               <p className="text-xs text-slate-500 mt-0.5">
-                Chọn trước khi tạo dự án; sau này không đổi được từ màn hình này.
+                Choose before creating the project; it cannot be changed from
+                this screen later.
               </p>
             </div>
             <RadioGroup
@@ -278,16 +281,24 @@ function NewProjectDialog({ onCreated }: { onCreated: () => void }) {
                   workflowMode: v as CdeWorkflowMode,
                 }))
               }
-              className="grid gap-3">
+              className="grid gap-3"
+            >
               <div className="flex items-start gap-3 rounded-md border border-transparent bg-white p-3 shadow-sm">
-                <RadioGroupItem value="NORMAL" id="wf-normal" className="mt-0.5" />
+                <RadioGroupItem
+                  value="NORMAL"
+                  id="wf-normal"
+                  className="mt-0.5"
+                />
                 <div className="grid gap-0.5 flex-1">
-                  <Label htmlFor="wf-normal" className="font-medium cursor-pointer">
-                    Thông thường (Normal)
+                  <Label
+                    htmlFor="wf-normal"
+                    className="font-medium cursor-pointer"
+                  >
+                    Normal
                   </Label>
                   <p className="text-xs text-slate-500">
-                    Phân quyền linh hoạt theo thư mục/tệp (ACL), giống ổ đĩa dùng
-                    chung.
+                    Flexible permissions per folder and file (ACL), similar to a
+                    shared drive.
                   </p>
                 </div>
               </div>
@@ -298,13 +309,16 @@ function NewProjectDialog({ onCreated }: { onCreated: () => void }) {
                   className="mt-0.5"
                 />
                 <div className="grid gap-0.5 flex-1">
-                  <Label htmlFor="wf-iso" className="font-medium cursor-pointer">
+                  <Label
+                    htmlFor="wf-iso"
+                    className="font-medium cursor-pointer"
+                  >
                     ISO 19650 (CDE)
                   </Label>
                   <p className="text-xs text-slate-500">
-                    Bốn giai đoạn WIP → Shared → Published → Archived; thư mục gốc
-                    chuẩn; promote tạo bản sao; chỉ Admin tạo nhóm và có thư mục
-                    nhóm dưới WIP/Shared.
+                    Four stages: WIP → Shared → Published → Archived; standard
+                    root folders; promote creates copies; only admins create
+                    teams and team folders under WIP/Shared.
                   </p>
                 </div>
               </div>
@@ -321,8 +335,9 @@ function NewProjectDialog({ onCreated }: { onCreated: () => void }) {
                     variant="outline"
                     className={cn(
                       "w-full justify-start text-left font-normal",
-                      !formData.startDate && "text-muted-foreground"
-                    )}>
+                      !formData.startDate && "text-muted-foreground",
+                    )}
+                  >
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {formData.startDate ? (
                       format(formData.startDate, "PPP")
@@ -357,8 +372,9 @@ function NewProjectDialog({ onCreated }: { onCreated: () => void }) {
                     variant="outline"
                     className={cn(
                       "w-full justify-start text-left font-normal",
-                      !formData.endDate && "text-muted-foreground"
-                    )}>
+                      !formData.endDate && "text-muted-foreground",
+                    )}
+                  >
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {formData.endDate ? (
                       format(formData.endDate, "PPP")
@@ -393,7 +409,8 @@ function NewProjectDialog({ onCreated }: { onCreated: () => void }) {
           {/* Submit */}
           <Button
             onClick={handleSubmit}
-            className="bg-[#0f6cbd] text-white w-24 ml-auto">
+            className="bg-[#0f6cbd] text-white w-24 ml-auto"
+          >
             Submit
           </Button>
         </div>
@@ -417,7 +434,8 @@ function GridView({ projects }: { projects: Project[] }) {
         <div
           key={p._id}
           className="bg-white shadow rounded overflow-hidden cursor-pointer"
-          onClick={() => handleProjectClick(p._id)}>
+          onClick={() => handleProjectClick(p._id)}
+        >
           <div className="h-40 bg-gray-200">
             <Image
               src={p.thumbnail || DEFAULT_THUMBNAIL}
@@ -462,7 +480,8 @@ function ListView({ projects }: { projects: Project[] }) {
         <div
           key={p._id}
           className="grid grid-cols-[40%_15%_15%_15%_15%] items-center p-3 hover:bg-gray-100 cursor-pointer"
-          onClick={() => handleProjectClick(p._id)}>
+          onClick={() => handleProjectClick(p._id)}
+        >
           <div className="flex items-center gap-2">
             <Image
               src={p.thumbnail || DEFAULT_THUMBNAIL}
