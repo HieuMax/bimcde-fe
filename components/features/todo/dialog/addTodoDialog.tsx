@@ -60,7 +60,7 @@ export default function AddTodoDialog({
   tag,
   projectId,
 }: AddTodoDialogProps) {
-  const [name, setName] = useState("");
+  const [title, setTitle] = useState("");
   const [showError, setShowError] = useState(false);
   const [moreDetails, setMoreDetails] = useState(false);
   const [selectedUsers, setSelectedUsers] = useState<any[]>([]);
@@ -76,7 +76,7 @@ export default function AddTodoDialog({
     setMoreDetails(!moreDetails);
   };
   const handleSave = async () => {
-    if (!name.trim()) {
+    if (!title.trim()) {
       setShowError(true);
       return;
     }
@@ -125,30 +125,29 @@ export default function AddTodoDialog({
 
     const data = {
       projectId: projectId,
-      name,
+      title,
       description,
       assignees: assignessUpdate,
-      tag: tagUpdate,
+      tags: tagUpdate,
       priority: priorityUpdate,
-      typeTopic: typeUpdate,
+      type: typeUpdate,
       dueDate: dueDate ? format(dueDate, "yyyy-MM-dd") : "",
       createdBy: userCreateBy,
       modifiedBy: userCreateBy,
     };
 
     try {
-      const response = await post(`/todo/create/${projectId}`, {
-        data,
+      const response = await post(`/todo`, {
+        ...data,
       });
 
-      if (response.success) {
-        // window.location.reload();
+      if (response) {
       } else {
-        alert("Failed to add people to the group.");
+        alert("Failed to create todo.");
       }
     } catch (error) {
       console.error("Error adding people to group:", error);
-      alert("An error occurred while adding people.");
+      alert("An error occurred while creating todo.");
     } finally {
       onClose();
     }
@@ -157,7 +156,7 @@ export default function AddTodoDialog({
       onClose();
     } else {
       // reset form nếu muốn tạo tiếp
-      setName("");
+      setTitle("");
       setDescription("");
       setSelectedUsers([]);
       setSelectedTags([]);
@@ -182,9 +181,9 @@ export default function AddTodoDialog({
           <div className="space-y-1">
             <Label>Title</Label>
             <Input
-              value={name}
+              value={title}
               onChange={(e) => {
-                setName(e.target.value);
+                setTitle(e.target.value);
                 setShowError(false);
               }}
               className={showError ? "border-red-500" : ""}
