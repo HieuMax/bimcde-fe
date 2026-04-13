@@ -21,9 +21,12 @@ import {
   onNotificationReadAll,
 } from "@/app/libs/socket";
 import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 
 export function BellComponent() {
   const { user } = useAuth();
+  const router = useRouter();
+
   const queryClient = useQueryClient();
 
   const { data: notifications = [], isLoading } = useQuery<INotification[]>({
@@ -87,6 +90,14 @@ export function BellComponent() {
     await NotificationService.readNotification(id);
   };
 
+  const handleNavigate = async (notification: INotification) => {
+    await handleMarkAsRead(notification._id);
+
+    if (notification.url) {
+      router.push(notification.url);
+    }
+  };
+
   const handleDeleteNotification = async (id: string) => {
     await NotificationService.deleteNotification(id);
   };
@@ -141,7 +152,7 @@ export function BellComponent() {
                 <div className="flex items-start justify-between gap-3">
                   <div
                     className="flex-1 cursor-pointer"
-                    onClick={() => handleMarkAsRead(notification._id)}>
+                    onClick={() => handleNavigate(notification)}>
                     <div className="flex items-center gap-2">
                       <h4 className="font-medium text-foreground">
                         {notification.title}
@@ -160,7 +171,10 @@ export function BellComponent() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => handleDeleteNotification(notification._id)}
+                    onClick={(e) => {
+                      e.stopPropagation(); // 🔥 QUAN TRỌNG
+                      handleDeleteNotification(notification._id);
+                    }}
                     className="h-6 w-6 p-0">
                     <X className="h-4 w-4" />
                   </Button>

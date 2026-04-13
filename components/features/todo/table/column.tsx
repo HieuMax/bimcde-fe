@@ -31,12 +31,12 @@ export const columnsTable: ColumnDef<any>[] = [
     enableHiding: false,
   },
   {
-    accessorKey: "name",
-    header: "Name",
+    accessorKey: "title",
+    header: "Title",
     cell: ({ row }) => (
       <div className="capitalize">
         {/* Hiển thị tên */}
-        <span className="font-semibold">{row.getValue("name")}</span>
+        <span className="font-semibold">{row.getValue("title")}</span>
       </div>
     ),
   },
@@ -60,8 +60,8 @@ export const columnsTable: ColumnDef<any>[] = [
     header: "Created on",
     cell: ({ row }) => (
       <div className="">
-        {row?.original?.createOn
-          ? new Date(row.original.createOn).toLocaleString("en-US", {
+        {row?.original?.createdAt
+          ? new Date(row.original.createdAt).toLocaleString("en-US", {
               month: "short",
               day: "2-digit",
               year: "numeric",
@@ -79,8 +79,8 @@ export const columnsTable: ColumnDef<any>[] = [
     header: "Modified on",
     cell: ({ row }) => (
       <div className="">
-        {row?.original?.modifiedOn
-          ? new Date(row.original.modifiedOn).toLocaleString("en-US", {
+        {row?.original?.updatedAt
+          ? new Date(row.original.updatedAt).toLocaleString("en-US", {
               month: "short",
               day: "2-digit",
               year: "numeric",

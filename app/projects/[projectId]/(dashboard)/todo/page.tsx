@@ -5,15 +5,15 @@ import { startOfDay, endOfDay } from "date-fns";
 
 import { useApi } from "@/app/hooks/useApi";
 import { useAuth } from "@/app/context/authContext";
-import CustomDropdown from "@/components/features/team/dropdown";
 import AddTodoDialog from "@/components/features/todo/dialog/addTodoDialog";
-import TodoDrawer from "@/components/features/todo/drawer/todoDrawer";
 import DropDownCheckBox from "@/components/features/todo/dropdown/dropdownCheckBox";
 import DropdownDatePicker from "@/components/features/todo/dropdown/dropdownDatePciker";
 import { columnsTable } from "@/components/features/todo/table/column";
 import { DataTable } from "@/components/features/todo/table/DataTable";
+import { NewTodoDrawer } from "@/components/todos/NewTodoDrawer";
 
 import { Button } from "@/components/ui/button";
+import { ITodo } from "@/types/todo3d";
 
 const optionsOwner = [
   { name: "Assigned to me", checked: false },
@@ -70,8 +70,7 @@ export default function page({
   const [isOpenDrawer, setIsOpenDrawer] = useState(false);
   const [projectId, setProjectId] = useState("");
   const [openDialog, setOpenDialog] = useState(false);
-  const [rowSelection, setRowSelection] = useState({});
-
+  const [rowSelection, setRowSelection] = useState<ITodo | null>(null);
   // Filter states
   const [selectedOwners, setSelectedOwners] = useState<string[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
@@ -171,9 +170,9 @@ export default function page({
     try {
       const projectId = (await params).projectId;
 
-      const response = await get(`/todo/getAll/${projectId}`);
+      const response = await get(`/todo`, { params: { projectId } }); // ✅ valid
       if (response) {
-        setTodoList(response.result);
+        setTodoList(response);
       } else {
         console.error("Failed to fetch tag :", response.error);
       }
@@ -485,14 +484,17 @@ export default function page({
           onClose={onCloseDialog}
         />
       </div>
-      <TodoDrawer
-        isOpen={isOpenDrawer}
-        onClose={onCloseDrawer}
-        users={assigneeData}
-        priority={priorityData}
-        type={typeData}
-        tag={tagData}
-        data={rowSelection}></TodoDrawer>
+      <NewTodoDrawer
+        open={isOpenDrawer}
+        onOpenChange={(open) => {
+          if (!open) {
+            onCloseDrawer();
+          }
+        }}
+        projectId={projectId}
+        todoToEdit={rowSelection}
+        mode="view"
+      />
     </div>
   );
 }
