@@ -44,7 +44,7 @@ export default function ForgotPasswordForm() {
         setEmailSent(true);
       }
     } catch (err) {
-      setError("Something went wrong. Please try again");
+      setError("Something went wrong. Please try again.");
     } finally {
       setIsLoading(false);
     }

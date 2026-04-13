@@ -104,6 +104,23 @@ export default function ExplorerClient({ projectId, folderId }: Props) {
     currentFolder as IFolder | null,
   );
 
+  const isoCdeRootHint =
+    "ISO 19650: you cannot add items at project root or directly inside 1. WIP / 2. Shared. Open a team folder first.";
+
+  /** Block project root + only WIP/Shared CDE roots (not Published/Archived) */
+  const isoBlocksCdeRootLevel =
+    workflowMode === "ISO_19650" &&
+    (!currentFolder ||
+      (currentFolder.isCdeRoot === true &&
+        (currentFolder.cdeStage === "WIP" ||
+          currentFolder.cdeStage === "SHARED")));
+
+  const createFolderDisabledTitle = createFolderBlockedByDepth
+    ? "Maximum folder nesting depth (7 levels) has been reached."
+    : isoBlocksCdeRootLevel
+      ? isoCdeRootHint
+      : undefined;
+
   useEffect(() => {
     setOpenActivityTick(0);
   }, [singleFreshItem?._id]);
@@ -207,7 +224,12 @@ export default function ExplorerClient({ projectId, folderId }: Props) {
             onRefresh={() => refetch()}
             isLoading={isLoading && !isPlaceholderData}
             onCreateFolderClick={() => setIsCreateOpen(true)}
-            createFolderDisabled={createFolderBlockedByDepth}
+            createFolderDisabled={
+              createFolderBlockedByDepth || isoBlocksCdeRootLevel
+            }
+            createFolderDisabledTitle={createFolderDisabledTitle}
+            uploadDisabled={isoBlocksCdeRootLevel}
+            uploadDisabledTitle={isoCdeRootHint}
             onUpload={async (files, onProgress) => {
               await actions.uploadFiles(files, { onProgress });
             }}

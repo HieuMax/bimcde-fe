@@ -23,6 +23,7 @@ export interface CdeCapabilities {
 export interface IFolder {
   _id: string;
   name: string;
+  createdAt?: string;
   updatedAt?: string;
   parentId: string | null;
   createdBy?: string;
@@ -42,6 +43,10 @@ export interface IFolder {
   createdById?: string;
   /** ISO: folder “home” gắn với group (tạo khi createGroup, ngay dưới 1. WIP / 2. Shared) */
   isGroupHomeFolder?: boolean;
+  /** ISO: one of the four CDE stage roots (WIP / Shared / Published / Archived) */
+  isCdeRoot?: boolean;
+  /** ISO: when this row is a CDE root, which stage (WIP, SHARED, PUBLISHED, ARCHIVED) */
+  cdeStage?: string;
 }
 
 export interface IFileVersion {

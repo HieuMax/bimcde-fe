@@ -25,7 +25,7 @@ export default function Page() {
   // Xác định chế độ Share
   const isShareMode = !!shareToken;
 
-  const [fileName, setFileName] = useState("Đang tải...");
+  const [fileName, setFileName] = useState("Loading...");
   const [fileData, setFileData] = useState<IFile | null>(null);
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -70,11 +70,11 @@ export default function Page() {
   const handleDownloadRaw = useCallback(async () => {
     // Kiểm tra trực tiếp giá trị hiện tại
     if (!currentFileUrl) {
-      toast.error("Đang tải dữ liệu file, vui lòng đợi...");
+      toast.error("File data is still loading. Please wait...");
       return;
     }
 
-    const loadingToast = toast.loading("Đang chuẩn bị bản PDF sạch...");
+    const loadingToast = toast.loading("Preparing clean PDF...");
 
     try {
       const isPDF = currentFileUrl.toLowerCase().split("?")[0].endsWith(".pdf");
@@ -91,7 +91,7 @@ export default function Page() {
         link.click();
         document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
-        toast.success("Tải về hoàn tất!", { id: loadingToast });
+        toast.success("Download complete!", { id: loadingToast });
       } else {
         // LOGIC CHO ẢNH -> PDF
         const img = new Image();
@@ -107,18 +107,18 @@ export default function Page() {
 
           pdf.addImage(img, "PNG", 0, 0, img.width, img.height);
           pdf.save(`${fileName}_original.pdf`);
-          toast.success("Tải về hoàn tất!", { id: loadingToast });
+          toast.success("Download complete!", { id: loadingToast });
         };
 
         img.onerror = () => {
-          toast.error("Không thể tải ảnh gốc. Lỗi CORS hoặc URL hết hạn.", {
+          toast.error("Could not load source image. CORS issue or expired URL.", {
             id: loadingToast,
           });
         };
       }
     } catch (e) {
       console.error(e);
-      toast.error("Lỗi hệ thống khi tải file.", { id: loadingToast });
+      toast.error("Failed to download file.", { id: loadingToast });
     }
   }, [currentFileUrl, fileName]);
 

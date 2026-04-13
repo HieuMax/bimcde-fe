@@ -2,6 +2,7 @@ import type {
   CdeCapabilities,
   CdeWorkflowMode,
   IFile,
+  IFolder,
 } from "@/types/explorer";
 
 /** True when this file version was submitted for review by the owner (leader may promote WIP→Shared). */
@@ -84,15 +85,28 @@ export function getPromoteOptionsForFile(
   return out;
 }
 
-/** ISO: admin may move (not copy) files/folders from Shared or Published into 4. Archived via the move picker. */
+/**
+ * ISO: admin may move (not copy) files/folders from Shared or Published into 4. Archived.
+ * CDE root folders and group home folders must not show this action — only items *inside* a group tree.
+ */
 export function canMoveToArchivedIso(
   workflowMode: CdeWorkflowMode,
   parentCdeRootStage: string | null | undefined,
   caps: CdeCapabilities | undefined,
+  opts?: { folder?: IFolder | null },
 ): boolean {
   if (workflowMode !== "ISO_19650") return false;
   if (!caps?.isProjectAdmin) return false;
-  return (
-    parentCdeRootStage === "SHARED" || parentCdeRootStage === "PUBLISHED"
-  );
+  if (
+    parentCdeRootStage !== "SHARED" &&
+    parentCdeRootStage !== "PUBLISHED"
+  ) {
+    return false;
+  }
+  const f = opts?.folder;
+  if (f) {
+    if (f.isCdeRoot === true) return false;
+    if (f.isGroupHomeFolder === true) return false;
+  }
+  return true;
 }

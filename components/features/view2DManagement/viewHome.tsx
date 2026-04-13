@@ -310,7 +310,7 @@ export default function DetailView2D({
     const targetProjectId = params.projectId || currentProjectId;
 
     if (!targetFileId || !targetProjectId) {
-      alert("Thiếu thông tin File hoặc Project!");
+      alert("Missing file or project information.");
       return;
     }
     const savedUser = localStorage.getItem("user");
@@ -394,7 +394,7 @@ export default function DetailView2D({
       setActiveTab("view");
     } catch (error) {
       console.error("Lỗi khi tạo View:", error);
-      alert("Đã có lỗi xảy ra khi lưu View.");
+      alert("An error occurred while saving the view.");
     }
   };
 
@@ -467,7 +467,7 @@ export default function DetailView2D({
       }
     } catch (error) {
       console.error("Lỗi cập nhật ảnh View:", error);
-      alert("Lỗi khi cập nhật ảnh View.");
+      alert("Failed to update view image.");
     }
   };
 
@@ -481,7 +481,7 @@ export default function DetailView2D({
       }
     } catch (error) {
       console.error("Lỗi xóa view:", error);
-      alert("Không thể xóa view này.");
+      alert("Unable to delete this view.");
     }
   };
 
@@ -630,7 +630,7 @@ export default function DetailView2D({
       applyViewPosition(viewToApply, derivedPages, newFile);
     } catch (error) {
       console.error("Lỗi khi load file mới cho View:", error);
-      alert("Không thể tải file của View này.");
+      alert("Unable to load file for this view.");
       setIsViewLoading(false);
     }
   };
@@ -734,7 +734,7 @@ export default function DetailView2D({
       setActiveTab("todo");
     } catch (error) {
       console.error("Lỗi tạo Todo:", error);
-      alert("Lỗi khi tạo Todo.");
+      alert("Failed to create todo.");
     }
   };
 
@@ -748,7 +748,7 @@ export default function DetailView2D({
       }
     } catch (error) {
       console.error("Lỗi xóa Todo:", error);
-      alert("Không thể xóa ToDo này (Lỗi kết nối hoặc Server).");
+      alert("Unable to delete this todo (network or server error).");
     }
   };
 

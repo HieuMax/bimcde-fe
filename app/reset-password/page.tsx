@@ -52,7 +52,7 @@ export default function ResetPasswordForm() {
     setError("");
 
     if (!password || !confirmPassword) {
-      setError("Please enter a password");
+      setError("Please enter your password");
       return;
     }
 
@@ -75,7 +75,7 @@ export default function ResetPasswordForm() {
         setSuccess(true);
       }
     } catch (err) {
-      setError("Something went wrong. Please try again");
+      setError("Something went wrong. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -150,15 +150,17 @@ export default function ResetPasswordForm() {
                   <ShieldCheck className="h-8 w-8 text-primary" />
                 </div>
               </div>
-              <CardTitle className="text-2xl">Password Updated</CardTitle>
+              <CardTitle className="text-2xl">
+                Password updated
+              </CardTitle>
               <CardDescription className="text-base">
-                Your password has been successfully reset. You can now log in
-                with your new password.
+                Your password has been reset successfully. You can sign in with your
+                new password.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4 text-center">
               <Link className="underline" href="/login">
-                Go to login page
+                Go to sign in
               </Link>
             </CardContent>
           </Card>
@@ -189,7 +191,7 @@ export default function ResetPasswordForm() {
 
               <div className="space-y-2">
                 <label htmlFor="password" className="text-sm font-medium">
-                  New Password
+                  New password
                 </label>
                 <div className="relative">
                   <Input
@@ -244,7 +246,7 @@ export default function ResetPasswordForm() {
                 <label
                   htmlFor="confirmPassword"
                   className="text-sm font-medium">
-                  Confirm Password
+                  Confirm password
                 </label>
                 <div className="relative">
                   <Input

@@ -35,6 +35,11 @@ interface Props {
   onCreateFolderClick: () => void;
   /** True when max folder nesting depth would be exceeded */
   createFolderDisabled?: boolean;
+  /** Tooltip when Create folder is disabled (e.g. ISO placement or depth) */
+  createFolderDisabledTitle?: string;
+  /** True when upload must be blocked (e.g. ISO: not inside a work-package folder) */
+  uploadDisabled?: boolean;
+  uploadDisabledTitle?: string;
   onUpload: (
     files: File[],
     onProgress?: (percent: number) => void,
@@ -52,6 +57,9 @@ export default function ExplorerToolbar({
   isLoading,
   onCreateFolderClick,
   createFolderDisabled = false,
+  createFolderDisabledTitle,
+  uploadDisabled = false,
+  uploadDisabledTitle,
   onUpload,
   projectId,
   workflowMode = "NORMAL",
@@ -175,11 +183,7 @@ export default function ExplorerToolbar({
                 }}
                 disabled={createFolderDisabled}
                 className="cursor-pointer"
-                title={
-                  createFolderDisabled
-                    ? "Maximum folder nesting depth (7 levels) has been reached."
-                    : undefined
-                }
+                title={createFolderDisabledTitle}
               >
                 <FolderPlus className="mr-2 h-4 w-4" />
                 <span>Create folder</span>
@@ -188,8 +192,12 @@ export default function ExplorerToolbar({
               {/* Đường kẻ ngang */}
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                onClick={handleUploadFiles}
+                onClick={() => {
+                  if (!uploadDisabled) handleUploadFiles();
+                }}
+                disabled={uploadDisabled}
                 className="cursor-pointer"
+                title={uploadDisabledTitle}
               >
                 <FileUp className="mr-2 h-4 w-4" />
                 <span>Upload files</span>
