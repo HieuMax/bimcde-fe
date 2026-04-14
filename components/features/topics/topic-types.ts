@@ -37,6 +37,13 @@ export interface Topic {
   dueDate?: string;
   assignedToMe?: boolean;
   thumbnailUrl?: string;
+  snapshots?: {
+    thumbnailUrl?: string;
+    viewState?: unknown;
+    items?: unknown[];
+  }[];
+  viewState?: unknown;
+  items?: unknown[];
   attachments?: TopicAttachment[];
   stats: {
     comments: number;
@@ -44,81 +51,6 @@ export interface Topic {
     attachments: number;
   };
 }
-
-export const mockTopics: Topic[] = [
-  {
-    id: "t-5",
-    code: "THEBU-5",
-    title: "new",
-    description: "new",
-    assignee: "",
-    type: "Issue",
-    authorName: "Hao Nguyen",
-    createdAt: "2026-03-12T08:45:00.000Z",
-    modifiedAt: "2026-03-15T08:45:00.000Z",
-    status: "New",
-    priority: "Low",
-    tags: ["Issue"],
-    dueDate: undefined,
-    assignedToMe: false,
-    thumbnailUrl: "",
-    stats: { comments: 0, viewpoints: 3, attachments: 1 },
-  },
-  {
-    id: "t-4",
-    code: "THEBU-4",
-    title: "test Topic1",
-    description: "",
-    assignee: "",
-    type: "Issue",
-    authorName: "Tran Hoang Phuc",
-    createdAt: "2026-02-21T11:25:00.000Z",
-    modifiedAt: "2026-02-24T11:25:00.000Z",
-    status: "New",
-    priority: "Normal",
-    tags: ["Issue"],
-    dueDate: undefined,
-    assignedToMe: false,
-    thumbnailUrl: "",
-    stats: { comments: 0, viewpoints: 0, attachments: 0 },
-  },
-  {
-    id: "t-3",
-    code: "THEBU-3",
-    title: "example",
-    description: "",
-    assignee: "",
-    type: "Comment",
-    authorName: "Hao Nguyen",
-    createdAt: "2026-02-21T11:23:00.000Z",
-    modifiedAt: "2026-02-21T11:23:00.000Z",
-    status: "In Progress",
-    priority: "Normal",
-    tags: [],
-    dueDate: undefined,
-    assignedToMe: false,
-    thumbnailUrl: "",
-    stats: { comments: 0, viewpoints: 0, attachments: 0 },
-  },
-  {
-    id: "t-2",
-    code: "THEBU-2",
-    title: "aaaa",
-    description: "",
-    assignee: "",
-    type: "Undefined",
-    authorName: "Tran Hoang Phuc",
-    createdAt: "2025-12-25T11:42:00.000Z",
-    modifiedAt: "2026-01-02T11:42:00.000Z",
-    status: "Done",
-    priority: "Normal",
-    tags: [],
-    dueDate: undefined,
-    assignedToMe: false,
-    thumbnailUrl: "",
-    stats: { comments: 0, viewpoints: 0, attachments: 0 },
-  },
-];
 
 export function formatTopicDateTime(iso: string) {
   const d = new Date(iso);

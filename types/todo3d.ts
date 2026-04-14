@@ -41,6 +41,10 @@ export interface ITodo {
   tags?: ITagTodo[] | null;
   dueDate?: string; // ISO date string
   projectId: string;
+  /** Linked Topic3D (optional). */
+  topicId?: string | null;
+  /** Linked dashboard topic item (BCF topic instance), when set from board / topics. */
+  topicItemId?: string | null;
   createdBy: {
     _id: string;
     fullName?: string;
@@ -68,6 +72,7 @@ export interface CreateTodoDto {
   tags?: ITagTodo[] | null;
   dueDate?: string;
   projectId: string;
+  topicId?: string | null;
   items?: {
     fileUrl: string;
     modelId: string;
@@ -86,6 +91,7 @@ export interface UpdateTodoDto {
   type?: IType | null;
   tags?: ITagTodo[] | null;
   dueDate?: string;
+  topicId?: string | null;
   items?: {
     fileUrl: string;
     modelId: string;

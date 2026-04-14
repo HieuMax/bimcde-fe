@@ -35,8 +35,7 @@ function DraggableCard({
   onCheckboxClick: (item: IFolder | IFile) => void;
 }) {
   const isFolder = "totalSize" in item;
-  const folderBlocked =
-    isFolder && (item as IFolder).cdeAccessible === false;
+  const folderBlocked = isFolder && (item as IFolder).cdeAccessible === false;
   const isFileLocked = !isFolder && (item as IFile).isLocked;
 
   // --- LOGIC DND ---
@@ -115,7 +114,7 @@ function DraggableCard({
               folderBlocked
                 ? "text-slate-400 fill-slate-300"
                 : "text-slate-600 fill-slate-600",
-              isSelected ? "opacity-0" : "group-hover:opacity-0"
+              isSelected ? "opacity-0" : "group-hover:opacity-0",
             )}
           />
           {folderBlocked && !isSelected && (
@@ -130,7 +129,7 @@ function DraggableCard({
         <span
           className={cn(
             "truncate text-sm font-medium flex-1",
-            folderBlocked ? "text-slate-500" : "text-slate-700"
+            folderBlocked ? "text-slate-500" : "text-slate-700",
           )}
           title={item.name}
         >
@@ -156,7 +155,7 @@ function DraggableCard({
           {
             "border-blue-500 bg-blue-50/30 ring-1 ring-blue-500": isSelected,
             "border-slate-200 hover:border-blue-300": !isSelected,
-          }
+          },
         )}
       >
         {/* PREVIEW AREA */}
@@ -196,14 +195,14 @@ function DraggableCard({
                   "data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600 size-5 border-slate-400 bg-white shadow-sm transition-opacity z-20 absolute top-0 left-0",
                   isSelected
                     ? "opacity-100"
-                    : "opacity-0 group-hover:opacity-100"
+                    : "opacity-0 group-hover:opacity-100",
                 )}
               />
               {/* Icon */}
               <div
                 className={cn(
                   "transition-opacity duration-200",
-                  isSelected ? "opacity-0" : "group-hover:opacity-0"
+                  isSelected ? "opacity-0" : "group-hover:opacity-0",
                 )}
               >
                 <FileIcon

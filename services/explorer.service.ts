@@ -160,6 +160,32 @@ export const explorerService = {
     return data;
   },
 
+  /** ISO admin: Shared/Published → Archived/Revoked */
+  isoRevoke: async (projectId: string, itemId: string, isFile: boolean) => {
+    const data = await api.post("/explorer/iso-revoke", {
+      projectId,
+      itemId,
+      isFile,
+    });
+    return data;
+  },
+
+  /** ISO admin: restore from Revoked; overwrite replaces same-name item at destination */
+  isoRestore: async (
+    projectId: string,
+    itemId: string,
+    isFile: boolean,
+    overwrite: boolean,
+  ) => {
+    const data = await api.post("/explorer/iso-restore", {
+      projectId,
+      itemId,
+      isFile,
+      overwrite,
+    });
+    return data;
+  },
+
   renameFolder: async (folderId: string, newName: string, userId: string) => {
     const data = await api.put(`/folders/${folderId}/rename`, {
       name: newName,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { format } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import {
@@ -41,6 +41,12 @@ import { cn } from "@/lib/utils";
 import { useApi } from "@/app/hooks/useApi";
 import { useAuth } from "@/app/context/authContext";
 
+export type TopicLinkOption = {
+  id: string;
+  code: string;
+  title: string;
+};
+
 interface AddTodoDialogProps {
   open: boolean;
   priority: any[];
@@ -49,7 +55,17 @@ interface AddTodoDialogProps {
   tag: any[];
   projectId: string;
   onClose: () => void;
+  /** Topics shown in "Link to a Topic" when the user may choose (e.g. /todo page). */
+  topicLinkOptions?: TopicLinkOption[];
+  /**
+   * Pre-selected or forced topic. When `topicLinkLocked` is true, this is the only link used.
+   */
+  linkedTopicItem?: TopicLinkOption | null;
+  /** If true, the topic link cannot be changed (e.g. opened from a topic's panel). */
+  topicLinkLocked?: boolean;
 }
+
+const NONE_TOPIC_VALUE = "__none__";
 
 export default function AddTodoDialog({
   open,
@@ -59,6 +75,9 @@ export default function AddTodoDialog({
   type,
   tag,
   projectId,
+  topicLinkOptions = [],
+  linkedTopicItem = null,
+  topicLinkLocked = false,
 }: AddTodoDialogProps) {
   const [title, setTitle] = useState("");
   const [showError, setShowError] = useState(false);
@@ -70,8 +89,18 @@ export default function AddTodoDialog({
   const [dueDate, setDueDate] = useState<Date | undefined>(undefined);
   const [typeId, setTypeId] = useState<string | null>(null);
   const [createAnother, setCreateAnother] = useState(false);
-  const { post, get } = useApi();
+  const [selectedTopicLink, setSelectedTopicLink] = useState<TopicLinkOption | null>(
+    null,
+  );
+  const { post } = useApi();
   const { user } = useAuth();
+
+  useEffect(() => {
+    if (!open) return;
+    // Sync pre-selected topic when the dialog opens (controlled from parent).
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset form field when `open` becomes true
+    setSelectedTopicLink(linkedTopicItem ?? null);
+  }, [open, linkedTopicItem?.id, linkedTopicItem?.code, linkedTopicItem?.title]); // eslint-disable-line react-hooks/exhaustive-deps -- stable fields only; object identity may change each parent render
   const onToggleDetails = () => {
     setMoreDetails(!moreDetails);
   };
@@ -123,7 +152,7 @@ export default function AddTodoDialog({
       role: user?.role || "",
     };
 
-    const data = {
+    const data: Record<string, unknown> = {
       projectId: projectId,
       title,
       description,
@@ -136,26 +165,29 @@ export default function AddTodoDialog({
       modifiedBy: userCreateBy,
     };
 
+    const topicForLink = topicLinkLocked ? linkedTopicItem : selectedTopicLink;
+    if (topicForLink?.id) {
+      data.topicItemId = topicForLink.id;
+    }
+
     try {
       const response = await post(`/todo`, {
         ...data,
       });
 
-      if (response) {
-      } else {
+      if (!response) {
         alert("Failed to create todo.");
+        return;
       }
     } catch (error) {
       console.error("Error adding people to group:", error);
       alert("An error occurred while creating todo.");
-    } finally {
-      onClose();
+      return;
     }
 
     if (!createAnother) {
       onClose();
     } else {
-      // reset form nếu muốn tạo tiếp
       setTitle("");
       setDescription("");
       setSelectedUsers([]);
@@ -163,11 +195,14 @@ export default function AddTodoDialog({
       setPrioritySelected({});
       setTypeId(null);
       setDueDate(undefined);
+      if (!topicLinkLocked) {
+        setSelectedTopicLink(linkedTopicItem ?? null);
+      }
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="text-lg font-semibold">
@@ -177,6 +212,56 @@ export default function AddTodoDialog({
 
         {/* BODY */}
         <div className="space-y-4">
+          <div className="space-y-1">
+            <Label>Link to a Topic</Label>
+            {topicLinkLocked && linkedTopicItem?.id ? (
+              <div className="rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-slate-800">
+                <span className="font-medium">{linkedTopicItem.code}</span>
+                {linkedTopicItem.title ? (
+                  <span className="text-slate-700"> — {linkedTopicItem.title}</span>
+                ) : null}
+              </div>
+            ) : topicLinkLocked ? (
+              <p className="text-sm text-muted-foreground">No topic linked.</p>
+            ) : (
+              <Select
+                value={selectedTopicLink?.id ?? NONE_TOPIC_VALUE}
+                onValueChange={(v) => {
+                  if (v === NONE_TOPIC_VALUE) {
+                    setSelectedTopicLink(null);
+                    return;
+                  }
+                  const opt = topicLinkOptions.find((t) => t.id === v);
+                  setSelectedTopicLink(
+                    opt ?? { id: v, code: v, title: "" },
+                  );
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="None" />
+                </SelectTrigger>
+                <SelectContent>
+                  <ScrollArea className="h-44">
+                    <SelectItem value={NONE_TOPIC_VALUE} className="cursor-pointer">
+                      None
+                    </SelectItem>
+                    {topicLinkOptions.map((t) => (
+                      <SelectItem
+                        key={t.id}
+                        value={t.id}
+                        className="cursor-pointer h-auto min-h-11 py-2"
+                      >
+                        <span className="font-medium">{t.code}</span>
+                        {t.title ? (
+                          <span className="text-slate-600"> — {t.title}</span>
+                        ) : null}
+                      </SelectItem>
+                    ))}
+                  </ScrollArea>
+                </SelectContent>
+              </Select>
+            )}
+          </div>
           {/* Title */}
           <div className="space-y-1">
             <Label>Title</Label>

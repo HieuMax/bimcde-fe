@@ -1,13 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
-import {
-  useParams,
-  useRouter,
-  useSearchParams,
-  usePathname,
-} from "next/navigation";
-import { view2DService } from "@/services/view2d.service"; // 🌟 ĐỔI SANG VIEW 2D SERVICE
+import { useEffect, useState, useCallback, useRef } from "react";
+import { useParams, useRouter, useSearchParams, usePathname } from "next/navigation";
+import { viewService } from "@/services/view.service";
 import { viewService3D } from "@/services/view3d.service";
 import { IView } from "@/types/view";
 import { Button } from "@/components/ui/button";
@@ -77,6 +72,7 @@ export const ViewList = () => {
   // Selection State
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [editIntent, setEditIntent] = useState(false);
+  const openViewResolveAttemptedForId = useRef<string | null>(null);
 
   const handleTabChange = (val: "3D" | "2D") => {
     setActiveTab(val);
@@ -163,6 +159,43 @@ export const ViewList = () => {
       fetchViews();
     }
   }, [fetchViews]);
+
+  useEffect(() => {
+    const openViewId = searchParams.get("openViewId");
+    if (!openViewId) return;
+
+    const hitCurrentTab = views.some((v) => v._id === openViewId);
+    if (hitCurrentTab) {
+      setSelectedIds(new Set([openViewId]));
+      return;
+    }
+
+    if (loading || openViewResolveAttemptedForId.current === openViewId) return;
+    openViewResolveAttemptedForId.current = openViewId;
+
+    (async () => {
+      try {
+        const v3d = await viewService3D.getById(openViewId);
+        if (v3d?._id) {
+          setActiveTab("3D");
+          const params = new URLSearchParams(searchParams.toString());
+          params.set("type", "3D");
+          router.replace(`${pathname}?${params.toString()}`);
+          return;
+        }
+      } catch {}
+
+      try {
+        const v2d = await viewService.getViewById(openViewId);
+        if (v2d?._id) {
+          setActiveTab("2D");
+          const params = new URLSearchParams(searchParams.toString());
+          params.set("type", "2D");
+          router.replace(`${pathname}?${params.toString()}`);
+        }
+      } catch {}
+    })();
+  }, [searchParams, views, loading, router, pathname]);
 
   // --- SELECTION HANDLERS ---
   const handleSelectOne = (id: string) => {

@@ -96,6 +96,15 @@ export const ActivityItem: React.FC<ActivityItemProps> = ({
     if (activity.target.itemModel === "Folder") {
       return `/projects/${projectId}/data/folder?folderId=${activity.target.itemId}`;
     }
+    if (activity.target.itemModel === "Todo") {
+      return `/projects/${projectId}/todo?openTodoId=${activity.target.itemId}`;
+    }
+    if (activity.target.itemModel === "Topic") {
+      return `/projects/${projectId}/topics?openTopicId=${activity.target.itemId}`;
+    }
+    if (activity.target.itemModel === "View") {
+      return `/projects/${projectId}/views?openViewId=${activity.target.itemId}`;
+    }
     return null;
   };
   const targetHref = getTargetHref();

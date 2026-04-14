@@ -6,6 +6,8 @@ import {
   Calendar as CalendarIcon,
   Camera,
   ChevronDown,
+  ListTodo,
+  Play,
   Download,
   FileText,
   File as FileIcon,
@@ -19,6 +21,12 @@ import {
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Label } from "@/components/ui/label";
@@ -58,6 +66,7 @@ import {
   formatTopicDateTime,
 } from "./topic-types";
 import { TopicReferencesDialog } from "@/components/features/topics/TopicReferencesDialog";
+import { TopicTodoView } from "@/components/features/topics/TopicTodoView";
 import { RecipientSelector } from "@/components/features/release/RecipientSelector";
 import type { TopicFilterOption } from "./filters/TopicsFilters";
 import {
@@ -136,6 +145,8 @@ export const TopicPropertiesPanel: React.FC<TopicPropertiesPanelProps> =
     const [mode, setMode] = useState<"view" | "edit">(
       variant === "create" ? "edit" : "view",
     );
+    const [panelSubview, setPanelSubview] = useState<"main" | "todos">("main");
+    const [activeViewIndex, setActiveViewIndex] = useState(0);
     const [coordinationOpen, setCoordinationOpen] = useState(false);
     const [activeTab, setActiveTab] = useState<
       "comments" | "views" | "references"
@@ -222,6 +233,8 @@ export const TopicPropertiesPanel: React.FC<TopicPropertiesPanelProps> =
 
     useEffect(() => {
       setMode(variant === "create" ? "edit" : "view");
+      setPanelSubview("main");
+      setActiveViewIndex(0);
       setCoordinationOpen(false);
       setActiveTab("references");
       setFieldErrors({});
@@ -453,38 +466,73 @@ export const TopicPropertiesPanel: React.FC<TopicPropertiesPanelProps> =
       <div className="flex flex-col h-full min-w-0 overflow-hidden bg-white border-l shadow-xl">
         {mode === "view" ? (
           <div className="flex items-center justify-between p-3 border-b border-gray-200 min-h-[52px]">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-gray-800">View</span>
+            <div className="flex items-center gap-2 min-w-0">
+              {panelSubview === "todos" ? (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0"
+                    title="Back"
+                    onClick={() => setPanelSubview("main")}
+                  >
+                    <ArrowLeft className="h-4 w-4 text-gray-600" />
+                  </Button>
+                  <span className="text-sm font-semibold text-gray-800 truncate">
+                    Todo list
+                  </span>
+                </>
+              ) : (
+                <span className="text-sm font-semibold text-gray-800">View</span>
+              )}
             </div>
 
-            <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                title="Edit"
-                onClick={() => setMode("edit")}
-              >
-                <Pencil className="h-4 w-4 text-gray-500" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                title="Delete"
-                disabled
-              >
-                <Trash2 className="h-4 w-4 text-gray-500" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                title="More"
-                disabled
-              >
-                <MoreVertical className="h-4 w-4 text-gray-500" />
-              </Button>
+            <div className="flex items-center gap-1 shrink-0">
+              {panelSubview === "main" ? (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    title="Edit"
+                    onClick={() => setMode("edit")}
+                  >
+                    <Pencil className="h-4 w-4 text-gray-500" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    title="Delete"
+                    disabled
+                  >
+                    <Trash2 className="h-4 w-4 text-gray-500" />
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        title="More"
+                        disabled={variant === "create"}
+                      >
+                        <MoreVertical className="h-4 w-4 text-gray-500" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-52">
+                      <DropdownMenuItem
+                        disabled={variant === "create"}
+                        onClick={() => setPanelSubview("todos")}
+                        className="cursor-pointer"
+                      >
+                        <ListTodo className="h-4 w-4 mr-2" />
+                        See Todo List
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </>
+              ) : null}
               <Button
                 variant="ghost"
                 size="icon"
@@ -526,6 +574,11 @@ export const TopicPropertiesPanel: React.FC<TopicPropertiesPanelProps> =
           </div>
         )}
 
+        {mode === "view" && panelSubview === "todos" ? (
+          <div className="flex flex-col flex-1 min-h-0 min-w-0 p-4 overflow-hidden">
+            <TopicTodoView topic={topic} projectId={projectId} />
+          </div>
+        ) : (
         <ScrollArea className="flex-1 min-h-0 min-w-0 overflow-x-hidden">
           <div className="p-4 w-full min-w-0 max-w-full overflow-x-hidden">
             {mode === "edit" ? (
@@ -1075,8 +1128,70 @@ export const TopicPropertiesPanel: React.FC<TopicPropertiesPanelProps> =
                   )}
 
                   {activeTab === "views" && (
-                    <div className="mt-4 text-sm text-gray-500">
-                      No views available
+                    <div className="mt-4">
+                      <div className="text-[11px] font-bold text-slate-500 tracking-widest mb-3">
+                        VIEW
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        {(() => {
+                          const snaps = Array.isArray(topic.snapshots)
+                            ? topic.snapshots
+                            : [];
+                          const hasMainThumbnail = !!topic.thumbnailUrl;
+                          const hasViews = snaps.length > 0 || hasMainThumbnail;
+                          if (!hasViews) {
+                            return (
+                              <div className="col-span-3 text-center text-sm text-slate-500 py-4">
+                                No views available.
+                              </div>
+                            );
+                          }
+
+                          const views = [
+                            ...(hasMainThumbnail
+                              ? [
+                                  {
+                                    thumbnailUrl: topic.thumbnailUrl,
+                                  },
+                                ]
+                              : []),
+                            ...snaps,
+                          ];
+
+                          return views.map((snap, index) => {
+                            const isActive = index === activeViewIndex;
+                            return (
+                              <div
+                                key={`${index}-${String(snap?.thumbnailUrl ?? "no-thumb")}`}
+                                className={`aspect-square border-[3px] rounded bg-slate-100 flex justify-center items-center overflow-hidden relative group transition-colors ${
+                                  isActive
+                                    ? "border-[#005a9e]"
+                                    : "border-transparent hover:border-slate-300"
+                                }`}
+                                onClick={() => setActiveViewIndex(index)}
+                              >
+                                {snap?.thumbnailUrl ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img
+                                    src={String(snap.thumbnailUrl)}
+                                    alt={`view-${index}`}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <span className="text-[10px] text-slate-400">
+                                    No Image
+                                  </span>
+                                )}
+                                {!isActive && (
+                                  <div className="absolute inset-0 bg-black/10 hidden group-hover:flex items-center justify-center">
+                                    <Play className="w-6 h-6 text-white opacity-90 fill-white" />
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          });
+                        })()}
+                      </div>
                     </div>
                   )}
 
@@ -1171,8 +1286,11 @@ export const TopicPropertiesPanel: React.FC<TopicPropertiesPanelProps> =
             )}
           </div>
         </ScrollArea>
+        )}
 
-        {mode === "view" && activeTab === "comments" && (
+        {mode === "view" &&
+          panelSubview === "main" &&
+          activeTab === "comments" && (
           <CommentInput
             value={commentInput}
             onChange={setCommentInput}
@@ -1181,7 +1299,9 @@ export const TopicPropertiesPanel: React.FC<TopicPropertiesPanelProps> =
           />
         )}
 
-        {mode === "view" && activeTab === "references" && (
+        {mode === "view" &&
+          panelSubview === "main" &&
+          activeTab === "references" && (
           <div className="border-t p-4 bg-white flex justify-center">
             <Button
               size="icon"

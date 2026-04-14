@@ -41,6 +41,17 @@ export const topicsService = {
         fileId: aObj?.fileId ? String(aObj.fileId) : undefined,
       };
     });
+    const snapshotsRaw = Array.isArray(docObj.snapshots)
+      ? (docObj.snapshots as unknown[])
+      : [];
+    const mappedSnapshots = snapshotsRaw.map((s) => {
+      const sObj = (s ?? {}) as Record<string, unknown>;
+      return {
+        thumbnailUrl: sObj.thumbnailUrl ? String(sObj.thumbnailUrl) : undefined,
+        viewState: sObj.viewState,
+        items: Array.isArray(sObj.items) ? (sObj.items as unknown[]) : [],
+      };
+    });
     return {
       id: String(docObj?._id ?? docObj?.id ?? ""),
       code: String(docObj?.code ?? ""),
@@ -62,6 +73,9 @@ export const topicsService = {
         : undefined,
       assignedToMe: false,
       thumbnailUrl: String(docObj?.thumbnailUrl ?? ""),
+      snapshots: mappedSnapshots,
+      viewState: docObj?.viewState,
+      items: Array.isArray(docObj?.items) ? (docObj.items as unknown[]) : [],
       attachments: mappedAttachments,
       stats: {
         comments: Number(stats?.comments ?? 0),
@@ -100,6 +114,17 @@ export const topicsService = {
         fileId: aObj?.fileId ? String(aObj.fileId) : undefined,
       };
     });
+    const snapshotsRaw = Array.isArray(docObj.snapshots)
+      ? (docObj.snapshots as unknown[])
+      : [];
+    const mappedSnapshots = snapshotsRaw.map((s) => {
+      const sObj = (s ?? {}) as Record<string, unknown>;
+      return {
+        thumbnailUrl: sObj.thumbnailUrl ? String(sObj.thumbnailUrl) : undefined,
+        viewState: sObj.viewState,
+        items: Array.isArray(sObj.items) ? (sObj.items as unknown[]) : [],
+      };
+    });
     return {
       id: String(docObj?._id ?? docObj?.id ?? ""),
       code: String(docObj?.code ?? ""),
@@ -121,6 +146,9 @@ export const topicsService = {
         : undefined,
       assignedToMe: false,
       thumbnailUrl: String(docObj?.thumbnailUrl ?? ""),
+      snapshots: mappedSnapshots,
+      viewState: docObj?.viewState,
+      items: Array.isArray(docObj?.items) ? (docObj.items as unknown[]) : [],
       attachments: mappedAttachments,
       stats: {
         comments: Number(stats?.comments ?? 0),
@@ -155,6 +183,17 @@ export const topicsService = {
           fileId: aObj?.fileId ? String(aObj.fileId) : undefined,
         };
       });
+      const snapshotsRaw = Array.isArray(docObj.snapshots)
+        ? (docObj.snapshots as unknown[])
+        : [];
+      const mappedSnapshots = snapshotsRaw.map((s) => {
+        const sObj = (s ?? {}) as Record<string, unknown>;
+        return {
+          thumbnailUrl: sObj.thumbnailUrl ? String(sObj.thumbnailUrl) : undefined,
+          viewState: sObj.viewState,
+          items: Array.isArray(sObj.items) ? (sObj.items as unknown[]) : [],
+        };
+      });
       const attachmentsCount = mappedAttachments.length;
       return {
         id: String(docObj?._id ?? docObj?.id ?? ""),
@@ -177,6 +216,9 @@ export const topicsService = {
           : undefined,
         assignedToMe: false,
         thumbnailUrl: String(docObj?.thumbnailUrl ?? ""),
+        snapshots: mappedSnapshots,
+        viewState: docObj?.viewState,
+        items: Array.isArray(docObj?.items) ? (docObj.items as unknown[]) : [],
         attachments: mappedAttachments,
         stats: {
           comments: Number(stats?.comments ?? 0),
