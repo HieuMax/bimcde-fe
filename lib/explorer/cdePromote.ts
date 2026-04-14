@@ -22,6 +22,35 @@ export function isWipVersionEligibleForPromoteToShared(file: IFile): boolean {
   return pv !== file.currentVersion;
 }
 
+function wipRevisionAlreadyPromotedToShared(file: IFile): boolean {
+  const pv = file.wipPromotedToSharedVersion;
+  return pv != null && pv === file.currentVersion;
+}
+
+/**
+ * ISO WIP→Shared: admins (admin-uploaded) or group leaders (leader-uploaded) may promote without submit;
+ * member-uploaded still requires submit + group leader.
+ */
+export function canPromoteWipToSharedIso(
+  file: IFile,
+  caps: CdeCapabilities,
+): boolean {
+  if (wipRevisionAlreadyPromotedToShared(file)) return false;
+
+  const mode = file.wipDirectPromoteMode ?? "member_submit";
+  if (mode === "admin_direct") {
+    return !!caps.isProjectAdmin;
+  }
+  if (mode === "leader_direct") {
+    return (
+      !!caps.isGroupLeader &&
+      !!file.effectiveGroupId &&
+      (caps.leaderGroupIds?.includes(file.effectiveGroupId) ?? false)
+    );
+  }
+  return !!caps.isGroupLeader && isCurrentVersionSubmittedForReview(file);
+}
+
 /**
  * Shared→Published: hide “Promote to Published” when this revision was already promoted;
  * show again after `sharedPromotedToPublishedVersion !== currentVersion` (new upload or WIP→Shared revision).
@@ -54,9 +83,7 @@ export function getPromoteOptionsForFile(
   if (workflowMode !== "ISO_19650") return [];
 
   const canWipToShared =
-    caps.isGroupLeader &&
-    !!file &&
-    isWipVersionEligibleForPromoteToShared(file);
+    !!file && canPromoteWipToSharedIso(file, caps);
   const canSharedToPublished =
     caps.isProjectAdmin &&
     !!file &&

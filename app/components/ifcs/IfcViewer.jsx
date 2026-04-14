@@ -52,7 +52,8 @@ export default function IfcViewer({
   cameraMode,
   selectionMode,
   activeTool,
-  onToolChange
+  onToolChange,
+  onAddTodoForTopic,
 }) {
   const canvasRef = useRef(null);
   const loaderRef = useRef(null);
@@ -1301,6 +1302,7 @@ export default function IfcViewer({
                 >
                   <Topics 
                     projectId={projectId} 
+                    onAddTodoForTopic={onAddTodoForTopic}
                     capture3DState={
                       async () =>{
                         const snapshot = getSnapshot();

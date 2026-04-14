@@ -47,6 +47,8 @@ export interface IFolder {
   isCdeRoot?: boolean;
   /** ISO: when this row is a CDE root, which stage (WIP, SHARED, PUBLISHED, ARCHIVED) */
   cdeStage?: string;
+  /** ISO: set when folder was revoked from Shared/Published — original parent before Archived/Revoked */
+  isoRevokeOriginalParentId?: string | null;
 }
 
 export interface IFileVersion {
@@ -57,11 +59,13 @@ export interface IFileVersion {
   location: string;
   size: number;
   mimeType: string;
-  uploadedBy: {
-    _id: string;
-    fullName: string;
-    email?: string;
-  } | string;
+  uploadedBy:
+    | {
+        _id: string;
+        fullName: string;
+        email?: string;
+      }
+    | string;
 
   createdAt: string;
 }
@@ -75,6 +79,29 @@ export interface IFile {
   projectName?: string;
   currentVersion: number;
   versions?: IFileVersion[];
+  /** GET /files/:id — detailed audit trail (same rows as versions when both present) */
+  versionHistory?: Array<{
+    version: number;
+    fileName?: string;
+    size?: number;
+    mimeType?: string;
+    location?: string;
+    createdAt?: string;
+    uploadedBy?: { fullName?: string; email?: string } | null;
+  }>;
+  /**
+   * ISO 19650 only (GET /files/:id): merged revisions across WIP + Shared + Published promote chain, with stage tags.
+   */
+  unifiedVersionHistory?: Array<{
+    version: number;
+    stageLabels: string[];
+    fileName?: string;
+    size?: number;
+    mimeType?: string;
+    location?: string;
+    createdAt?: string;
+    uploadedBy?: { fullName?: string; email?: string } | null;
+  }> | null;
 
   size: number;
   mimeType: string;
@@ -83,7 +110,7 @@ export interface IFile {
   updatedAt: string;
   isLocked: boolean;
   lockedBy?: string;
-  modifiedBy?: string; 
+  modifiedBy?: string;
   thumbnail?: string;
   tags?: ITag[];
 
@@ -94,15 +121,17 @@ export interface IFile {
   previewSrc?: string;
   uploadedBy?: string; // Thêm để hỗ trợ display
   createdAt?: string;
-  createdBy?: IFolder['createdBy'];
+  createdBy?: IFolder["createdBy"];
 
-  description?: string; 
-  lastAccessed?: string; 
+  description?: string;
+  lastAccessed?: string;
 
-  permission?: "VIEW" | "DOWNLOAD" ;
+  permission?: "VIEW" | "DOWNLOAD";
 
   /** Denormalized CDE stage on file (optional) */
   cdeStage?: string;
+  /** ISO: set when file was revoked from Shared/Published — original folderId before Archived/Revoked */
+  isoRevokeOriginalFolderId?: string | null;
   workflowStatus?:
     | "WIP_DRAFT"
     | "SUBMITTED_FOR_REVIEW"
@@ -118,6 +147,11 @@ export interface IFile {
   parentCdeRootStage?: string | null;
   /** ISO: effective group from parent folder chain (move within same group) */
   effectiveGroupId?: string | null;
+  /**
+   * ISO WIP: who uploaded the current revision — drives promote/submit UI.
+   * admin_direct / leader_direct skip submit-for-review; member_submit keeps the member→leader flow.
+   */
+  wipDirectPromoteMode?: "admin_direct" | "leader_direct" | "member_submit";
 }
 
 /** GET /files/:id/publish-readiness (ISO Shared→Published checklist) */
@@ -137,7 +171,7 @@ export interface FilePublishReadiness {
 // Merge PageItem
 export interface PageItem {
   _id: string;
-  index: number; 
+  index: number;
   pageNumber?: number;
   fileId: string;
   imageSrc?: string;
@@ -157,17 +191,21 @@ export interface ViewItem {
 
   viewState?: ViewState;
 
-  createdBy?: {
-    _id: string;
-    fullName: string;
-    email?: string;
-  } | string;
+  createdBy?:
+    | {
+        _id: string;
+        fullName: string;
+        email?: string;
+      }
+    | string;
 
-  updatedBy?: {
-    _id: string;
-    fullName: string;
-    email?: string;
-  } | string;
+  updatedBy?:
+    | {
+        _id: string;
+        fullName: string;
+        email?: string;
+      }
+    | string;
 
   createdAt?: string;
   updatedAt?: string;
@@ -180,7 +218,7 @@ export interface TodoItem {
   _id: string;
   title: string;
   description?: string;
-  status?: "Open" | "In Progress" | "Done" | "On Hold"; 
+  status?: "Open" | "In Progress" | "Done" | "On Hold";
   priority?: "Low" | "Normal" | "High" | "Urgent";
   type?: string;
   dueDate?: string;

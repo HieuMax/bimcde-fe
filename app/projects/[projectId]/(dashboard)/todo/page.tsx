@@ -1,11 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { startOfDay, endOfDay } from "date-fns";
 
 import { useApi } from "@/app/hooks/useApi";
 import { useAuth } from "@/app/context/authContext";
 import AddTodoDialog from "@/components/features/todo/dialog/addTodoDialog";
+import type { TopicLinkOption } from "@/components/features/todo/dialog/addTodoDialog";
+import { topicsService } from "@/services/topics.service";
 import DropDownCheckBox from "@/components/features/todo/dropdown/dropdownCheckBox";
 import DropdownDatePicker from "@/components/features/todo/dropdown/dropdownDatePciker";
 import { columnsTable } from "@/components/features/todo/table/column";
@@ -50,6 +53,11 @@ export default function page({
 }: {
   params: Promise<{ projectId: string }>;
 }) {
+  const routeParams = useParams();
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const fromTopicQueryHandled = useRef(false);
+  const openTodoQueryHandled = useRef(false);
   const [date, setDate] = useState("");
   const [dateRange, setDateRange] = useState<{
     from: Date | null;
@@ -70,6 +78,11 @@ export default function page({
   const [isOpenDrawer, setIsOpenDrawer] = useState(false);
   const [projectId, setProjectId] = useState("");
   const [openDialog, setOpenDialog] = useState(false);
+  const [linkedTopicForNewTodo, setLinkedTopicForNewTodo] =
+    useState<TopicLinkOption | null>(null);
+  const [topicLinkOptions, setTopicLinkOptions] = useState<TopicLinkOption[]>(
+    [],
+  );
   const [rowSelection, setRowSelection] = useState<ITodo | null>(null);
   // Filter states
   const [selectedOwners, setSelectedOwners] = useState<string[]>([]);
@@ -194,6 +207,76 @@ export default function page({
     getAllTags();
     getAllTodo();
   }, []);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const pid = (await params).projectId;
+        const items = await topicsService.getTopicItems(pid);
+        if (!alive) return;
+        setTopicLinkOptions(
+          items.map((t) => ({
+            id: t.id,
+            code: t.code,
+            title: t.title,
+          })),
+        );
+      } catch (e) {
+        console.error("Failed to load topics for todo link:", e);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [params]);
+
+  useEffect(() => {
+    if (fromTopicQueryHandled.current) return;
+    if (searchParams.get("openAddTodo") !== "1") return;
+    fromTopicQueryHandled.current = true;
+    const tid = searchParams.get("topicItemId");
+    if (tid) {
+      setLinkedTopicForNewTodo({
+        id: tid,
+        code: searchParams.get("topicCode") || "",
+        title: searchParams.get("topicTitle") || "",
+      });
+    } else {
+      setLinkedTopicForNewTodo(null);
+    }
+    setOpenDialog(true);
+    const pid =
+      typeof routeParams?.projectId === "string" ? routeParams.projectId : "";
+    if (pid) {
+      router.replace(`/projects/${pid}/todo`, { scroll: false });
+    }
+  }, [searchParams, router, routeParams?.projectId]);
+
+  useEffect(() => {
+    if (openTodoQueryHandled.current) return;
+    const todoId = searchParams.get("openTodoId");
+    if (!todoId) return;
+    openTodoQueryHandled.current = true;
+
+    (async () => {
+      try {
+        const todo = await get(`/todo/${todoId}`);
+        if (todo) {
+          setRowSelection(todo);
+          setIsOpenDrawer(true);
+        }
+      } catch (err) {
+        console.error("Failed to open todo from query:", err);
+      } finally {
+        const pid =
+          typeof routeParams?.projectId === "string" ? routeParams.projectId : "";
+        if (pid) {
+          router.replace(`/projects/${pid}/todo`, { scroll: false });
+        }
+      }
+    })();
+  }, [searchParams, get, router, routeParams?.projectId]);
   //#endregion
 
   //#region HANDLE FILTER
@@ -365,6 +448,8 @@ export default function page({
 
   const onCloseDialog = () => {
     setOpenDialog(false);
+    setLinkedTopicForNewTodo(null);
+    fromTopicQueryHandled.current = false;
     onLoadApi();
   };
 
@@ -408,7 +493,10 @@ export default function page({
           <h1 className="text-xl font-normal text-gray-800">Todo</h1>
 
           <Button
-            onClick={() => setOpenDialog(true)}
+            onClick={() => {
+              setLinkedTopicForNewTodo(null);
+              setOpenDialog(true);
+            }}
             className="bg-[#406D87] hover:bg-[#345a70] px-6 py-4 rounded text-base font-medium flex items-center transition-colors disabled:opacity-50 outline-none ring-0 focus-visible:ring-0 focus-visible:ring-offset-0">
             New
           </Button>
@@ -481,6 +569,9 @@ export default function page({
           type={typeData}
           tag={tagData}
           projectId={projectId}
+          topicLinkOptions={topicLinkOptions}
+          topicLinkLocked={false}
+          linkedTopicItem={linkedTopicForNewTodo}
           onClose={onCloseDialog}
         />
       </div>

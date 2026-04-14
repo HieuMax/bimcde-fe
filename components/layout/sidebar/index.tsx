@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowLeft,
   Folder,
@@ -16,6 +16,8 @@ import { useSearchParams } from "next/navigation";
 
 import { cn } from "@/lib/utils";
 import { useSidebar } from "@/app/context/SidebarProvider";
+import { useApi } from "@/app/hooks/useApi";
+import { useAuth } from "@/app/context/authContext";
 
 // Imports
 import { MAIN_MENU_ITEMS, SETTINGS_ITEMS } from "./config";
@@ -30,14 +32,41 @@ export default function Sidebar() {
   const { isCollapsed } = useSidebar();
   const { projectId, basePath, pathname, checkIsActive } = useSidebarLogic();
   const searchParams = useSearchParams();
+  const { get } = useApi();
+  const { user } = useAuth();
 
   const [sidebarMode, setSidebarMode] = useState<SidebarMode>("main");
   const [expandState, setExpandState] = useState({
     data: true,
     settings: false,
   });
+  const [isProjectAdmin, setIsProjectAdmin] = useState(false);
 
   if (!projectId) return null;
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      if (!projectId || !user?._id) {
+        if (alive) setIsProjectAdmin(false);
+        return;
+      }
+      try {
+        const response = await get(`/projects/${projectId}/members`);
+        const members = Array.isArray(response?.result) ? response.result : [];
+        const me = members.find(
+          (m: { userId?: string; role?: string }) =>
+            String(m.userId) === String(user._id),
+        );
+        if (alive) setIsProjectAdmin(String(me?.role ?? "").toLowerCase() === "admin");
+      } catch {
+        if (alive) setIsProjectAdmin(false);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [projectId, user?._id, get]);
 
   const dataPath = `${basePath}/data`;
   const sidebarWidthClass = isCollapsed
@@ -51,9 +80,9 @@ export default function Sidebar() {
   const hasActiveDataChild =
     isExplorerActive || isViewsActive || isReleasesActive;
 
-  const hasActiveSettingsChild = SETTINGS_ITEMS.some((item) =>
-    checkIsActive(item.pathSegment),
-  );
+  const hasActiveSettingsChild =
+    isProjectAdmin &&
+    SETTINGS_ITEMS.some((item) => checkIsActive(item.pathSegment));
 
   // --- RENDER 1: EXPLORER MODE ---
   if (sidebarMode === "explorer" && !isCollapsed) {
@@ -191,33 +220,35 @@ export default function Sidebar() {
           ))}
 
           {/* === GROUP: SETTINGS === */}
-          <div className="pt-1">
-            <SidebarGroup
-              icon={<Settings size={18} />}
-              label="Settings"
-              isCollapsed={isCollapsed}
-              isExpanded={expandState.settings}
-              hasActiveChild={hasActiveSettingsChild}
-              onToggle={() =>
-                setExpandState((prev) => ({
-                  ...prev,
-                  settings: !prev.settings,
-                }))
-              }
-            >
-              {SETTINGS_ITEMS.map((item) => (
-                <SidebarItem
-                  key={item.key}
-                  icon={<item.icon size={18} />}
-                  label={item.label}
-                  href={`${basePath}/${item.pathSegment}`}
-                  isActive={checkIsActive(item.pathSegment)}
-                  isCollapsed={false}
-                  indent={!isCollapsed}
-                />
-              ))}
-            </SidebarGroup>
-          </div>
+          {isProjectAdmin ? (
+            <div className="pt-1">
+              <SidebarGroup
+                icon={<Settings size={18} />}
+                label="Settings"
+                isCollapsed={isCollapsed}
+                isExpanded={expandState.settings}
+                hasActiveChild={hasActiveSettingsChild}
+                onToggle={() =>
+                  setExpandState((prev) => ({
+                    ...prev,
+                    settings: !prev.settings,
+                  }))
+                }
+              >
+                {SETTINGS_ITEMS.map((item) => (
+                  <SidebarItem
+                    key={item.key}
+                    icon={<item.icon size={18} />}
+                    label={item.label}
+                    href={`${basePath}/${item.pathSegment}`}
+                    isActive={checkIsActive(item.pathSegment)}
+                    isCollapsed={false}
+                    indent={!isCollapsed}
+                  />
+                ))}
+              </SidebarGroup>
+            </div>
+          ) : null}
         </nav>
       </div>
     </aside>

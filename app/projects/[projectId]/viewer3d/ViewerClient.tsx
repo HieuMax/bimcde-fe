@@ -27,6 +27,13 @@ import { viewService3D as viewService } from "@/services/view3d.service";
 import { toast } from "sonner";
 import { ViewDrawer } from "@/components/views/ViewDrawer";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/app/context/authContext";
+import {
+  initSocket,
+  onTopicResolveSuggestion,
+  offTopicResolveSuggestion,
+} from "@/app/libs/socket";
+import { topicService } from "@/services/topic3d.service";
 import { NewClashDrawer } from "@/components/_3d/clash_sets/NewClashDrawer";
 import { CreateClashSetDto } from "@/types/clash";
 import { clashService } from "@/services/clash.service";
@@ -57,6 +64,8 @@ export default function ViewerClient() {
   const router = useRouter();
   const { projectId } = useParams();
   const searchParams = useSearchParams();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
 
   const [state, setState] = React.useState("models");
   const [ifcUrls, setIfcUrls] = useState<string[]>([]);
@@ -82,6 +91,9 @@ export default function ViewerClient() {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [drawerInitialData, setDrawerInitialData] =
     useState<NewTodoInitialData | null>(null);
+  const [presetTopicIdForTodo, setPresetTopicIdForTodo] = useState<
+    string | null
+  >(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
 
   // --- CONSTANTS STORAGE KEYS ---
@@ -96,8 +108,6 @@ export default function ViewerClient() {
   // } | null>(null);
 
   const [pendingTodo, setPendingTodo] = useState<any>(null);
-
-  const queryClient = useQueryClient();
 
   const viewerActions = React.useRef<{
     capture: () => any;
@@ -169,6 +179,7 @@ export default function ViewerClient() {
 
     switch (tool) {
       case "todo":
+        setPresetTopicIdForTodo(null);
         setIsDrawerOpen(true);
         setIsViewDrawerOpen(false);
         break;
@@ -191,6 +202,7 @@ export default function ViewerClient() {
   const handleDrawerClose = (isOpen: boolean) => {
     setIsDrawerOpen(isOpen);
     if (!isOpen && activeTool === "todo") setActiveTool(null);
+    if (!isOpen) setPresetTopicIdForTodo(null);
   };
 
   const handleViewDrawerClose = (isOpen: boolean) => {
@@ -347,6 +359,8 @@ export default function ViewerClient() {
       return;
     }
 
+    setPresetTopicIdForTodo(null);
+
     let targetUrls: string[] = [];
     if (todo.items && todo.items.length > 0) {
       targetUrls = Array.from(
@@ -461,12 +475,13 @@ export default function ViewerClient() {
     window.location.reload();
   };
 
-  const onAddTodo = () => {
+  const onAddTodo = (opts?: { presetTopicId?: string | null }) => {
     if (isDrawerOpen && activeTool === "todo") {
       setIsDrawerOpen(false);
       setActiveTool(null);
       return;
     }
+    setPresetTopicIdForTodo(opts?.presetTopicId ?? null);
     setTodoToEdit(null);
     setDrawerMode("create");
 
@@ -523,6 +538,48 @@ export default function ViewerClient() {
     setIsViewDrawerOpen(false);
     setActiveTool("todo");
   };
+
+  useEffect(() => {
+    if (!user?._id || !projectId) return;
+    initSocket(String(user._id));
+    const handler = (data: {
+      topicId: string;
+      topicKey: string;
+      projectId: string;
+    }) => {
+      if (String(data.projectId) !== String(projectId)) return;
+      toast.info(
+        `Topic ${data.topicKey}: all linked todos are done. Mark the topic as Done?`,
+        {
+          duration: 20_000,
+          action: {
+            label: "Mark Done",
+            onClick: () => {
+              topicService
+                .updateTopic(data.topicId, { status: "Done" })
+                .then(() => {
+                  queryClient.invalidateQueries({
+                    queryKey: ["topics", projectId],
+                  });
+                  toast.success("Topic marked as Done");
+                })
+                .catch((err: unknown) => {
+                  const msg =
+                    (
+                      err as { response?: { data?: { message?: string } } }
+                    )?.response?.data?.message ||
+                    (err as Error)?.message ||
+                    "Could not update topic";
+                  toast.error(msg);
+                });
+            },
+          },
+        },
+      );
+    };
+    onTopicResolveSuggestion(handler);
+    return () => offTopicResolveSuggestion();
+  }, [user?._id, projectId, queryClient]);
 
   const handleSelectTodo = (todo: any) => {
     let targetUrls: string[] = [];
@@ -881,6 +938,9 @@ export default function ViewerClient() {
               selectionMode={selectionMode}
               activeTool={activeTool}
               onToolChange={(tool: ActiveToolType) => setActiveTool(tool)}
+              onAddTodoForTopic={(topicId: string) =>
+                onAddTodo({ presetTopicId: topicId })
+              }
             />
 
             {/* --- DATA TABLE DRAWER (BOTTOM) --- */}
@@ -899,6 +959,7 @@ export default function ViewerClient() {
         todoToEdit={todoToEdit}
         initialData={drawerInitialData}
         currentSelection={selectedItems}
+        presetTopicId={presetTopicIdForTodo}
       />
 
       {/* RENDER VIEW DRAWER */}

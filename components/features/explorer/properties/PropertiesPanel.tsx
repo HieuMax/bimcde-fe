@@ -16,6 +16,8 @@ import TagsView from "./views/TagsView";
 import ActivitiesView from "./components/views/ActivitiesView";
 import { useQueryClient } from "@tanstack/react-query";
 import { explorerService } from "@/services/explorer.service";
+import { isAxiosError } from "axios";
+import { toast } from "sonner";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -85,7 +87,89 @@ export default function PropertiesPanel({
   const [view, setView] = useState<ViewMode>("details");
   const [publishModalOpen, setPublishModalOpen] = useState(false);
   const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
+  const [isoRevokeDialogOpen, setIsoRevokeDialogOpen] = useState(false);
+  const [isoRestoreConflictOpen, setIsoRestoreConflictOpen] = useState(false);
+  const [isoRestoreBusy, setIsoRestoreBusy] = useState(false);
   const queryClient = useQueryClient();
+
+  const invalidateExplorer = () => {
+    queryClient.invalidateQueries({ queryKey: ["explorer", projectId] });
+    queryClient.invalidateQueries({ queryKey: ["folder-tree", projectId] });
+  };
+
+  const handleIsoRevokeConfirm = async () => {
+    if (!item) return;
+    try {
+      await explorerService.isoRevoke(
+        projectId,
+        item._id,
+        "mimeType" in item,
+      );
+      invalidateExplorer();
+      toast.success("Revoked to Archived / Revoked");
+      setIsoRevokeDialogOpen(false);
+      onClose();
+    } catch (e) {
+      const m = isAxiosError(e) ? (e.response?.data as { message?: string })?.message : null;
+      toast.error(typeof m === "string" ? m : "Revoke failed");
+    }
+  };
+
+  const handleIsoRestore = async () => {
+    if (!item) return;
+    setIsoRestoreBusy(true);
+    try {
+      await explorerService.isoRestore(
+        projectId,
+        item._id,
+        "mimeType" in item,
+        false,
+      );
+      invalidateExplorer();
+      toast.success("Restored successfully");
+      onClose();
+    } catch (e) {
+      if (isAxiosError(e) && e.response?.status === 409) {
+        const msg = String((e.response?.data as { message?: string })?.message ?? "");
+        if (msg.includes("RESTORE_NAME_CONFLICT")) {
+          setIsoRestoreConflictOpen(true);
+        } else {
+          toast.error(msg || "Restore failed");
+        }
+      } else {
+        const m = isAxiosError(e)
+          ? (e.response?.data as { message?: string })?.message
+          : null;
+        toast.error(typeof m === "string" ? m : "Restore failed");
+      }
+    } finally {
+      setIsoRestoreBusy(false);
+    }
+  };
+
+  const handleIsoRestoreOverwrite = async () => {
+    if (!item) return;
+    setIsoRestoreBusy(true);
+    try {
+      await explorerService.isoRestore(
+        projectId,
+        item._id,
+        "mimeType" in item,
+        true,
+      );
+      invalidateExplorer();
+      toast.success("Restored successfully");
+      setIsoRestoreConflictOpen(false);
+      onClose();
+    } catch (e) {
+      const m = isAxiosError(e)
+        ? (e.response?.data as { message?: string })?.message
+        : null;
+      toast.error(typeof m === "string" ? m : "Restore failed");
+    } finally {
+      setIsoRestoreBusy(false);
+    }
+  };
 
   React.useEffect(() => {
     if (!open) {
@@ -99,6 +183,8 @@ export default function PropertiesPanel({
     setView("details");
     setPublishModalOpen(false);
     setArchiveConfirmOpen(false);
+    setIsoRevokeDialogOpen(false);
+    setIsoRestoreConflictOpen(false);
   }, [item?._id]);
 
   React.useEffect(() => {
@@ -135,6 +221,8 @@ export default function PropertiesPanel({
               isSubmittingReview={isSubmittingReview}
               currentUserId={currentUserId}
               onOpenActivity={() => setView("activity")}
+              onIsoRevoke={() => setIsoRevokeDialogOpen(true)}
+              onIsoRestore={handleIsoRestore}
             />
           )}
 
@@ -196,6 +284,53 @@ export default function PropertiesPanel({
               }}
             />
           )}
+
+          <AlertDialog
+            open={isoRevokeDialogOpen}
+            onOpenChange={setIsoRevokeDialogOpen}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Revoke item</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will move the item into{" "}
+                  <strong>4. Archived / Revoked</strong>. It can be restored later
+                  from there (admin only).
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => void handleIsoRevokeConfirm()}>
+                  Revoke
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          <AlertDialog
+            open={isoRestoreConflictOpen}
+            onOpenChange={setIsoRestoreConflictOpen}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Restore — name conflict</AlertDialogTitle>
+                <AlertDialogDescription>
+                  At the destination there is already a file or folder with the same
+                  name (it may be a newer version). Do you want to restore anyway?
+                  The existing item at the destination will be replaced (removed).
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={isoRestoreBusy}>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  disabled={isoRestoreBusy}
+                  onClick={() => void handleIsoRestoreOverwrite()}
+                >
+                  {isoRestoreBusy ? "Restoring…" : "Confirm restore"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
           <AlertDialog
             open={archiveConfirmOpen}

@@ -17,6 +17,8 @@ import {
   Unlock,
   ArrowUpCircle,
   Send,
+  Ban,
+  Undo2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -70,6 +72,10 @@ interface Props {
   onSubmitForReview?: () => void;
   isSubmittingReview?: boolean;
   currentUserId?: string;
+  /** ISO admin Shared/Published: revoke instead of delete */
+  onIsoRevoke?: () => void;
+  /** ISO admin: restore from Archived/Revoked */
+  onIsoRestore?: () => void;
 }
 
 export default function ToolbarSection({
@@ -94,6 +100,8 @@ export default function ToolbarSection({
   onSubmitForReview,
   isSubmittingReview,
   currentUserId,
+  onIsoRevoke,
+  onIsoRestore,
 }: Props) {
   const isFile = "mimeType" in item;
   const [isAddToReleaseOpen, setIsAddToReleaseOpen] = useState(false);
@@ -127,6 +135,19 @@ export default function ToolbarSection({
   const isIsoAdminRestrictedFolder =
     !isFile && isIsoAdmin && (isRootFolder || isGroupHomeFolder);
 
+  const parentStage = isFile
+    ? fileItem?.parentCdeRootStage
+    : folderItem?.parentCdeRootStage;
+  const showIsoRestore = isFile
+    ? !!fileItem?.isoRevokeOriginalFolderId
+    : !!folderItem?.isoRevokeOriginalParentId;
+  const showIsoRevoke =
+    workflowMode === "ISO_19650" &&
+    !!cdeCapabilities?.isProjectAdmin &&
+    !showIsoRestore &&
+    (parentStage === "SHARED" || parentStage === "PUBLISHED");
+  const hideDeleteForIsoRevoke = showIsoRevoke;
+
   const promoteOptions = useMemo(() => {
     if (!isFile || !cdeCapabilities || (!onPromote && !onOpenPromoteDestination)) return [];
     return getPromoteOptionsForFile(
@@ -156,10 +177,12 @@ export default function ToolbarSection({
     fileItem &&
     isCurrentVersionSubmittedForReview(fileItem);
 
+  const wipMode = isFile ? (fileItem?.wipDirectPromoteMode ?? "member_submit") : "member_submit";
   const showSubmitForReview =
     isFile &&
     workflowMode === "ISO_19650" &&
     (item as IFile).parentCdeRootStage === "WIP" &&
+    wipMode === "member_submit" &&
     !!cdeCapabilities &&
     !cdeCapabilities.isProjectAdmin &&
     !cdeCapabilities.isGroupLeader &&
@@ -249,7 +272,23 @@ export default function ToolbarSection({
           />
         )}
 
-        {!isIsoAdminRestrictedFolder && (
+        {showIsoRestore && onIsoRestore && (
+          <TooltipAction
+            icon={<Undo2 size={18} />}
+            label="Restore"
+            onClick={onIsoRestore}
+          />
+        )}
+
+        {showIsoRevoke && onIsoRevoke && (
+          <TooltipAction
+            icon={<Ban size={18} />}
+            label="Revoke"
+            onClick={onIsoRevoke}
+          />
+        )}
+
+        {!isIsoAdminRestrictedFolder && !hideDeleteForIsoRevoke && (
           <TooltipAction
             icon={<Trash2 size={18} />}
             label="Delete"
@@ -363,21 +402,32 @@ export default function ToolbarSection({
               <span>Download</span>
             </DropdownMenuItem>
 
-            {!isFileBasicPanel && (
-              <>
-                <DropdownMenuItem onClick={onOpenMove} className="cursor-pointer">
-                  <FolderInput className="mr-2 h-4 w-4 text-slate-500" />
-                  <span>Move to...</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={onDelete}
-                  className="text-red-600 focus:text-red-600 focus:bg-red-50 cursor-pointer"
-                >
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  <span>Delete</span>
-                </DropdownMenuItem>
-              </>
+        {!isFileBasicPanel && (
+          <>
+            <DropdownMenuItem onClick={onOpenMove} className="cursor-pointer">
+              <FolderInput className="mr-2 h-4 w-4 text-slate-500" />
+              <span>Move to...</span>
+            </DropdownMenuItem>
+            {showIsoRevoke && onIsoRevoke && (
+              <DropdownMenuItem
+                onClick={onIsoRevoke}
+                className="text-amber-800 focus:text-amber-900 focus:bg-amber-50 cursor-pointer"
+              >
+                <Ban className="mr-2 h-4 w-4" />
+                <span>Revoke</span>
+              </DropdownMenuItem>
             )}
+            {!hideDeleteForIsoRevoke && (
+              <DropdownMenuItem
+                onClick={onDelete}
+                className="text-red-600 focus:text-red-600 focus:bg-red-50 cursor-pointer"
+              >
+                <Trash2 className="mr-2 h-4 w-4" />
+                <span>Delete</span>
+              </DropdownMenuItem>
+            )}
+          </>
+        )}
 
             <DropdownMenuSeparator />
 
@@ -466,6 +516,18 @@ export default function ToolbarSection({
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
+      )}
+
+      {!isFileBasicPanel && showIsoRestore && onIsoRestore && (
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full h-9 px-3 justify-start text-xs font-medium border-emerald-200 bg-emerald-50/80 text-emerald-950 hover:bg-emerald-100"
+          onClick={onIsoRestore}
+        >
+          <Undo2 className="mr-2 h-4 w-4" />
+          Restore
+        </Button>
       )}
 
       {!isFileBasicPanel && showMoveToArchived && isFile && (

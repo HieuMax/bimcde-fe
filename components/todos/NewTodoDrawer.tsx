@@ -1,10 +1,10 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
-import { AxiosError } from "axios";
-// import "./todoDrawer.css";
+import { useState, useEffect, useRef } from "react"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import { toast } from "sonner"
+import { AxiosError } from "axios"
+import "./todoDrawer.css"
 
 import { Button } from "@/components/ui/button";
 import {
@@ -24,17 +24,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  Calendar,
-  Eye,
-  LinkIcon,
-  MoveLeft,
-  Plus,
-  Trash2,
-  Paperclip,
-  Download,
-  X,
-  File as FileIcon,
-  Pencil,
+  Calendar, Eye, LinkIcon, MoveLeft, Plus, Trash2,
+  Paperclip, Download, X, File as FileIcon,
+  Pencil
 } from "lucide-react";
 import { todoService } from "@/services/todo3d.service";
 import { topicSettingsService } from "@/services/topicSettings.service";
@@ -45,6 +37,7 @@ import {
   IPriority,
   IType,
 } from "@/types/todo3d";
+import { topicService } from "@/services/topic3d.service"
 
 import { AttachFileDialog } from "./AttachFileDialog";
 import { AssignedSelector } from "./AssignedSelector";
@@ -70,7 +63,9 @@ interface NewTodoDrawerProps {
     title?: string;
     viewState?: any;
   } | null;
-  currentSelection?: any[];
+  currentSelection?: any[]
+  /** When set (e.g. “Add todo” from a topic), topic is linked automatically and the topic picker is hidden. */
+  presetTopicId?: string | null
 }
 
 // Helper format size
@@ -91,6 +86,7 @@ export function NewTodoDrawer({
   mode,
   initialData,
   currentSelection = [],
+  presetTopicId = null,
 }: NewTodoDrawerProps) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -144,9 +140,25 @@ export function NewTodoDrawer({
   }, [mode, open]);
 
   const formatDate = (date?: string) =>
-    date ? new Date(date).toLocaleDateString() : "";
-  const [formData, setFormData] = useState(defaultState);
+    date ? new Date(date).toLocaleDateString() : ""
+  const [formData, setFormData] = useState(defaultState)
+  const [linkedTopicId, setLinkedTopicId] = useState<string>("__none__")
   const dateInputRef = useRef<HTMLInputElement>(null);
+
+  const { data: linkableTopics = [] } = useQuery({
+    queryKey: ["topic3d-linkable", projectId],
+    queryFn: () => topicService.getLinkableTopics(projectId),
+    enabled:
+      open &&
+      !presetTopicId &&
+      (currentMode === "create" || currentMode === "edit"),
+  })
+
+  const { data: linkedTopicMeta } = useQuery({
+    queryKey: ["topic3d", todoToEdit?.topicId],
+    queryFn: () => topicService.getTopicById(todoToEdit!.topicId!),
+    enabled: open && !!todoToEdit?.topicId && currentMode === "view",
+  })
 
   // Helper
   const getFileName = (url: string) => {
@@ -314,13 +326,27 @@ export function NewTodoDrawer({
     }
   }, [open, projectId, todoToEdit]);
 
+  useEffect(() => {
+    if (!open) return
+    if (presetTopicId) {
+      setLinkedTopicId(presetTopicId)
+      return
+    }
+    if (todoToEdit?.topicId) {
+      setLinkedTopicId(todoToEdit.topicId)
+    } else {
+      setLinkedTopicId("__none__")
+    }
+  }, [open, todoToEdit, presetTopicId])
+
   const createMutation = useMutation({
     mutationFn: todoService.create,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["todos", projectId] });
-      toast.success("Todo created successfully");
-      handleCloseDrawer();
-      setFormData(defaultState);
+      queryClient.invalidateQueries({ queryKey: ["todos", projectId] })
+      queryClient.invalidateQueries({ queryKey: ["topic-linked-open-todos"] })
+      toast.success("Todo created successfully")
+      handleCloseDrawer()
+      setFormData(defaultState)
     },
     onError: (error: AxiosError<{ message?: string }>) => {
       const msg =
@@ -334,10 +360,11 @@ export function NewTodoDrawer({
   const updateMutation = useMutation({
     mutationFn: (data: any) => todoService.update(todoToEdit!._id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["todos", projectId] });
-      toast.success("Todo updated successfully");
-      handleCloseDrawer();
-      setFormData(defaultState);
+      queryClient.invalidateQueries({ queryKey: ["todos", projectId] })
+      queryClient.invalidateQueries({ queryKey: ["topic-linked-open-todos"] })
+      toast.success("Todo updated successfully")
+      handleCloseDrawer()
+      setFormData(defaultState)
     },
     onError: (error: AxiosError<{ message?: string }>) => {
       const msg =
@@ -374,7 +401,15 @@ export function NewTodoDrawer({
       viewState: formData.viewState || undefined,
       items: formData.items || [],
       attachments: attachments,
-    };
+    }
+
+    if (presetTopicId) {
+      payload.topicId = presetTopicId
+    } else if (todoToEdit) {
+      payload.topicId = linkedTopicId === "__none__" ? null : linkedTopicId
+    } else if (linkedTopicId !== "__none__") {
+      payload.topicId = linkedTopicId
+    }
 
     if (todoToEdit) {
       updateMutation.mutate(payload);
@@ -839,6 +874,48 @@ export function NewTodoDrawer({
                 />
               </div>
             )}
+
+            {/* Linked Topic3D (optional) */}
+            {currentMode === "view" && todoToEdit?.topicId ? (
+              <ViewField
+                label="Linked topic"
+                value={
+                  linkedTopicMeta
+                    ? `${linkedTopicMeta.topicKey} — ${linkedTopicMeta.title}`
+                    : todoToEdit.topicId
+                }
+              />
+            ) : null}
+
+            {!presetTopicId && (currentMode === "create" || currentMode === "edit") ? (
+              <div className="space-y-2">
+                <Label className="text-sm text-muted-foreground">
+                  Link to a Topic (Optional)
+                </Label>
+                <Select
+                  value={linkedTopicId}
+                  onValueChange={setLinkedTopicId}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="None" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">None</SelectItem>
+                    {linkableTopics.map((t) => (
+                      <SelectItem key={t._id} value={t._id}>
+                        {t.topicKey} — {t.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
+
+            {presetTopicId && currentMode === "create" ? (
+              <p className="text-xs text-muted-foreground">
+                This todo will be linked to the current topic automatically.
+              </p>
+            ) : null}
 
             {/* Created At & Updated At */}
             {todoToEdit && (

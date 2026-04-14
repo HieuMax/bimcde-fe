@@ -49,6 +49,23 @@ export const onNotificationDeleteAll = (callback: (data: any) => void) => {
   socket?.on("deleteAll_notification", callback);
 };
 
+export type TopicResolveSuggestionPayload = {
+  topicId: string;
+  topicKey: string;
+  projectId: string;
+  notificationId?: string;
+};
+
+export const onTopicResolveSuggestion = (
+  callback: (data: TopicResolveSuggestionPayload) => void,
+) => {
+  socket?.on("topic_resolve_suggestion", callback);
+};
+
+export const offTopicResolveSuggestion = () => {
+  socket?.off("topic_resolve_suggestion");
+};
+
 // cleanup
 export const offNotificationEvents = () => {
   socket?.off("new_notification");
@@ -56,4 +73,5 @@ export const offNotificationEvents = () => {
   socket?.off("read_notification");
   socket?.off("delete_notification");
   socket?.off("deleteAll_notification");
+  offTopicResolveSuggestion();
 };

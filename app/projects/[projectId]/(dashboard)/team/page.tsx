@@ -272,9 +272,18 @@ export default function page({
       // Refresh group and member data after deletion
       setSelectedGroup(null);
       setActiveGroup({ _id: "all", name: "" });
-      fetchTeam();
+      setIsOpenConfirmDelete(false);
+      await fetchTeam();
+      toast.success("Group deleted successfully.");
     } catch (err) {
       console.error("Error deleting group:", err);
+      const msg =
+        (err as { response?: { data?: { error?: string; message?: string } } })
+          ?.response?.data?.error ||
+        (err as { response?: { data?: { error?: string; message?: string } } })
+          ?.response?.data?.message ||
+        "Unable to delete this group.";
+      toast.error(msg);
     }
   };
 
@@ -299,6 +308,7 @@ export default function page({
   };
 
   const handleRowSelectionChange = (rowSelection: Record<string, any>) => {
+    if (isTeamReadOnly) return;
     setIsOpenDrawer(false);
 
     if (rowSelection && rowSelection.original) {
@@ -321,6 +331,7 @@ export default function page({
   }, [user?._id, memberPorject]);
 
   const showGroupMemberRoleCol = activeGroup._id !== "all";
+  const isTeamReadOnly = !isProjectAdmin;
 
   const handleGroupMemberRoleChange = useCallback(
     async (targetUserId: string, role: "GROUP_LEADER" | "GROUP_MEMBER") => {
@@ -401,11 +412,13 @@ export default function page({
         {/* HEADER */}
         <div className="flex items-center justify-between px-4">
           <h1 className="text-xl font-normal text-gray-800">Project members</h1>
-          <Button
-            onClick={handleInvitePeople}
-            className="bg-[#406D87] hover:bg-[#345a70] px-6 py-4 rounded text-base font-medium flex items-center transition-colors disabled:opacity-50 outline-none ring-0 focus-visible:ring-0 focus-visible:ring-offset-0">
-            Invite people to project
-          </Button>
+          {!isTeamReadOnly ? (
+            <Button
+              onClick={handleInvitePeople}
+              className="bg-[#406D87] hover:bg-[#345a70] px-6 py-4 rounded text-base font-medium flex items-center transition-colors disabled:opacity-50 outline-none ring-0 focus-visible:ring-0 focus-visible:ring-offset-0">
+              Invite people to project
+            </Button>
+          ) : null}
         </div>
         {/* BODY */}
         <div className="flex  border-t h-[calc(100%-40px)] bg-white">
@@ -414,11 +427,13 @@ export default function page({
           <div className="max-w-72 w-full border-r">
             <div className="h-16 flex items-center justify-between p-4 font-semibold text-lg border-b">
               <h3>Groups</h3>
-              <Button
-                onClick={handleNewGroup}
-                className="bg-[#406D87] hover:bg-[#345a70] text-white ">
-                New Group
-              </Button>
+              {!isTeamReadOnly ? (
+                <Button
+                  onClick={handleNewGroup}
+                  className="bg-[#406D87] hover:bg-[#345a70] text-white ">
+                  New Group
+                </Button>
+              ) : null}
             </div>
             {/* group item */}
 
@@ -475,7 +490,7 @@ export default function page({
                   )}
                 </div>
                 <div className="flex items-center">
-                  {!isSearch && (
+                  {!isSearch && !isTeamReadOnly && (
                     <div>
                       {" "}
                       <CustomDropdown
@@ -508,60 +523,64 @@ export default function page({
                   )}
 
                   {/* Search */}
-                  <div
-                    className={`flex items-center ${
-                      isSearch
-                        ? "border w-[450px] border-b-4 border-b-blue-900"
-                        : ""
-                    }`}>
-                    <Button
-                      variant="ghost"
-                      className=""
-                      onClick={() => setIsSearch(true)}>
-                      <Search className="!h-full  !w-full" size={23} />
-                    </Button>
-                    {isSearch && (
-                      <Input
-                        className="focus-visible:ring-0 border-none "
-                        placeholder="Tìm kiếm..."
-                        value={searchText}
-                        onChange={(e) => setSearchText(e.target.value)}
-                        autoFocus
-                        onBlur={onSearchBlur}
-                      />
-                    )}
-                  </div>
+                  {!isTeamReadOnly ? (
+                    <div
+                      className={`flex items-center ${
+                        isSearch
+                          ? "border w-[450px] border-b-4 border-b-blue-900"
+                          : ""
+                      }`}>
+                      <Button
+                        variant="ghost"
+                        className=""
+                        onClick={() => setIsSearch(true)}>
+                        <Search className="!h-full  !w-full" size={23} />
+                      </Button>
+                      {isSearch && (
+                        <Input
+                          className="focus-visible:ring-0 border-none "
+                          placeholder="Search..."
+                          value={searchText}
+                          onChange={(e) => setSearchText(e.target.value)}
+                          autoFocus
+                          onBlur={onSearchBlur}
+                        />
+                      )}
+                    </div>
+                  ) : null}
 
                   {/* Excel */}
 
-                  <CustomDropdown
-                    icon={<EllipsisVertical></EllipsisVertical>}
-                    type="item"
-                    items={[
-                      {
-                        label: "Export to Excel",
-                        onClick: () => handleExcel("export"),
-                      },
-                      {
-                        label: "Import from Excel",
-                        onClick: () => handleExcel("import"),
-                      },
+                  {!isTeamReadOnly ? (
+                    <CustomDropdown
+                      icon={<EllipsisVertical></EllipsisVertical>}
+                      type="item"
+                      items={[
+                        {
+                          label: "Export to Excel",
+                          onClick: () => handleExcel("export"),
+                        },
+                        {
+                          label: "Import from Excel",
+                          onClick: () => handleExcel("import"),
+                        },
 
-                      ...(activeGroup._id !== "all"
-                        ? [
-                            {
-                              label: "Rename Group",
-                              onClick: () => onModifiedGroup("edit"),
-                            },
-                            {
-                              className: "border-t mt-2",
-                              label: "Delete Group",
-                              onClick: () => onModifiedGroup("delete"),
-                            },
-                          ]
-                        : []),
-                    ]}
-                  />
+                        ...(activeGroup._id !== "all"
+                          ? [
+                              {
+                                label: "Rename Group",
+                                onClick: () => onModifiedGroup("edit"),
+                              },
+                              {
+                                className: "border-t mt-2",
+                                label: "Delete Group",
+                                onClick: () => onModifiedGroup("delete"),
+                              },
+                            ]
+                          : []),
+                      ]}
+                    />
+                  ) : null}
                 </div>
               </div>
             </div>
@@ -694,7 +713,7 @@ export default function page({
         />
       </div>
       <TeamDrawer
-        isOpen={isOpenDrawer}
+        isOpen={!isTeamReadOnly && isOpenDrawer}
         onClose={onCloseDrawer}
         data={rowSelection}
         groupData={groupData}

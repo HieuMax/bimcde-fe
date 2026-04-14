@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ChevronDown,
   SlidersHorizontal,
@@ -35,6 +36,8 @@ import { topicSettingsService } from "@/services/topicSettings.service";
 export const TopicsPageClient: React.FC<{ projectId: string }> = ({
   projectId,
 }) => {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [createTopic, setCreateTopic] = useState<Topic | null>(null);
   const [search, setSearch] = useState("");
@@ -127,6 +130,14 @@ export const TopicsPageClient: React.FC<{ projectId: string }> = ({
     };
   }, [projectId]);
 
+  useEffect(() => {
+    const topicId = searchParams.get("openTopicId");
+    if (!topicId) return;
+    setCreateTopic(null);
+    setSelectedId(topicId);
+    router.replace(`/projects/${projectId}/topics`, { scroll: false });
+  }, [searchParams, router, projectId]);
+
   // Fetch topic settings (options for filters) from BE
   useEffect(() => {
     let alive = true;
@@ -175,6 +186,11 @@ export const TopicsPageClient: React.FC<{ projectId: string }> = ({
     }
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [topics]);
+
+  const handleTopicRowSelect = (topicId: string) => {
+    setSelectedId((prev) => (prev === topicId ? null : topicId));
+    setCreateTopic(null);
+  };
 
   const handleCreateNew = () => {
     const nowIso = new Date().toISOString();
@@ -391,7 +407,7 @@ export const TopicsPageClient: React.FC<{ projectId: string }> = ({
                       key={t.id}
                       topic={t}
                       selected={t.id === selectedId}
-                      onSelect={() => setSelectedId(t.id)}
+                      onSelect={() => handleTopicRowSelect(t.id)}
                     />
                   ))
                 )}
