@@ -8,12 +8,10 @@ import TodosTab from "./tabView2D/todoTab";
 import ViewsTab from "./tabView2D/viewTab";
 
 import { ViewItem, TodoItem, PageItem, IFile } from "@/types/explorer";
-import { IView } from "@/types/view";
+import { View2DItem } from "@/types/view2d";
 import VersionHistoryPanel from "./tabView2D/VersionHistoryPanel";
 
 const PagesTab = dynamic(() => import("./tabView2D/pageTab"), { ssr: false });
-
-const CURRENT_USER = { name: "hao nguyen" };
 
 type ActiveTab = "filedetail" | "page" | "view" | "todo" | "history";
 
@@ -24,20 +22,20 @@ type LeftPanelBodyProps = {
   currentUser?: string;
   data: {
     file: IFile | null;
-    view?: IView | null;
+    view?: View2DItem | null;
     pages: PageItem[];
     pageIndex: number;
-    views: IView[];
+    views: View2DItem[];
     todos: TodoItem[];
   };
   onSelectPage: (item: PageItem) => void;
-  onSelectView: (view: IView) => void;
+  onSelectView: (view: View2DItem) => void;
   onSelectTodo: (todo: TodoItem) => void;
   onCreateView: () => void;
   onCreateTodo: () => void;
   onDeleteView?: (id: string) => void;
   onDeleteTodo?: (id: string) => void;
-  onEditView?: (view: IView) => void;
+  onEditView?: (view: View2DItem) => void;
 
   onOpenVersion?: (version: any) => void;
   onDownloadVersion?: (version: any) => void;
@@ -107,7 +105,6 @@ export default function LeftPanelBody(props: LeftPanelBodyProps) {
         {activeTab === "view" && (
           <ViewsTab
             views={data.views}
-            // 🌟 Sử dụng biến currentUser động
             currentUser={currentUser}
             onSelectView={onSelectView}
             onCreateView={onCreateView}

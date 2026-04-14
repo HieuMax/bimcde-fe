@@ -59,24 +59,24 @@ export interface PageItem {
 
 /* ===================== VIEW 2D ===================== */
 
-// export interface View2DItem {
-//   _id: string;
-//   name?: string;
-//   description?: string;
-//   projectId: string;
-//   fileId: string | FileItem;
+export interface View2DItem {
+  _id: string;
+  name?: string;
+  description?: string;
+  projectId: string;
+  fileId: string | FileItem;
 
-//   previewSrc?: string;
-//   viewState?: ViewState;
+  previewSrc?: string;
+  viewState?: ViewState;
 
-//   pageIndex?: number;
-//   scale?: number;
-//   rotation?: number;
+  pageIndex?: number;
+  scale?: number;
+  rotation?: number;
 
-//   createdBy?: string;
-//   createdAt?: string;
-//   assignedTo?: string;
-// }
+  createdBy?: string;
+  createdAt?: string;
+  assignedTo?: string;
+}
 
 export type ViewMode = "list" | "grid";
 
@@ -97,10 +97,6 @@ export interface IAnnotation {
 
 export interface View2DMarkup {
   annotations: IAnnotation[];
-  viewport: {
-    rotate: number;
-    pageIndex: number;
-  };
 }
 
 export interface ViewState {
@@ -122,36 +118,29 @@ export interface IPoint {
   x: number;
   y: number;
 }
-export interface CreateViewDTO {
-  projectId: string;
+export interface CreateView2DDTO {
   name: string;
   description?: string;
+  projectId: string;
+  fileId: string;
+  createdBy: string;
+  assignedTo?: string;
   
-  thumbnailUrl?: string;
-  type: "3D" | "2D";   
-  relatedFileId?: string;
-  
+  pageIndex?: number;
+  scale?: number;
+  rotation?: number;
+  previewSrc?: string;
   viewState?: ViewState;
-  
-  sharedWith?: {
-    isPublic?: boolean;
-    users?: string[];
-  };
 }
-
-export interface UpdateViewDTO {
+export interface UpdateView2DDTO {
   name?: string;
   description?: string;
-  
-  thumbnailUrl?: string;
-  relatedFileId?: string;
-  
+  assignedTo?: string;
+  pageIndex?: number;
+  scale?: number;
+  rotation?: number;
+  previewSrc?: string;
   viewState?: ViewState;
-  
-  sharedWith?: {
-    isPublic?: boolean;
-    users?: string[];
-  };
 }
 
 /* ===================== API RESPONSE ===================== */

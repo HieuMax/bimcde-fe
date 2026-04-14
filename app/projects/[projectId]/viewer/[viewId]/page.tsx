@@ -3,10 +3,8 @@
 import React, { useState, useRef, useCallback } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 
-// Đảm bảo đường dẫn import đúng file bạn lưu component DetailView2D
 import DetailView2D from "@/components/features/view2DManagement/viewHome";
 import DetailToolbar from "@/components/features/view2DManagement/toolbar2D";
-import DrawingToolBar from "@/components/features/view2DManagement/drawingToolBar";
 import { ToolType } from "@/types/view2d";
 import { jsPDF } from "jspdf";
 import { toast } from "sonner";
@@ -22,6 +20,7 @@ export default function Page() {
   // Lấy token từ URL (do file redirect phía trên bắn sang)
   const shareToken = searchParams?.get("shareToken") ?? undefined;
 
+  // const viewId = searchParams?.get("viewId") || "";
   // Xác định chế độ Share
   const isShareMode = !!shareToken;
 
@@ -29,6 +28,7 @@ export default function Page() {
   const [fileData, setFileData] = useState<IFile | null>(null);
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+
   /* ===== REFS ===== */
   const openViewPanelRef = useRef<(() => void) | null>(null);
   const openTodoPanelRef = useRef<(() => void) | null>(null);
@@ -53,19 +53,11 @@ export default function Page() {
   const handleLoaded = React.useCallback((file: IFile) => {
     setFileName(file.name);
     setFileData(file);
+    setCurrentFileUrl(file.fileUrl || null); // Cập nhật file URL để download ảnh/pdf
   }, []);
+
   //permission
   const canDownload = !isShareMode || fileData?.permission === "DOWNLOAD";
-
-  // const handleToggleFullscreen = useCallback(() => {
-  //   if (!document.fullscreenElement) {
-  //     document.documentElement.requestFullscreen().catch((err) => {
-  //       console.error("Lỗi khi bật toàn màn hình:", err);
-  //     });
-  //   } else if (document.exitFullscreen) {
-  //     document.exitFullscreen();
-  //   }
-  // }, []);
 
   const handleDownloadRaw = useCallback(async () => {
     // Kiểm tra trực tiếp giá trị hiện tại
@@ -124,6 +116,7 @@ export default function Page() {
 
   return (
     <div className="flex flex-col w-screen h-screen">
+      {/* GỘP CHUNG VÀO 1 COMPONENT DETAIL TOOLBAR */}
       <DetailToolbar
         name={fileName}
         onBack={handleBack}
@@ -137,10 +130,8 @@ export default function Page() {
         onToggleFullscreen={() => setIsFullscreen((v) => !v)}
         onOpenViewPanel={() => openViewPanelRef.current?.()}
         onOpenTodoPanel={() => openTodoPanelRef.current?.()}
-      />
-      <DrawingToolBar
+        // --- Props Drawing Tool ---
         onDownload={handleDownloadRaw}
-        // onToggleFullscreen={handleToggleFullscreen}
         onToggleAnnotation={() => setShowAnnotation((prev) => !prev)}
         showAnnotation={showAnnotation}
         activeTool={activeTool}
@@ -148,6 +139,7 @@ export default function Page() {
         activeColor={activeColor}
         onChangeColor={setActiveColor}
       />
+
       <div className="flex-1 relative overflow-hidden">
         <DetailView2D
           mode="view"
@@ -166,6 +158,7 @@ export default function Page() {
           currentUser={currentUserId}
         />
       </div>
+
       {/* ================= DIALOGS ================= */}
       {!isShareMode && (
         <ShareFileDialog
