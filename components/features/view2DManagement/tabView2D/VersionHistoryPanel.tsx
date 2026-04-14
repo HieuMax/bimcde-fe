@@ -2,6 +2,8 @@
 
 import React from "react";
 import { X, MoreVertical, FileText, Download, FolderOpen } from "lucide-react";
+import type { IFile } from "@/types/explorer";
+import { buildFileHistoryRows } from "@/lib/explorer/fileVersionHistory";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,31 +28,28 @@ export default function VersionHistoryPanel({
 }: VersionHistoryPanelProps) {
   if (!file) return null;
 
-  // 🌟 LOGIC THÔNG MINH: BÙ ĐẮP DỮ LIỆU VERSIONS BỊ THIẾU 🌟
-  let versions: any[] = [];
-  const currentVer = file.currentVersion || 1;
+  const currentVer = Number(file.currentVersion) || 1;
+  let versions: any[] = buildFileHistoryRows(file as IFile);
 
-  if (file.versions && file.versions.length >= currentVer) {
-    // Trường hợp lý tưởng: Backend trả về đầy đủ mảng lịch sử
-    versions = [...file.versions].sort((a: any, b: any) => b.version - a.version);
-  } else {
-    // Trường hợp lỗi Backend: Trả về currentVersion = 5 nhưng mảng bị trống hoặc thiếu
-    // -> Frontend dùng vòng lặp tự động lấp đầy từ V.5 lùi dần về V.1
+  if (versions.length === 0) {
     for (let i = currentVer; i >= 1; i--) {
-      // Tìm xem có data thực của version này không
-      const existingVer = file.versions?.find((v: any) => v.version === i);
-      
+      const existingVer =
+        file.versions?.find((v: any) => v.version === i) ||
+        file.versionHistory?.find((v: any) => v.version === i);
       if (existingVer) {
-        versions.push(existingVer);
+        versions.push({
+          ...existingVer,
+          stageLabels: existingVer.stageLabels ?? [],
+        });
       } else {
-        // Nếu không có, tự tạo một phiên bản ảo để giao diện luôn đầy đủ V.1 -> V.5
         versions.push({
           version: i,
           location: file.location || file.fileUrl,
           uploadedBy: file.modifiedBy || file.createdBy || "Admin",
           createdAt: file.updatedAt || file.createdAt,
-          fileName: file.name, // Lấy tên hiện tại hiển thị tạm
-          previewSrc: file.previewSrc
+          fileName: file.name,
+          previewSrc: file.previewSrc,
+          stageLabels: [],
         });
       }
     }
@@ -147,6 +146,14 @@ export default function VersionHistoryPanel({
                       <span className="font-semibold text-[#005a9e]">
                         V.{ver.version}
                       </span>
+                      {(ver.stageLabels as string[] | undefined)?.map((lab: string) => (
+                        <span
+                          key={lab}
+                          className="ml-1 text-[10px] font-medium text-sky-800 bg-sky-100 px-1 py-0 rounded"
+                        >
+                          ({lab})
+                        </span>
+                      ))}
                       <span className="text-gray-600 ml-1">• {displayFileName}</span>
                     </div>
                     <div className="text-xs text-gray-600 mt-0.5 truncate">

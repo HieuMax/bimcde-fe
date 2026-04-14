@@ -48,6 +48,8 @@ interface Props {
   onSubmitForReview?: () => void;
   isSubmittingReview?: boolean;
   currentUserId?: string;
+  onIsoRevoke?: () => void;
+  onIsoRestore?: () => void;
 }
 
 export default function DetailsView({
@@ -70,6 +72,8 @@ export default function DetailsView({
   onSubmitForReview,
   isSubmittingReview,
   currentUserId,
+  onIsoRevoke,
+  onIsoRestore,
 }: Props) {
   const isFile = "mimeType" in item;
   const [isShareOpen, setIsShareOpen] = useState(false);
@@ -224,6 +228,8 @@ export default function DetailsView({
             currentUserId={currentUserId}
             onOpenHistory={onOpenHistory}
             onOpenActivity={onOpenActivity}
+            onIsoRevoke={onIsoRevoke}
+            onIsoRestore={onIsoRestore}
           />
           <Separator />
           <InfoSection

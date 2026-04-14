@@ -91,6 +91,22 @@ export function useExplorerActions(
     },
   });
 
+  const isoRevokeItem = async (item: IFile | IFolder) => {
+    if (!user?._id) throw new Error("User is not authenticated");
+    const isFile = "mimeType" in item;
+    await explorerService.isoRevoke(projectId, item._id, isFile);
+    invalidateExplorer();
+    toast.success("Revoked to Archived / Revoked");
+  };
+
+  const isoRestoreItem = async (item: IFile | IFolder, overwrite: boolean) => {
+    if (!user?._id) throw new Error("User is not authenticated");
+    const isFile = "mimeType" in item;
+    await explorerService.isoRestore(projectId, item._id, isFile, overwrite);
+    invalidateExplorer();
+    toast.success("Restored successfully");
+  };
+
   // Handler Bulk Delete
   const handleBulkDelete = async (items: (IFile | IFolder)[]) => {
     const count = items.length;
@@ -338,6 +354,8 @@ export function useExplorerActions(
     submitFileForReview: (fileId: string) =>
       submitForReviewMutation.mutateAsync({ fileId }),
     isSubmittingReview: submitForReviewMutation.isPending,
+    isoRevokeItem,
+    isoRestoreItem,
     // Expose loading states
     isCreating: createFolderMutation.isPending,
     isUploading: uploadFilesMutation.isPending,

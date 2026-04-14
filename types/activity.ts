@@ -13,11 +13,19 @@ export interface IActivity {
     | "VIEW"
     | "RELEASE"
     | "TOPIC"
+    | "TODO"
     | "RESTORE";
   actionType: string;
   target: {
     itemId: string;
-    itemModel: "File" | "Folder" | "View" | "Release" | "Topic" | "Account";
+    itemModel:
+      | "File"
+      | "Folder"
+      | "View"
+      | "Release"
+      | "Topic"
+      | "Todo"
+      | "Account";
     itemName: string;
   };
   description?: string;
