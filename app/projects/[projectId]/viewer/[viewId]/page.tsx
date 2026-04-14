@@ -24,7 +24,7 @@ export default function Page() {
   // Xác định chế độ Share
   const isShareMode = !!shareToken;
 
-  const [fileName, setFileName] = useState("Đang tải...");
+  const [fileName, setFileName] = useState("Loading...");
   const [fileData, setFileData] = useState<IFile | null>(null);
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
