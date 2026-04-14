@@ -1,5 +1,8 @@
-import { IExplorerResponse } from "@/types/explorer";
+import { FilePublishReadiness, IExplorerResponse, IFile } from "@/types/explorer";
+import type { PromoteTargetStage } from "@/lib/explorer/cdePromote";
 import { useApi as apiClient } from "@/app/hooks/useApi";
+import { httpClient } from "@/lib/http-client";
+import { client } from "@/app/utils/apiClient";
 
 interface FetchOptions {
   headers?: Record<string, string>;
@@ -13,7 +16,9 @@ export const explorerService = {
     folderId: string | null,
     sortBy: string = "name",
     sortOrder: "asc" | "desc" = "asc",
-    options?: FetchOptions
+    options?: FetchOptions & {
+      restrictMoveToEffectiveGroupId?: string | null;
+    },
   ) => {
     const data = await api.get("/explorer/content", {
       params: {
@@ -21,10 +26,71 @@ export const explorerService = {
         folderId: folderId || undefined,
         sortBy,
         sortOrder,
+        ...(options?.restrictMoveToEffectiveGroupId
+          ? {
+              restrictMoveToEffectiveGroupId:
+                options.restrictMoveToEffectiveGroupId,
+            }
+          : {}),
       },
       headers: options?.headers,
     });
     return data as IExplorerResponse;
+  },
+
+  /** ISO: id of folder directly under a CDE root for this group (group “home”), or null */
+  getGroupHomeFolderId: async (
+    projectId: string,
+    groupId: string,
+    cdeStage: string = "WIP",
+  ) => {
+    const data = await api.get("/explorer/group-home-folder", {
+      params: { projectId, groupId, cdeStage },
+    });
+    return data as { folderId: string | null };
+  },
+
+  /** ISO: CDE root folder id (e.g. 3. Published) for promote destination picker */
+  getCdeRootFolderId: async (projectId: string, cdeStage: string) => {
+    const data = await api.get("/explorer/cde-root-folder", {
+      params: { projectId, cdeStage },
+    });
+    return data as { folderId: string | null };
+  },
+
+  /** Last change inside folder + descendants (files + subfolders), for Properties panel */
+  getFolderSubtreeActivity: async (projectId: string, folderId: string) => {
+    const data = await api.get("/explorer/folder-subtree-activity", {
+      params: { projectId, folderId },
+    });
+    return data as { lastModifiedAt: string | null; lastModifiedBy: string | null };
+  },
+
+  promoteFile: async (
+    fileId: string,
+    targetStage: PromoteTargetStage,
+    destinationFolderId?: string | null,
+  ) => {
+    const body: {
+      targetStage: PromoteTargetStage;
+      destinationFolderId?: string;
+    } = { targetStage };
+    if (destinationFolderId && destinationFolderId.length > 0) {
+      body.destinationFolderId = destinationFolderId;
+    }
+    const data = await api.post(`/files/${fileId}/promote`, body);
+    return data;
+  },
+
+  submitFileForReview: async (fileId: string) => {
+    const data = await api.post(`/files/${fileId}/submit-review`, {});
+    return data;
+  },
+
+  /** ISO: checklist before Promote to Published (Shared file) */
+  getFilePublishReadiness: async (fileId: string) => {
+    const data = await api.get(`/files/${fileId}/publish-readiness`);
+    return data as FilePublishReadiness;
   },
 
   createFolder: async (payload: {
@@ -42,16 +108,48 @@ export const explorerService = {
     projectId: string;
     folderId: string | null;
     userId: string;
+    onProgress?: (percent: number) => void;
   }) => {
-    const formData = new FormData();
-    payload.files.forEach((file) => formData.append("files", file));
+    const { files, projectId, folderId, userId, onProgress } = payload;
 
-    formData.append("projectId", payload.projectId);
-    if (payload.folderId) formData.append("folderId", payload.folderId);
-    formData.append("userId", payload.userId);
+    const totalBytes = files.reduce((s, f) => s + f.size, 0) || 1;
+    let doneBytes = 0;
+    const results: unknown[] = [];
 
-    const data = await api.post("/files/upload", formData);
-    return data;
+    // Legacy behavior: multipart upload only (no chunking)
+    const BATCH_SIZE = 5;
+    for (let i = 0; i < files.length; i += BATCH_SIZE) {
+      const batchFiles = files.slice(i, i + BATCH_SIZE);
+      if (batchFiles.length === 0) continue;
+
+      const formData = new FormData();
+      batchFiles.forEach((file) => formData.append("files", file));
+      formData.append("projectId", projectId);
+      if (folderId) formData.append("folderId", folderId);
+      formData.append("userId", userId);
+
+      const batchBytes = batchFiles.reduce((s, f) => s + f.size, 0) || 1;
+      const res = await client.post("/files/upload", formData, {
+        onUploadProgress: (e) => {
+          const t = e.total || batchBytes || 1;
+          const ratio = Math.min(1, e.loaded / t);
+          onProgress?.(
+            Math.min(
+              99,
+              Math.round(((doneBytes + ratio * batchBytes) / totalBytes) * 100),
+            ),
+          );
+        },
+      });
+
+      const batchRes = res.data;
+      results.push(...(Array.isArray(batchRes) ? batchRes : [batchRes]));
+      doneBytes += batchBytes;
+      onProgress?.(Math.min(100, Math.round((doneBytes / totalBytes) * 100)));
+    }
+
+    onProgress?.(100);
+    return results;
   },
 
   deleteItem: async (id: string, isFile: boolean, userId: string) => {
@@ -224,4 +322,26 @@ export const explorerService = {
     const data = await api.get(`/files/${id}`);
     return data;
   },
+
+  getFileByShare: async (shareToken: string) => {
+    const res = await httpClient.get<{
+      projectId: string;
+      fileId: string;
+      viewId: string;
+      accessLevel: string;
+      type: string;
+    }>(`/share/${shareToken}`);
+
+    return res.data;
+  },
+
+  getFileDetailPublic: async (id: string, shareToken: string) => {
+    const data = await api.get(`/share/file/${id}`, {
+      params: {
+        shareToken: shareToken 
+      }
+    });
+    return data as IFile | any;
+  },
+
 };

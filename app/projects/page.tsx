@@ -23,6 +23,9 @@ import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { List, Grid, Loader2, CalendarIcon } from "lucide-react";
 import { Project } from "@/app/types/projectTypes";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
+import type { CdeWorkflowMode } from "@/types/explorer";
 import { useApi } from "@/app/hooks/useApi";
 import { useRouter } from "next/navigation";
 
@@ -46,7 +49,7 @@ export default function ProjectsPage() {
       if (res.success) {
         setProjects(res.result || []);
       } else {
-        console.error("Lỗi khi tải danh sách dự án:", res.data.message);
+        console.error("Failed to load project list:", res.data.message);
       }
     } catch (e) {
       console.error("Failed to load project list:", e);
@@ -76,14 +79,16 @@ export default function ProjectsPage() {
           <Button
             variant="ghost"
             onClick={() => setView("grid")}
-            className={view === "grid" ? "bg-gray-300" : ""}>
+            className={view === "grid" ? "bg-gray-300" : ""}
+          >
             <Grid size={18} />
           </Button>
 
           <Button
             variant="ghost"
             onClick={() => setView("list")}
-            className={view === "list" ? "bg-gray-300" : ""}>
+            className={view === "list" ? "bg-gray-300" : ""}
+          >
             <List size={18} />
           </Button>
 
@@ -134,11 +139,12 @@ function NewProjectDialog({ onCreated }: { onCreated: () => void }) {
     startDate: undefined as Date | undefined,
     endDate: undefined as Date | undefined,
     thumbnail: null as string | null,
+    workflowMode: "NORMAL" as CdeWorkflowMode,
   });
   const { post } = useApi();
 
   function handleChange(
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -186,6 +192,7 @@ function NewProjectDialog({ onCreated }: { onCreated: () => void }) {
       startDate: format(formData.startDate, "yyyy-MM-dd"),
       endDate: format(formData.endDate, "yyyy-MM-dd"),
       description: formData.description,
+      workflowMode: formData.workflowMode,
     };
     try {
       const reponse = await post("/projects/createProject", newProject);
@@ -197,6 +204,7 @@ function NewProjectDialog({ onCreated }: { onCreated: () => void }) {
           startDate: undefined,
           endDate: undefined,
           thumbnail: null,
+          workflowMode: "NORMAL",
         });
         setDateError(null);
 
@@ -254,6 +262,69 @@ function NewProjectDialog({ onCreated }: { onCreated: () => void }) {
             />
           </div>
 
+          {/* CDE workflow mode */}
+          <div className="space-y-3 rounded-md border border-slate-200 bg-slate-50/80 p-4">
+            <div>
+              <p className="text-sm font-medium text-slate-900">
+                Workflow mode
+              </p>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Choose before creating the project; it cannot be changed from
+                this screen later.
+              </p>
+            </div>
+            <RadioGroup
+              value={formData.workflowMode}
+              onValueChange={(v) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  workflowMode: v as CdeWorkflowMode,
+                }))
+              }
+              className="grid gap-3"
+            >
+              <div className="flex items-start gap-3 rounded-md border border-transparent bg-white p-3 shadow-sm">
+                <RadioGroupItem
+                  value="NORMAL"
+                  id="wf-normal"
+                  className="mt-0.5"
+                />
+                <div className="grid gap-0.5 flex-1">
+                  <Label
+                    htmlFor="wf-normal"
+                    className="font-medium cursor-pointer"
+                  >
+                    Normal
+                  </Label>
+                  <p className="text-xs text-slate-500">
+                    Flexible permissions per folder and file (ACL), similar to a
+                    shared drive.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3 rounded-md border border-transparent bg-white p-3 shadow-sm">
+                <RadioGroupItem
+                  value="ISO_19650"
+                  id="wf-iso"
+                  className="mt-0.5"
+                />
+                <div className="grid gap-0.5 flex-1">
+                  <Label
+                    htmlFor="wf-iso"
+                    className="font-medium cursor-pointer"
+                  >
+                    ISO 19650 (CDE)
+                  </Label>
+                  <p className="text-xs text-slate-500">
+                    Four stages: WIP → Shared → Published → Archived; standard
+                    root folders; promote creates copies; only admins create
+                    teams and team folders under WIP/Shared.
+                  </p>
+                </div>
+              </div>
+            </RadioGroup>
+          </div>
+
           {/* Dates */}
           <div className="flex gap-3">
             <div className="flex-1">
@@ -264,8 +335,9 @@ function NewProjectDialog({ onCreated }: { onCreated: () => void }) {
                     variant="outline"
                     className={cn(
                       "w-full justify-start text-left font-normal",
-                      !formData.startDate && "text-muted-foreground"
-                    )}>
+                      !formData.startDate && "text-muted-foreground",
+                    )}
+                  >
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {formData.startDate ? (
                       format(formData.startDate, "PPP")
@@ -300,8 +372,9 @@ function NewProjectDialog({ onCreated }: { onCreated: () => void }) {
                     variant="outline"
                     className={cn(
                       "w-full justify-start text-left font-normal",
-                      !formData.endDate && "text-muted-foreground"
-                    )}>
+                      !formData.endDate && "text-muted-foreground",
+                    )}
+                  >
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {formData.endDate ? (
                       format(formData.endDate, "PPP")
@@ -336,7 +409,8 @@ function NewProjectDialog({ onCreated }: { onCreated: () => void }) {
           {/* Submit */}
           <Button
             onClick={handleSubmit}
-            className="bg-[#0f6cbd] text-white w-24 ml-auto">
+            className="bg-[#0f6cbd] text-white w-24 ml-auto"
+          >
             Submit
           </Button>
         </div>
@@ -360,7 +434,8 @@ function GridView({ projects }: { projects: Project[] }) {
         <div
           key={p._id}
           className="bg-white shadow rounded overflow-hidden cursor-pointer"
-          onClick={() => handleProjectClick(p._id)}>
+          onClick={() => handleProjectClick(p._id)}
+        >
           <div className="h-40 bg-gray-200">
             <Image
               src={p.thumbnail || DEFAULT_THUMBNAIL}
@@ -405,7 +480,8 @@ function ListView({ projects }: { projects: Project[] }) {
         <div
           key={p._id}
           className="grid grid-cols-[40%_15%_15%_15%_15%] items-center p-3 hover:bg-gray-100 cursor-pointer"
-          onClick={() => handleProjectClick(p._id)}>
+          onClick={() => handleProjectClick(p._id)}
+        >
           <div className="flex items-center gap-2">
             <Image
               src={p.thumbnail || DEFAULT_THUMBNAIL}

@@ -50,6 +50,7 @@ function DraggableRow({
   onNavigate: (item: IFolder | IFile) => void;
 }) {
   const isFolder = "totalSize" in item;
+  const folderBlocked = isFolder && (item as IFolder).cdeAccessible === false;
   const isFileLocked = !isFolder && (item as IFile).isLocked;
 
   const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -61,8 +62,10 @@ function DraggableRow({
   const handleViewFile = (item: IFile | IFolder) => {
     const isFile = "mimeType" in item;
 
-    // Folder → mở folder
     if (!isFile) {
+      if ("totalSize" in item && (item as IFolder).cdeAccessible === false) {
+        return;
+      }
       router.push(`/projects/${projectId}/data?folderId=${item._id}`);
       return;
     }
@@ -76,7 +79,7 @@ function DraggableRow({
     // IFC → 3D Viewer
     if (IFC_FILES.includes(fileExt)) {
       router.push(
-        `/projects/${projectId}/viewer3d?urls=${encodeURIComponent(JSON.stringify([item.location]))}`
+        `/projects/${projectId}/viewer3d?urls=${encodeURIComponent(JSON.stringify([item.location]))}`,
       );
       return;
     }
@@ -89,6 +92,8 @@ function DraggableRow({
   };
 
   const handleRowInteraction = (e: React.MouseEvent) => {
+    if (folderBlocked) return;
+
     if (clickTimeoutRef.current) {
       clearTimeout(clickTimeoutRef.current);
       clickTimeoutRef.current = null;
@@ -109,6 +114,7 @@ function DraggableRow({
 
   const handleCheckboxInteraction = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (folderBlocked) return;
     if (clickTimeoutRef.current) {
       clearTimeout(clickTimeoutRef.current);
       clickTimeoutRef.current = null;
@@ -125,12 +131,13 @@ function DraggableRow({
   } = useDraggable({
     id: item._id,
     data: { item, type: isFolder ? "folder" : "file" },
+    disabled: folderBlocked,
   });
 
   const { setNodeRef: setDropRef, isOver } = useDroppable({
     id: item._id,
     data: { item },
-    disabled: !isFolder,
+    disabled: !isFolder || folderBlocked,
   });
 
   const setNodeRef = (node: HTMLElement | null) => {
@@ -148,7 +155,7 @@ function DraggableRow({
     : "Unknown";
 
   const formattedSize = filesize(
-    (isFolder ? (item as IFolder).totalSize : (item as IFile).size) ?? 0
+    (isFolder ? (item as IFolder).totalSize : (item as IFile).size) ?? 0,
   ) as string;
 
   return (
@@ -157,28 +164,38 @@ function DraggableRow({
       style={style}
       {...attributes}
       {...listeners}
-      className={`group cursor-pointer select-none transition-colors border-gray-50 text-base ${
-        isSelected ? "bg-blue-50 hover:bg-blue-100" : "hover:bg-gray-50"
-      } ${isOver ? "bg-blue-100 ring-2 ring-blue-400 z-10" : ""}`}
+      className={`group select-none transition-colors border-gray-50 text-base ${
+        folderBlocked
+          ? "cursor-not-allowed bg-slate-50 text-slate-500 hover:bg-slate-100/90"
+          : "cursor-pointer"
+      } ${
+        !folderBlocked && isSelected
+          ? "bg-blue-50 hover:bg-blue-100"
+          : !folderBlocked
+            ? "hover:bg-gray-50"
+            : ""
+      } ${isOver && !folderBlocked ? "bg-blue-100 ring-2 ring-blue-400 z-10" : ""}`}
       onClick={handleRowInteraction}
     >
       {/* ICON & CHECKBOX CELL */}
       <TableCell className="py-2 md:py-4 relative w-14 md:w-20 text-center p-0">
         <div className="flex items-center justify-center w-full h-full relative">
-          <div
-            className={`
+          {!folderBlocked && (
+            <div
+              className={`
               absolute inset-0 flex items-center justify-center z-10 transition-opacity duration-200
               ${
                 isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
               }
             `}
-          >
-            <Checkbox
-              checked={isSelected}
-              onClick={handleCheckboxInteraction}
-              className="data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600 size-4 md:size-5 border-slate-400 bg-white"
-            />
-          </div>
+            >
+              <Checkbox
+                checked={isSelected}
+                onClick={handleCheckboxInteraction}
+                className="data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600 size-4 md:size-5 border-slate-400 bg-white"
+              />
+            </div>
+          )}
 
           <div
             className={`
@@ -187,7 +204,13 @@ function DraggableRow({
             `}
           >
             {isFolder ? (
-              <Folder className="size-8 md:size-10 text-black fill-black" />
+              <Folder
+                className={`size-8 md:size-10 ${
+                  folderBlocked
+                    ? "text-slate-400 fill-slate-300"
+                    : "text-black fill-black"
+                }`}
+              />
             ) : (
               <FileIcon
                 mimeType={(item as IFile).mimeType}
@@ -195,6 +218,13 @@ function DraggableRow({
               />
             )}
           </div>
+          {folderBlocked && !isSelected && (
+            <div className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+              <span className="rounded-full bg-white/95 p-1.5 shadow-sm border border-slate-200">
+                <LockKeyhole className="size-4 text-slate-600" />
+              </span>
+            </div>
+          )}
         </div>
       </TableCell>
 
@@ -202,8 +232,12 @@ function DraggableRow({
       <TableCell className="font-medium pl-2 md:pl-4">
         <div className="flex flex-col gap-0.5 justify-center">
           <span
-            onClick={handleNameClick}
-            className="cursor-pointer flex items-center w-fit text-slate-700 font-normal hover:text-blue-600 hover:underline gap-2 truncate max-w-[200px] sm:max-w-[300px] md:max-w-[400px]"
+            onClick={folderBlocked ? undefined : handleNameClick}
+            className={`flex items-center w-fit font-normal gap-2 truncate max-w-[200px] sm:max-w-[300px] md:max-w-[400px] ${
+              folderBlocked
+                ? "cursor-not-allowed text-slate-500"
+                : "cursor-pointer text-slate-700 hover:text-blue-600 hover:underline"
+            }`}
           >
             {isFileLocked && (
               <LockKeyhole className="size-3 text-orange-500 shrink-0" />
@@ -306,19 +340,26 @@ export default function ViewList({
 }: Props) {
   const allItems = [...folders, ...files];
   const [lastSelectedIndex, setLastSelectedIndex] = useState<number | null>(
-    null
+    null,
   );
+
+  const isBlockedFolder = (i: IFolder | IFile) =>
+    "totalSize" in i && (i as IFolder).cdeAccessible === false;
 
   const handleRowClickWithEvent = (
     e: React.MouseEvent,
-    item: IFolder | IFile
+    item: IFolder | IFile,
   ) => {
+    if (isBlockedFolder(item)) return;
+
     const currentIndex = allItems.findIndex((i) => i._id === item._id);
 
     if (e.shiftKey && lastSelectedIndex !== null && lastSelectedIndex !== -1) {
       const start = Math.min(lastSelectedIndex, currentIndex);
       const end = Math.max(lastSelectedIndex, currentIndex);
-      const itemsToSelect = allItems.slice(start, end + 1);
+      const itemsToSelect = allItems
+        .slice(start, end + 1)
+        .filter((i) => !isBlockedFolder(i));
       onMultiSelect(itemsToSelect);
     } else {
       onRowClick(item);

@@ -4,6 +4,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { explorerService } from "@/services/explorer.service";
 import { IFile, IFolder } from "@/types/explorer";
+import type { PromoteTargetStage } from "@/lib/explorer/cdePromote";
 import { AxiosError } from "axios";
 import { useAuth } from "@/app/context/authContext";
 
@@ -16,7 +17,7 @@ export interface ApiErrorResponse {
 export function useExplorerActions(
   projectId: string,
   folderId: string | null,
-  onSuccessCallback?: () => void
+  onSuccessCallback?: () => void,
 ) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -26,6 +27,10 @@ export function useExplorerActions(
     queryClient.invalidateQueries({ queryKey: ["explorer", projectId] });
     queryClient.invalidateQueries({ queryKey: ["folder-tree", projectId] });
     queryClient.invalidateQueries({ queryKey: ["explorer-move-nav"] });
+    queryClient.invalidateQueries({ queryKey: ["explorer-promote-nav"] });
+    queryClient.invalidateQueries({ queryKey: ["explorer-archive-move-nav"] });
+    queryClient.invalidateQueries({ queryKey: ["cde-root-folder"] });
+    queryClient.invalidateQueries({ queryKey: ["file-publish-readiness"] });
   };
 
   // 1. CREATE FOLDER
@@ -45,20 +50,21 @@ export function useExplorerActions(
       invalidateExplorer();
       toast.success("Folder created successfully");
     },
-    onError: (err: AxiosError<ApiErrorResponse>) => {
-      const msg = err.response?.data?.message || err.message || "Unknown error";
-      toast.error(msg);
-    },
+    // Errors surfaced inline in CreateFolderDialog (no duplicate toast)
   });
 
   // 2. UPLOAD FILES
   const uploadFilesMutation = useMutation({
-    mutationFn: async (files: File[]) => {
+    mutationFn: async (args: {
+      files: File[];
+      onProgress?: (percent: number) => void;
+    }) => {
       return await explorerService.uploadFiles({
-        files,
+        files: args.files,
         projectId,
         folderId,
         userId: user!._id,
+        onProgress: args.onProgress,
       });
     },
     onSuccess: () => {
@@ -145,13 +151,13 @@ export function useExplorerActions(
         return await explorerService.toggleFileLock(
           item._id,
           action,
-          user!._id
+          user!._id,
         );
       } else {
         return await explorerService.toggleFolderLock(
           item._id,
           action,
-          user!._id
+          user!._id,
         );
       }
     },
@@ -165,10 +171,10 @@ export function useExplorerActions(
 
   const handleBulkToggleLock = async (
     items: (IFile | IFolder)[],
-    action: "LOCK" | "UNLOCK"
+    action: "LOCK" | "UNLOCK",
   ) => {
     const promises = items.map((item) =>
-      toggleLockMutation.mutateAsync({ item, action })
+      toggleLockMutation.mutateAsync({ item, action }),
     );
     try {
       await Promise.all(promises);
@@ -182,7 +188,7 @@ export function useExplorerActions(
   // 6. MOVE ITEMS
   const handleMoveItems = async (
     items: (IFile | IFolder)[],
-    destinationId: string
+    destinationId: string,
   ) => {
     if (items.length === 0) return;
     if (destinationId === (folderId || "")) {
@@ -206,7 +212,12 @@ export function useExplorerActions(
       if (folders.length > 0) {
         const destPayload = destinationId === "" ? "" : destinationId;
         const folderPromises = folders.map((folder) =>
-          explorerService.moveItem(folder._id, "folder", destPayload, user!._id)
+          explorerService.moveItem(
+            folder._id,
+            "folder",
+            destPayload,
+            user!._id,
+          ),
         );
         await Promise.all(folderPromises);
       }
@@ -217,10 +228,57 @@ export function useExplorerActions(
       onSuccessCallback?.();
     } catch (error) {
       console.error(error);
+      toast.dismiss();
+      const msg =
+        error instanceof AxiosError &&
+        error.response?.data &&
+        typeof (error.response.data as ApiErrorResponse).message === "string"
+          ? (error.response.data as ApiErrorResponse).message
+          : "Move failed";
+      toast.error(msg);
     }
   };
 
-  // 7. DOWNLOAD
+  // 7. PROMOTE (ISO CDE)
+  const promoteFileMutation = useMutation({
+    mutationFn: async (args: {
+      fileId: string;
+      targetStage: PromoteTargetStage;
+      destinationFolderId?: string | null;
+    }) => {
+      return explorerService.promoteFile(
+        args.fileId,
+        args.targetStage,
+        args.destinationFolderId,
+      );
+    },
+    onSuccess: () => {
+      invalidateExplorer();
+      toast.success("Promoted: a copy was created in the destination");
+    },
+    onError: (err: AxiosError<ApiErrorResponse>) => {
+      const msg =
+        err.response?.data?.message || err.message || "Promote failed";
+      toast.error(msg);
+    },
+  });
+
+  const submitForReviewMutation = useMutation({
+    mutationFn: async (args: { fileId: string }) => {
+      return explorerService.submitFileForReview(args.fileId);
+    },
+    onSuccess: () => {
+      invalidateExplorer();
+      toast.success("Submitted for review");
+    },
+    onError: (err: AxiosError<ApiErrorResponse>) => {
+      const msg =
+        err.response?.data?.message || err.message || "Submit for review failed";
+      toast.error(msg);
+    },
+  });
+
+  // 8. DOWNLOAD
   const handleDownload = async (items: (IFile | IFolder)[]) => {
     if (items.length === 0) return;
 
@@ -256,13 +314,30 @@ export function useExplorerActions(
 
   return {
     createFolder: (name: string) => createFolderMutation.mutateAsync(name),
-    uploadFiles: (files: File[]) => uploadFilesMutation.mutateAsync(files),
+    uploadFiles: (
+      files: File[],
+      options?: { onProgress?: (percent: number) => void },
+    ) => uploadFilesMutation.mutateAsync({ files, ...options }),
     renameItem: (item: IFile | IFolder, newName: string) =>
       renameMutation.mutateAsync({ item, newName }),
     deleteItems: handleBulkDelete,
     toggleLockItems: handleBulkToggleLock,
     moveItems: handleMoveItems,
     downloadItems: handleDownload,
+    promoteFile: (
+      fileId: string,
+      targetStage: PromoteTargetStage,
+      destinationFolderId?: string | null,
+    ) =>
+      promoteFileMutation.mutateAsync({
+        fileId,
+        targetStage,
+        destinationFolderId,
+      }),
+    isPromoting: promoteFileMutation.isPending,
+    submitFileForReview: (fileId: string) =>
+      submitForReviewMutation.mutateAsync({ fileId }),
+    isSubmittingReview: submitForReviewMutation.isPending,
     // Expose loading states
     isCreating: createFolderMutation.isPending,
     isUploading: uploadFilesMutation.isPending,

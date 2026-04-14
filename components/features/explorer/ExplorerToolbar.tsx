@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { IFolder, ViewMode } from "@/types/explorer";
+import { IFolder, ViewMode, CdeWorkflowMode } from "@/types/explorer";
 import UploadFileDialog from "./dialogs/UploadFileDialog";
 import {
   LayoutGrid,
@@ -33,8 +33,19 @@ interface Props {
   onRefresh: () => void;
   isLoading: boolean;
   onCreateFolderClick: () => void;
-  onUpload: (files: File[]) => Promise<void>;
-  projectId: string; // Thêm projectId
+  /** True when max folder nesting depth would be exceeded */
+  createFolderDisabled?: boolean;
+  /** Tooltip when Create folder is disabled (e.g. ISO placement or depth) */
+  createFolderDisabledTitle?: string;
+  /** True when upload must be blocked (e.g. ISO: not inside a work-package folder) */
+  uploadDisabled?: boolean;
+  uploadDisabledTitle?: string;
+  onUpload: (
+    files: File[],
+    onProgress?: (percent: number) => void,
+  ) => Promise<void>;
+  projectId: string;
+  workflowMode?: CdeWorkflowMode;
 }
 
 export default function ExplorerToolbar({
@@ -45,8 +56,13 @@ export default function ExplorerToolbar({
   onRefresh,
   isLoading,
   onCreateFolderClick,
+  createFolderDisabled = false,
+  createFolderDisabledTitle,
+  uploadDisabled = false,
+  uploadDisabledTitle,
   onUpload,
   projectId,
+  workflowMode = "NORMAL",
 }: Props) {
   // 2. State quản lý đóng mở Dialog Upload
   const [isUploadOpen, setIsUploadOpen] = useState(false);
@@ -61,7 +77,15 @@ export default function ExplorerToolbar({
   return (
     <>
       <div className="flex items-center justify-between p-4 sticky top-0 z-10">
-        <nav className="flex items-center text-sm text-slate-600 overflow-hidden">
+        <nav className="flex items-center text-sm text-slate-600 overflow-hidden gap-2">
+          {workflowMode === "ISO_19650" && (
+            <span
+              className="shrink-0 rounded-md border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-900"
+              title="ISO 19650 CDE workflow: WIP → Shared → Published → Archived"
+            >
+              ISO 19650
+            </span>
+          )}
           {/* 1. Nút Home (Root) */}
           <Link
             href={`/projects/${projectId}/data`}
@@ -154,24 +178,26 @@ export default function ExplorerToolbar({
             {/* align="end" để menu căn lề phải với nút bấm */}
             <DropdownMenuContent align="end" className="w-56">
               <DropdownMenuItem
-                onClick={onCreateFolderClick}
+                onClick={() => {
+                  if (!createFolderDisabled) onCreateFolderClick();
+                }}
+                disabled={createFolderDisabled}
                 className="cursor-pointer"
+                title={createFolderDisabledTitle}
               >
                 <FolderPlus className="mr-2 h-4 w-4" />
                 <span>Create folder</span>
               </DropdownMenuItem>
-              <DropdownMenuItem
-                // onClick={handleCreate3DModel}
-                className="cursor-pointer"
-              >
-                <Box className="mr-2 h-4 w-4" />
-                <span>Create 3D model</span>
-              </DropdownMenuItem>
+
               {/* Đường kẻ ngang */}
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                onClick={handleUploadFiles}
+                onClick={() => {
+                  if (!uploadDisabled) handleUploadFiles();
+                }}
+                disabled={uploadDisabled}
                 className="cursor-pointer"
+                title={uploadDisabledTitle}
               >
                 <FileUp className="mr-2 h-4 w-4" />
                 <span>Upload files</span>

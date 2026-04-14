@@ -5,17 +5,15 @@ import { startOfDay, endOfDay } from "date-fns";
 
 import { useApi } from "@/app/hooks/useApi";
 import { useAuth } from "@/app/context/authContext";
-import CustomDropdown from "@/components/features/team/dropdown";
 import AddTodoDialog from "@/components/features/todo/dialog/addTodoDialog";
-import TodoDrawer from "@/components/features/todo/drawer/todoDrawer";
 import DropDownCheckBox from "@/components/features/todo/dropdown/dropdownCheckBox";
 import DropdownDatePicker from "@/components/features/todo/dropdown/dropdownDatePciker";
 import { columnsTable } from "@/components/features/todo/table/column";
 import { DataTable } from "@/components/features/todo/table/DataTable";
+import { NewTodoDrawer } from "@/components/todos/NewTodoDrawer";
 
 import { Button } from "@/components/ui/button";
-
-import { EllipsisVertical } from "lucide-react";
+import { ITodo } from "@/types/todo3d";
 
 const optionsOwner = [
   { name: "Assigned to me", checked: false },
@@ -72,13 +70,14 @@ export default function page({
   const [isOpenDrawer, setIsOpenDrawer] = useState(false);
   const [projectId, setProjectId] = useState("");
   const [openDialog, setOpenDialog] = useState(false);
-  const [rowSelection, setRowSelection] = useState({});
-
+  const [rowSelection, setRowSelection] = useState<ITodo | null>(null);
   // Filter states
   const [selectedOwners, setSelectedOwners] = useState<string[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
-  const [selectedStatuses, setSelectedStatuses] = useState<Array<{ name: string; value?: string }>>([]);
+  const [selectedStatuses, setSelectedStatuses] = useState<
+    Array<{ name: string; value?: string }>
+  >([]);
   const [selectedPriorities, setSelectedPriorities] = useState<string[]>([]);
 
   const { get, post, put, delete: deleteApi } = useApi();
@@ -171,15 +170,21 @@ export default function page({
     try {
       const projectId = (await params).projectId;
 
-      const response = await get(`/todo/getAll/${projectId}`);
+      const response = await get(`/todo`, { params: { projectId } }); // ✅ valid
       if (response) {
-        setTodoList(response.result);
+        setTodoList(response);
       } else {
         console.error("Failed to fetch tag :", response.error);
       }
     } catch (err) {
       console.error("Error fetching tag :", err);
     }
+  };
+
+  const onLoadApi = () => {
+    getAllUser();
+    getAllGroup();
+    getAllTodo();
   };
 
   useEffect(() => {
@@ -253,7 +258,11 @@ export default function page({
     if (selectedStatuses.length > 0) {
       // Extract status values from selected status objects
       const selectedStatusValues = selectedStatuses
-        .map((statusObj) => statusObj.value || statusObj.name.toLowerCase().replace(/\s+/g, "_"))
+        .map(
+          (statusObj) =>
+            statusObj.value ||
+            statusObj.name.toLowerCase().replace(/\s+/g, "_"),
+        )
         .filter(Boolean);
 
       filtered = filtered.filter((todo: any) => {
@@ -354,8 +363,14 @@ export default function page({
     }
   };
 
+  const onCloseDialog = () => {
+    setOpenDialog(false);
+    onLoadApi();
+  };
+
   const onCloseDrawer = () => {
     setIsOpenDrawer(false);
+    onLoadApi();
   };
   //#endregion
 
@@ -387,32 +402,16 @@ export default function page({
   const handleExcel = (type: String) => {};
   return (
     <div className="flex relative w-full h-full gap-3">
-      <div className="pt-6 space-y-6 bg-muted h-full w-full overflow-y-hidden">
+      <div className="   h-full w-full overflow-y-hidden">
         {/* HEADER */}
-        <div className="flex items-center justify-between px-6">
-          <h1 className="text-xl font-semibold ">Todo</h1>
-          <div className="flex items-center gap-8">
-            <CustomDropdown
-              icon={<EllipsisVertical></EllipsisVertical>}
-              type="item"
-              label="Export"
-              items={[
-                {
-                  label: "Export to Excel",
-                  onClick: () => handleExcel("export"),
-                },
-                {
-                  label: "Import from Excel",
-                  onClick: () => handleExcel("import"),
-                },
-              ]}
-            />{" "}
-            <Button
-              onClick={() => setOpenDialog(true)}
-              className="bg-[#005a92] hover:bg-[#004a79] h-10 px-6 text-white">
-              New
-            </Button>
-          </div>
+        <div className="flex items-center justify-between px-4 py-4">
+          <h1 className="text-xl font-normal text-gray-800">Todo</h1>
+
+          <Button
+            onClick={() => setOpenDialog(true)}
+            className="bg-[#406D87] hover:bg-[#345a70] px-6 py-4 rounded text-base font-medium flex items-center transition-colors disabled:opacity-50 outline-none ring-0 focus-visible:ring-0 focus-visible:ring-offset-0">
+            New
+          </Button>
         </div>
         {/* BODY */}
         <div className="  border-t h-[calc(100%-40px)] w-full">
@@ -482,17 +481,20 @@ export default function page({
           type={typeData}
           tag={tagData}
           projectId={projectId}
-          onClose={() => setOpenDialog(false)}
+          onClose={onCloseDialog}
         />
       </div>
-      <TodoDrawer
-        isOpen={isOpenDrawer}
-        onClose={onCloseDrawer}
-        users={assigneeData}
-        priority={priorityData}
-        type={typeData}
-        tag={tagData}
-        data={rowSelection}></TodoDrawer>
+      <NewTodoDrawer
+        open={isOpenDrawer}
+        onOpenChange={(open) => {
+          if (!open) {
+            onCloseDrawer();
+          }
+        }}
+        projectId={projectId}
+        todoToEdit={rowSelection}
+        mode="view"
+      />
     </div>
   );
 }

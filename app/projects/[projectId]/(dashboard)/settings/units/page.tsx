@@ -208,12 +208,12 @@ export default function UnitSettingsPage({
   }
 
   return (
-    <div className="p-6 space-y-6 bg-muted min-h-screen">
+    <div className="p-4 space-y-4 bg-muted ">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Units</h1>
+        <h1 className="text-xl font-normal text-gray-800">Units</h1>
         <Button
           onClick={handleSave}
-          className="bg-[#005a92] hover:bg-[#004a79] h-9 px-6 text-white">
+          className="bg-[#406D87] hover:bg-[#345a70] h-9 px-6 text-white">
           Save changes
         </Button>
       </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic"; // [QUAN TRỌNG] Import dynamic
 import {
@@ -27,6 +27,8 @@ import { useExplorerSelection } from "./hooks/useExplorerSelection";
 import { useExplorerActions } from "./hooks/useExplorerActions";
 import { ViewMode, IFile, IFolder } from "@/types/explorer";
 import { useAuth } from "@/app/context/authContext";
+import { wouldExceedMaxNesting } from "./utils/getFolderDepthFromAncestors";
+import { toast } from "sonner";
 
 // --- [OPTIMIZATION] DYNAMIC IMPORTS (Lazy Loading) ---
 // Chỉ tải code khi cần hiển thị. Giúp trang load ban đầu nhanh hơn hẳn.
@@ -45,7 +47,7 @@ const CreateFolderDialog = dynamic(
   () => import("./dialogs/CreateFolderDialog"),
   {
     ssr: false,
-  }
+  },
 );
 
 const MoreActionsDialog = dynamic(() => import("./dialogs/MoreActionDialog"), {
@@ -65,6 +67,7 @@ export default function ExplorerClient({ projectId, folderId }: Props) {
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isMoreOpen, setIsMoreOpen] = useState(false);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
+  const [openActivityTick, setOpenActivityTick] = useState(0);
 
   // --- DATA HOOK ---
   const {
@@ -77,6 +80,8 @@ export default function ExplorerClient({ projectId, folderId }: Props) {
     refetch,
     sortConfig,
     handleSort,
+    workflowMode,
+    cdeCapabilities,
   } = useExplorerData(projectId, folderId);
 
   // --- SELECTION HOOK ---
@@ -94,9 +99,35 @@ export default function ExplorerClient({ projectId, folderId }: Props) {
   // --- ACTIONS HOOK ---
   const actions = useExplorerActions(projectId, folderId, handleClearSelection);
 
+  const createFolderBlockedByDepth = wouldExceedMaxNesting(
+    ancestors as IFolder[],
+    currentFolder as IFolder | null,
+  );
+
+  const isoCdeRootHint =
+    "ISO 19650: you cannot add items at project root or directly inside 1. WIP / 2. Shared. Open a team folder first.";
+
+  /** Block project root + only WIP/Shared CDE roots (not Published/Archived) */
+  const isoBlocksCdeRootLevel =
+    workflowMode === "ISO_19650" &&
+    (!currentFolder ||
+      (currentFolder.isCdeRoot === true &&
+        (currentFolder.cdeStage === "WIP" ||
+          currentFolder.cdeStage === "SHARED")));
+
+  const createFolderDisabledTitle = createFolderBlockedByDepth
+    ? "Maximum folder nesting depth (7 levels) has been reached."
+    : isoBlocksCdeRootLevel
+      ? isoCdeRootHint
+      : undefined;
+
+  useEffect(() => {
+    setOpenActivityTick(0);
+  }, [singleFreshItem?._id]);
+
   // --- DRAG & DROP ---
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
   );
 
   const handleDragStart = (event: DragStartEvent) => {
@@ -116,7 +147,7 @@ export default function ExplorerClient({ projectId, folderId }: Props) {
     if (!targetData || !("totalSize" in targetData.item)) return;
 
     const isDraggingSelected = selectedItems.some(
-      (i) => i._id === draggedItemId
+      (i) => i._id === draggedItemId,
     );
     let itemsToMove: (IFile | IFolder)[] = [];
 
@@ -135,7 +166,7 @@ export default function ExplorerClient({ projectId, folderId }: Props) {
   const getDragOverlayContent = () => {
     if (!activeDragId) return null;
     const isDraggingSelected = selectedItems.some(
-      (i) => i._id === activeDragId
+      (i) => i._id === activeDragId,
     );
     const dragCount = isDraggingSelected ? selectedItems.length : 1;
 
@@ -158,6 +189,10 @@ export default function ExplorerClient({ projectId, folderId }: Props) {
     if ("mimeType" in item) {
       router.push(`/projects/${projectId}/viewer/${item._id}`);
     } else {
+      if ((item as IFolder).cdeAccessible === false) {
+        toast.error("You do not have access to this folder.");
+        return;
+      }
       router.push(`/projects/${projectId}/data?folderId=${item._id}`);
     }
   };
@@ -189,11 +224,18 @@ export default function ExplorerClient({ projectId, folderId }: Props) {
             onRefresh={() => refetch()}
             isLoading={isLoading && !isPlaceholderData}
             onCreateFolderClick={() => setIsCreateOpen(true)}
-            onUpload={async (files) => {
-              await actions.uploadFiles(files);
+            createFolderDisabled={
+              createFolderBlockedByDepth || isoBlocksCdeRootLevel
+            }
+            createFolderDisabledTitle={createFolderDisabledTitle}
+            uploadDisabled={isoBlocksCdeRootLevel}
+            uploadDisabledTitle={isoCdeRootHint}
+            onUpload={async (files, onProgress) => {
+              await actions.uploadFiles(files, { onProgress });
             }}
             ancestors={ancestors}
             projectId={projectId}
+            workflowMode={workflowMode}
           />
 
           <div
@@ -252,7 +294,8 @@ export default function ExplorerClient({ projectId, folderId }: Props) {
               onSubmit={async (name) => {
                 await actions.createFolder(name);
               }}
-              currentFolderName={currentFolder?.name}
+              currentFolderName={currentFolder?.name ?? "Explorer"}
+              nestingBlocked={createFolderBlockedByDepth}
             />
           )}
 
@@ -265,6 +308,7 @@ export default function ExplorerClient({ projectId, folderId }: Props) {
                 actions.toggleLockItems([singleFreshItem!], action)
               }
               currentUserId={user!._id}
+              onOpenActivity={() => setOpenActivityTick((t) => t + 1)}
             />
           )}
         </div>
@@ -308,6 +352,26 @@ export default function ExplorerClient({ projectId, folderId }: Props) {
                 actions.toggleLockItems(freshSelectedItems, action)
               }
               projectId={projectId}
+              workflowMode={workflowMode}
+              cdeCapabilities={cdeCapabilities}
+              onPromote={async (targetStage, destinationFolderId) => {
+                if (!singleFreshItem || !("mimeType" in singleFreshItem)) return;
+                await actions.promoteFile(
+                  singleFreshItem._id,
+                  targetStage,
+                  destinationFolderId,
+                );
+                handleClearSelection();
+              }}
+              isPromoting={actions.isPromoting}
+              onSubmitForReview={async () => {
+                if (!singleFreshItem || !("mimeType" in singleFreshItem)) return;
+                await actions.submitFileForReview(singleFreshItem._id);
+                handleClearSelection();
+              }}
+              isSubmittingReview={actions.isSubmittingReview}
+              currentUserId={user?._id}
+              openActivityTick={openActivityTick}
             />
           ) : freshSelectedItems.length > 1 ? (
             <BulkPropertiesPanel
@@ -323,6 +387,7 @@ export default function ExplorerClient({ projectId, folderId }: Props) {
                 actions.moveItems(freshSelectedItems, destId)
               }
               projectId={projectId}
+              workflowMode={workflowMode}
             />
           ) : null}
         </aside>

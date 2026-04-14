@@ -7,10 +7,10 @@ import {
   User,
   Menu,
   ExternalLink,
-  Settings,
-  RefreshCcw,
   LogOut,
+  BotMessageSquare
 } from "lucide-react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { useSidebar } from "@/app/context/SidebarProvider";
 import Image from "next/image";
@@ -24,12 +24,16 @@ import {
 } from "../ui/dropdown-menu";
 import { useAuth } from "@/app/context/authContext";
 import { useRouter } from "next/navigation";
+import { BellComponent } from "./navbar/notification-bell";
+import ChatbotPanel from "@/components/chatbot/ChatbotPanel";
 
 export default function Header() {
   const { toggleSidebar, isCollapsed } = useSidebar();
   const projectName = "The Building";
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
-  const { logout, loading, error: authError, clearError } = useAuth();
+
+  const { user, logout, loading, error: authError, clearError } = useAuth();
   const router = useRouter();
 
   const onLogout = async () => {
@@ -38,6 +42,7 @@ export default function Header() {
   };
 
   return (
+    <>
     <header className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-4 sticky top-0 z-50 shadow-sm flex-shrink-0">
       <div className="flex items-center gap-4">
         {/* --- TOGGLE SIDEBAR --- */}
@@ -79,9 +84,13 @@ export default function Header() {
 
       {/* RIGHT ACTIONS */}
       <div className="flex items-center gap-1">
-        <HeaderIconBtn icon={<Search size={20} />} label="Search" />
-        <HeaderIconBtn icon={<HelpCircle size={20} />} label="Help" />
-        <HeaderIconBtn icon={<Grid size={20} />} label="Apps" />
+        <BellComponent></BellComponent>
+        <HeaderIconBtn
+          icon={<BotMessageSquare size={20} />}
+          label="Chatbot"
+          onClick={() => setIsChatOpen(!isChatOpen)}
+          isActive={isChatOpen}
+        />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="ml-2 w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-300 transition-colors">
@@ -95,8 +104,8 @@ export default function Header() {
               <div className="w-12 h-12 rounded-full bg-gray-300 flex items-center justify-center mb-2">
                 <User size={24} />
               </div>
-              <p className="font-medium">Hiếu Bùi Tấn</p>
-              <p className="text-sm text-gray-500">buitanhieu000@gmail.com</p>
+              <p className="font-medium">{user?.fullName || "User"}</p>
+              <p className="text-sm text-gray-500">{user?.email || ""}</p>
             </div>
 
             {/* Menu items */}
@@ -106,24 +115,10 @@ export default function Header() {
                 className="flex justify-between items-center w-full cursor-pointer">
                 <div className="flex items-center gap-2">
                   <User size={16} />
-                  Trimble Profile
+                  Profile
                 </div>
                 <ExternalLink size={16} />
-              </Link>
-            </DropdownMenuItem>
-
-            <DropdownMenuSeparator />
-
-            <DropdownMenuItem className="flex items-center gap-2 cursor-pointer">
-              <Settings size={16} />
-              Application Preferences
-            </DropdownMenuItem>
-
-            <DropdownMenuSeparator />
-
-            <DropdownMenuItem className="flex items-center gap-2 cursor-pointer">
-              <RefreshCcw size={16} />
-              Check for updated license
+              </Link> 
             </DropdownMenuItem>
 
             <DropdownMenuSeparator />
@@ -138,18 +133,27 @@ export default function Header() {
         </DropdownMenu>
       </div>
     </header>
+
+      <ChatbotPanel
+        isOpen={isChatOpen}
+        onClose={() => setIsChatOpen(false)}
+      />
+    </>
   );
 }
 
 function HeaderIconBtn({
   icon,
   label,
+  onClick
 }: {
   icon: React.ReactNode;
   label: string;
+  onClick?: () => void;
 }) {
   return (
     <button
+      onClick={onClick}
       className="p-2 text-gray-500 hover:text-[#004B7D] hover:bg-gray-100 rounded-md transition-colors"
       title={label}>
       {icon}

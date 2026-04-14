@@ -13,10 +13,13 @@ import { Input } from "@/components/ui/input";
 
 import { Search, ChevronDown, EllipsisVertical, Loader2 } from "lucide-react";
 
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { DataTable } from "@/components/features/team/DataTable";
-import { columnsTable } from "@/components/features/team/column";
+import { getTeamTableColumns } from "@/components/features/team/column";
 import { useApi } from "@/app/hooks/useApi";
+import { useAuth } from "@/app/context/authContext";
+import { toast } from "sonner";
+import { Toaster } from "@/components/ui/sonner";
 import {
   Dialog,
   DialogContent,
@@ -98,7 +101,11 @@ export default function page({
   const [isOpenDrawer, setIsOpenDrawer] = useState(false);
   const [rowSelection, setRowSelection] = useState({});
 
+  const { user } = useAuth();
   const { get, post, put, delete: deleteApi } = useApi();
+  const [updatingGroupRoleUserId, setUpdatingGroupRoleUserId] = useState<
+    string | null
+  >(null);
 
   const getAllUser = async () => {
     try {
@@ -123,6 +130,7 @@ export default function page({
 
     try {
       const response = await get(`/team/getMemberProject/${projectId}`);
+      console.log(response)
       if (response.success) {
         setMemberData(response.result || memberData);
         setMemberProjectCount(response.result.length || 0);
@@ -304,6 +312,72 @@ export default function page({
   };
 
   // Lọc dữ liệu dựa trên checkbox
+  const isProjectAdmin = useMemo(() => {
+    if (!user?._id || !memberPorject?.length) return false;
+    const me = memberPorject.find(
+      (m: any) => String(m.userId) === String(user._id)
+    );
+    return me?.role === "admin";
+  }, [user?._id, memberPorject]);
+
+  const showGroupMemberRoleCol = activeGroup._id !== "all";
+
+  const handleGroupMemberRoleChange = useCallback(
+    async (targetUserId: string, role: "GROUP_LEADER" | "GROUP_MEMBER") => {
+      if (activeGroup._id === "all") return;
+      setUpdatingGroupRoleUserId(targetUserId);
+      try {
+        const res = await put(
+          `/team/updateGroupMemberRole/${activeGroup._id}`,
+          {
+            userId: targetUserId,
+            role,
+          }
+        );
+        if (res.success) {
+          toast.success("Group role updated.");
+          const response = await get(
+            `/team/getMemberGroup/${activeGroup._id}`
+          );
+          if (response.success) {
+            setMemberData(response.result || []);
+            setMemberGroup(response.result || null);
+          }
+        } else {
+          toast.error(
+            (res.message as string) ||
+              (res.error as string) ||
+              "Unable to update."
+          );
+        }
+      } catch (e) {
+        console.error(e);
+        toast.error("Failed to update group role.");
+      } finally {
+        setUpdatingGroupRoleUserId(null);
+      }
+    },
+    [activeGroup._id, put, get]
+  );
+
+  const tableColumns = useMemo(
+    () =>
+      getTeamTableColumns({
+        showGroupMemberRole: showGroupMemberRoleCol,
+        projectAdmin: isProjectAdmin,
+        onGroupMemberRoleChange: isProjectAdmin
+          ? handleGroupMemberRoleChange
+          : undefined,
+        updatingUserId: updatingGroupRoleUserId,
+      }),
+    [
+      showGroupMemberRoleCol,
+      isProjectAdmin,
+      handleGroupMemberRoleChange,
+      updatingGroupRoleUserId,
+    ]
+  );
+
   const filteredData = memberData.filter((m: any) => {
     const roleMatch =
       (!roleFilter.user && !roleFilter.admin) ||
@@ -323,13 +397,13 @@ export default function page({
 
   return (
     <div className="flex relative w-full h-full gap-3">
-      <div className="pt-6 space-y-6 bg-muted h-full w-full overflow-y-hidden">
+      <div className="pt-4 space-y-4 bg-muted h-full w-full overflow-y-hidden">
         {/* HEADER */}
-        <div className="flex items-center justify-between px-6">
-          <h1 className="text-xl font-semibold ">Project members</h1>
+        <div className="flex items-center justify-between px-4">
+          <h1 className="text-xl font-normal text-gray-800">Project members</h1>
           <Button
             onClick={handleInvitePeople}
-            className="bg-[#005a92] hover:bg-[#004a79] h-10 px-6 text-white">
+            className="bg-[#406D87] hover:bg-[#345a70] px-6 py-4 rounded text-base font-medium flex items-center transition-colors disabled:opacity-50 outline-none ring-0 focus-visible:ring-0 focus-visible:ring-offset-0">
             Invite people to project
           </Button>
         </div>
@@ -342,7 +416,7 @@ export default function page({
               <h3>Groups</h3>
               <Button
                 onClick={handleNewGroup}
-                className="bg-gray-200 text-black hover:bg-gray-300">
+                className="bg-[#406D87] hover:bg-[#345a70] text-white ">
                 New Group
               </Button>
             </div>
@@ -387,7 +461,19 @@ export default function page({
             {/* filter table */}
             <div className="  border-b h-16 w-full">
               <div className="flex justify-between p-4 pr-28 items-center h-full">
-                <h3 className="font-semibold text-lg">All project members</h3>
+                <div>
+                  <h3 className="font-semibold text-lg">
+                    {activeGroup._id === "all"
+                      ? "All project members"
+                      : `Members — ${activeGroup.name}`}
+                  </h3>
+                  {showGroupMemberRoleCol && isProjectAdmin && (
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Phân quyền Group Leader / Group Member (ISO 19650): dùng cột
+                      &quot;Trong nhóm&quot;.
+                    </p>
+                  )}
+                </div>
                 <div className="flex items-center">
                   {!isSearch && (
                     <div>
@@ -482,7 +568,7 @@ export default function page({
 
             {/* data table */}
             <DataTable
-              columns={columnsTable}
+              columns={tableColumns}
               data={filteredData}
               isDrawer={isOpenDrawer}
               onRowSelectionChange={handleRowSelectionChange}></DataTable>
@@ -613,6 +699,7 @@ export default function page({
         data={rowSelection}
         groupData={groupData}
         activeGroup={activeGroup}></TeamDrawer>
+      <Toaster richColors position="top-center" />
     </div>
   );
 }

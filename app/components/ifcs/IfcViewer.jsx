@@ -27,7 +27,6 @@ import { ViewList } from '@/components/views/ViewList';
 import { DataTable } from '@/components/_3d/data_table/DataTable';
 import { Topics } from '@/components/_3d/topics/Topics';
 import { ClashSets } from '@/components/_3d/clash_sets/ClashSets';
-import { Organizer } from '@/components/_3d/organizer/Organizer';
 import { PropertiesDrawer } from './PropertiesDrawer';
 import { ModelPositionDrawer } from './ModelPositionDrawer';
 
@@ -103,6 +102,72 @@ export default function IfcViewer({
   const [isPosDrawerOpen, setIsPosDrawerOpen] = useState(false);
   const [posDrawerModel, setPosDrawerModel] = useState(null);
   const [posDrawerData, setPosDrawerData] = useState(null);
+
+  const [markerCallback, setMarkerCallback] = useState(null);
+  const markerCallbackRef = useRef(null);
+  const markerMeshRef = useRef(null);
+
+  // --- HÀM VẼ CHẤM ĐỎ MARKER ---
+  const updateMarkerMesh = async (point) => {
+    if (!sceneRef.current) return;
+    const scene = sceneRef.current.scene;
+    
+    if (markerMeshRef.current) {
+        scene.remove(markerMeshRef.current);
+        if (markerMeshRef.current.material && markerMeshRef.current.material.map) {
+          markerMeshRef.current.material.map.dispose();
+        }
+        if (markerMeshRef.current.material) {
+          markerMeshRef.current.material.dispose();
+        }
+        markerMeshRef.current = null;
+    }
+
+    if (point) {
+        const THREE = await import('three');
+
+        const canvas = document.createElement('canvas');
+        canvas.width = canvasSize;
+        canvas.height = canvasSize;
+        const ctx = canvas.getContext('2d');
+
+        // Tính toán tâm và bán kính
+        const center = canvasSize / 2;
+        const outerRadius = (canvasSize / 2) * 0.9; 
+        const innerRadius = (canvasSize / 2) * 0.6;
+
+        ctx.beginPath();
+        ctx.arc(center, center, outerRadius, 0, 2 * Math.PI);
+        ctx.fillStyle = 'rgba(255, 255, 255, 1.0)';
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(center, center, innerRadius, 0, 2 * Math.PI);
+        ctx.fillStyle = '#ff0000';
+        ctx.fill();
+
+        const markerTexture = new THREE.CanvasTexture(canvas);
+
+        const material = new THREE.SpriteMaterial({ 
+            map: markerTexture, 
+            depthTest: false, 
+            transparent: true,
+            opacity: 0.9
+        }); 
+        
+        const sprite = new THREE.Sprite(material);
+
+        sprite.scale.set(0.8, 0.8, 1.0); 
+        
+        // Đặt vị trí
+        sprite.position.set(point.x, point.y, point.z);
+        
+        sprite.renderOrder = 999; 
+        
+        scene.add(sprite);
+        markerMeshRef.current = sprite;
+    }
+  };
 
   // --- HANDLER ---
   const handleOpenPositionSettings = (model) => {
@@ -237,6 +302,28 @@ export default function IfcViewer({
               }
             }
 
+            if (markerCallbackRef.current) {
+              const hitResult = loaderRef.current.pick(event, camera, renderer);
+              
+              const intersectPoint = hitResult?.point || hitResult?.intersect?.point;
+              
+              if (intersectPoint) {
+                  markerCallbackRef.current({
+                      x: intersectPoint.x,
+                      y: intersectPoint.y,
+                      z: intersectPoint.z
+                  });
+                  updateMarkerMesh(intersectPoint);
+              } else {
+                  // CẢNH BÁO: Nếu chạy vào đây nghĩa là ifc-manager đang bị thiếu point
+                  alert("Click thành công vật thể, nhưng file ifc-manager.js chưa trả về tọa độ (point). Vui lòng xem hướng dẫn để fix!");
+                  
+                  markerCallbackRef.current({ x: 0, y: 0, z: 0 });
+              }
+              
+              markerCallbackRef.current = null;
+              return; 
+            }
 
             const result = loaderRef.current.pick(event, scene.getCamera(), scene.getRenderer());
             const currentMode = selectionModeRef.current || 'single';
@@ -480,14 +567,22 @@ export default function IfcViewer({
     // ---------------------------------------------------------
     sceneRef.current.setCameraState(viewState.camera);
 
+    if (viewState && viewState.camera) {
+      sceneRef.current.setCameraState(viewState.camera);
+    }
 
+    if (viewState && viewState.marker) {
+        updateMarkerMesh(viewState.marker);
+    } else {
+        updateMarkerMesh(null); 
+    }
     // ---------------------------------------------------------
     // 3. RESTORE VISIBILITY
     // ---------------------------------------------------------
     const mappedVisibility = [];
     const newHiddenItemsReactState = {};
 
-    if (viewState.visibility && Array.isArray(viewState.visibility)) {
+    if (viewState && viewState.visibility && Array.isArray(viewState.visibility)) {
       viewState.visibility.forEach(group => {
         let url = group.fileUrl;
 
@@ -562,6 +657,11 @@ export default function IfcViewer({
       // Highlight items
       loaderRef.current.highlightItems(itemsToHighlight);
 
+      if (viewState && viewState.clippingPlanes) {
+        loaderRef.current.restoreClippingState(viewState.clippingPlanes);
+      } else if (loaderRef.current) {
+        loaderRef.current.deleteAllPlanes();
+      }
       // Update UI Navbar
       setSelectedItems(itemsToHighlight);
       if (setSelectdItemsForNavbar) setSelectdItemsForNavbar(itemsToHighlight);
@@ -1171,22 +1271,6 @@ export default function IfcViewer({
                 </div>
               )}
 
-              {/* Organizer */}
-              {state == 'organizer' && (
-                <div
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    flex: 1,
-                    minHeight: 0,
-                    overflow: 'hidden',
-                    width: '100%',
-                  }}
-                >
-                  <Organizer />
-                </div>
-              )}
-
               {/* Data table */}
               {state == 'data-table' && (
                 <div
@@ -1215,7 +1299,33 @@ export default function IfcViewer({
                     width: '100%',
                   }}
                 >
-                  <Topics />
+                  <Topics 
+                    projectId={projectId} 
+                    capture3DState={
+                      async () =>{
+                        const snapshot = getSnapshot();
+                        const context = getContext();
+
+                        let thumbnailBase64 ="";
+                        if(canvasRef.current && sceneRef.current) {
+                          const renderer = sceneRef.current.getRenderer();
+                          const scene = sceneRef.current.scene;
+                          const camera = sceneRef.current.getCamera();
+
+                          renderer.render(scene, camera);
+                          thumbnailBase64 = canvasRef.current.toDataURL("image/png", 0.5);
+                        }
+                        return {
+                          viewState: snapshot,
+                          items: context,
+                          thumbnail: thumbnailBase64 || snapshot?.thumbnail
+                        }
+                      }
+                    }
+                    onRestoreView={restoreState}
+                    onAddMarkerStart={(cb) => { markerCallbackRef.current = cb; }}
+                    onAddMarkerCancel={() => { markerCallbackRef.current = null; }}
+                  />
                 </div>
               )}
 

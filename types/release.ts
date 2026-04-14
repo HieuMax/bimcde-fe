@@ -7,6 +7,7 @@ export interface IReleaseItem {
   size: number;
   mimeType?: string;
   modifiedBy: string; // Tên người sửa
+  modifiedById?: string; // ID người sửa [NEW]
   updatedAt: string; // Ngày sửa
   location: string;
   tags?: { name: string; color: string }[];
@@ -31,7 +32,8 @@ export interface CreateReleaseDTO {
   projectId: string;
   name: string;
   description?: string;
-  dueDate?: Date; // [NEW]
+  /** `yyyy-MM-dd` — parsed on server as an unambiguous calendar day */
+  dueDate: string;
   items: { fileId: string; version?: number }[];
   recipients: string[];
 }
@@ -40,5 +42,8 @@ export interface UpdateReleaseDTO {
   name?: string;
   description?: string;
   status?: ReleaseStatus;
-  dueDate?: Date;
+  /** `yyyy-MM-dd` — parsed on server like create */
+  dueDate?: string;
+  recipients?: string[];
+  items?: { fileId: string; version?: number }[];
 }

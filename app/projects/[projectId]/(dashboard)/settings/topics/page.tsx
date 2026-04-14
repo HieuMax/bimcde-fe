@@ -53,7 +53,7 @@ export default function TopicsSettingsPage({
   const [topicTypes, setTopicTypes] = useState<TopicsInterfaces[]>([]);
   const [topicStatuses, setTopicStatuses] = useState<TopicsInterfaces[]>([]);
   const [topicPriorities, setTopicPriorities] = useState<TopicsInterfaces[]>(
-    []
+    [],
   );
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -156,7 +156,11 @@ function EditNameDialog({ open, value, onClose, onSave }: any) {
           <Button variant="outline" onClick={onClose}>
             Cancel
           </Button>
-          <Button onClick={() => onSave(name)}>Save</Button>
+          <Button
+            className="bg-[#406D87] hover:bg-[#345a70]"
+            onClick={() => onSave(name)}>
+            Save
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -259,8 +263,10 @@ function ConfirmDeleteDialog({
 function Header({ save }: { save: () => void }) {
   return (
     <div className="flex items-center justify-between mb-4">
-      <h1 className="text-xl font-semibold">BCF Topics</h1>
-      <Button className="bg-blue-600 hover:bg-blue-700" onClick={save}>
+      <h1 className="text-xl font-normal text-gray-800">BCF Topics</h1>
+      <Button
+        className="bg-[#406D87] hover:bg-[#345a70] px-6 py-4 rounded text-base font-medium flex items-center transition-colors disabled:opacity-50 outline-none ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+        onClick={save}>
         Save changes
       </Button>
     </div>
@@ -327,7 +333,11 @@ function TopicTypesSection({ data, setData }: any) {
                 value={newType}
                 onChange={(e) => setNewType(e.target.value)}
               />
-              <Button onClick={handleAddType}>Add</Button>
+              <Button
+                className="bg-[#406D87] hover:bg-[#345a70]"
+                onClick={handleAddType}>
+                Add
+              </Button>
             </div>
           </div>
           <div className="col-span-2">
@@ -415,7 +425,7 @@ function TopicTypesSection({ data, setData }: any) {
           onCancel={() => setDeleteIndex(null)}
           onConfirm={() => {
             setData(
-              data.filter((_: any, index: number) => index !== deleteIndex)
+              data.filter((_: any, index: number) => index !== deleteIndex),
             );
             setDeleteIndex(null);
           }}
@@ -454,7 +464,7 @@ function TopicStatusSection({ data, setData }: any) {
       data.map((item: any) => ({
         ...item,
         isDefault: item._id === id,
-      }))
+      })),
     );
   };
 
@@ -503,7 +513,11 @@ function TopicStatusSection({ data, setData }: any) {
                 value={newStatus}
                 onChange={(e) => setNewStatus(e.target.value)}
               />
-              <Button onClick={handleAddStatus}>Add</Button>
+              <Button
+                className="bg-[#406D87] hover:bg-[#345a70]"
+                onClick={handleAddStatus}>
+                Add
+              </Button>
             </div>
           </div>
           <div className="col-span-2">
@@ -600,7 +614,7 @@ function TopicStatusSection({ data, setData }: any) {
           onCancel={() => setDeleteIndex(null)}
           onConfirm={() => {
             setData(
-              data.filter((_: any, index: number) => index !== deleteIndex)
+              data.filter((_: any, index: number) => index !== deleteIndex),
             );
             setDeleteIndex(null);
           }}
@@ -677,7 +691,11 @@ function TopicPrioritySection({ data, setData }: any) {
                 value={newPriority}
                 onChange={(e) => setNewPriority(e.target.value)}
               />
-              <Button onClick={handleAddPriority}>Add</Button>
+              <Button
+                className="bg-[#406D87] hover:bg-[#345a70]"
+                onClick={handleAddPriority}>
+                Add
+              </Button>
             </div>
           </div>
           <div className="col-span-2">

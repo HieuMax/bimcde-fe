@@ -1,7 +1,10 @@
-import React from "react";
+"use client";
+
+import React, { useState } from "react";
 import { IReleaseItem } from "@/types/release";
 import { Button } from "@/components/ui/button";
-import { X, FileText, Download, Eye, Tag, Trash2 } from "lucide-react";
+import { X, FileText, Download, Eye, Tag, Trash2, Key } from "lucide-react";
+import { ItemPermissionsDialog } from "@/components/features/explorer/dialogs/ItemPermissionsDialog";
 import { format } from "date-fns";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
@@ -25,8 +28,7 @@ export const FilePropertiesPanel: React.FC<FilePropertiesPanelProps> = ({
   onDelete,
 }) => {
   const router = useRouter();
-
-  console.log(item);
+  const [permissionsOpen, setPermissionsOpen] = useState(false);
 
   if (!item) return null;
   const handleViewFile = () => {
@@ -42,8 +44,21 @@ export const FilePropertiesPanel: React.FC<FilePropertiesPanelProps> = ({
     if (IFC_FILES.includes(fileExt)) {
       if (!item.location) return;
 
+      // Normalize in case location is already URL-encoded
+      let locationUrl = item.location;
+      try {
+        const decoded = decodeURIComponent(item.location);
+        if (/^https?:\/\//i.test(decoded)) {
+          locationUrl = decoded;
+        }
+      } catch {
+        // ignore malformed encoding and keep original
+      }
+
       router.push(
-        `/viewer?urls=${encodeURIComponent(JSON.stringify([item.location]))}`,
+        `/projects/${projectId}/viewer3d?urls=${encodeURIComponent(
+          JSON.stringify([locationUrl]),
+        )}`,
       );
       return;
     }
@@ -98,6 +113,15 @@ export const FilePropertiesPanel: React.FC<FilePropertiesPanelProps> = ({
             </div>
 
             <div className="flex items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-gray-600 hover:bg-gray-100 h-9 w-9"
+                onClick={() => setPermissionsOpen(true)}
+                title="Permissions"
+              >
+                <Key size={18} />
+              </Button>
               <Button
                 variant="ghost"
                 size="icon"
@@ -189,6 +213,15 @@ export const FilePropertiesPanel: React.FC<FilePropertiesPanelProps> = ({
           </div>
         </div>
       </ScrollArea>
+
+      <ItemPermissionsDialog
+        open={permissionsOpen}
+        onOpenChange={setPermissionsOpen}
+        mode="file"
+        projectId={projectId}
+        itemId={item.fileId}
+        itemName={item.name}
+      />
     </div>
   );
 };

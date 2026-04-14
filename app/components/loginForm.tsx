@@ -15,8 +15,8 @@ import { Button } from "@/components/ui/button";
 import { Loader2, Mail, Lock, Eye, EyeOff } from "lucide-react";
 
 const loginSchema = z.object({
-  email: z.string().min(1, "Vui lòng nhập email").email("Email không hợp lệ"),
-  password: z.string().min(1, "Vui lòng nhập mật khẩu"),
+  email: z.string().min(1, "Please enter your email").email("Invalid email"),
+  password: z.string().min(1, "Please enter your password"),
 });
 
 export default function LoginForm() {
@@ -42,7 +42,7 @@ export default function LoginForm() {
 
       router.push(nextUrl);
     } else {
-      alert("Đăng nhập không thành công. Vui lòng thử lại.");
+      alert("Sign-in failed. Please try again.");
     }
   };
 
@@ -56,10 +56,10 @@ export default function LoginForm() {
       {/* Header */}
       <div className="text-center mb-10">
         <h1 className="text-3xl font-bold tracking-tight text-gray-900">
-          Chào mừng trở lại
+          Welcome back
         </h1>
         <p className="text-gray-500 mt-2">
-          Đăng nhập vào tài khoản BIM CDE của bạn
+          Sign in to your BIM CDE account
         </p>
       </div>
 
@@ -90,7 +90,7 @@ export default function LoginForm() {
 
         {/* Password */}
         <div className="space-y-1.5">
-          <Label className="text-gray-700 font-medium">Mật khẩu</Label>
+          <Label className="text-gray-700 font-medium">Password</Label>
 
           <div className="relative">
             <Lock className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
@@ -120,8 +120,16 @@ export default function LoginForm() {
           type="submit"
           className="w-full h-12 rounded-lg flex justify-center items-center gap-2 bg-[#1D3F52] hover:bg-[#234a63] transition-colors">
           {loading && <Loader2 className="w-5 h-5 animate-spin" />}
-          {loading ? "Đang đăng nhập..." : "Đăng nhập"}
+          {loading ? "Signing in..." : "Sign in"}
         </Button>
+
+        <p className="text-right text-sm">
+          <Link
+            href="/forgot-password"
+            className="font-medium text-[#1D3F52] hover:underline">
+            Forgot password
+          </Link>
+        </p>
 
         {/* Divider */}
         <div className="relative my-4">
@@ -129,17 +137,17 @@ export default function LoginForm() {
             <div className="w-full border-t border-gray-300" />
           </div>
           <div className="relative flex justify-center text-sm">
-            <span className="px-2 bg-white text-gray-500">Hoặc</span>
+            <span className="px-2 bg-white text-gray-500">Or</span>
           </div>
         </div>
 
         {/* Register Link */}
         <p className="text-center text-sm">
-          <span className="text-gray-600">Chưa có tài khoản? </span>
+          <span className="text-gray-600">Don&apos;t have an account? </span>
           <Link
             href="/register"
             className="font-medium text-[#1D3F52] hover:underline">
-            Đăng ký ngay
+            Register
           </Link>
         </p>
       </form>

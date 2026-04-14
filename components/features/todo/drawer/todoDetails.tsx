@@ -20,34 +20,17 @@ export default function TodoDetails({
   return (
     <>
       <div className="flex items-center py-2 px-3 gap-4">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button className=" h-full px-4 py-3 bg-gray-200 rounded-lg text-gray-700 hover:bg-gray-300 ">
-              Export
-              <ChevronDown className="w-4 h-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent side="bottom" align="start">
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="cursor-pointer py-3">
-              Export to BCF
-            </DropdownMenuItem>
-            <DropdownMenuItem className="cursor-pointer py-3">
-              Export to Excel
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        <Button className="bg-transparent py-3 px-3 shadow-none text-gray-500 hover:bg-gray-200 rounded-full">
+        {/* <Button className="bg-transparent py-3 px-3 shadow-none text-gray-500 hover:bg-gray-200 rounded-full">
           <Tag className="w-5 h-5" />
-        </Button>
+        </Button> */}
         <Button
           onClick={() => onDelete()}
           className="bg-transparent py-3 px-3 shadow-none text-gray-500 hover:bg-gray-200 rounded-full ">
           <Trash className="w-5 h-5" />
         </Button>
-        <Button className="bg-transparent py-3 px-3 shadow-none text-gray-500 hover:bg-gray-200  ">
+        {/* <Button className="bg-transparent py-3 px-3 shadow-none text-gray-500 hover:bg-gray-200  ">
           <EllipsisVertical className="w-5 h-5" />
-        </Button>
+        </Button> */}
       </div>
 
       <div>

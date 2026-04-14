@@ -24,6 +24,7 @@ interface Props {
   item: IFile | IFolder | null;
   onToggleLock: (action: "LOCK" | "UNLOCK") => void;
   currentUserId: string;
+  onOpenActivity?: () => void;
 }
 
 export default function MoreActionsDialog({
@@ -32,6 +33,7 @@ export default function MoreActionsDialog({
   item,
   onToggleLock,
   currentUserId,
+  onOpenActivity,
 }: Props) {
   const [isShareOpen, setIsShareOpen] = useState(false);
 
@@ -102,11 +104,12 @@ export default function MoreActionsDialog({
               </div>
             )}
 
-            {/* 3. ACTIVITY (Placeholder) */}
             <Button
               variant="ghost"
               className="justify-start gap-3 h-10"
-              disabled
+              onClick={() =>
+                handleAction(() => onOpenActivity?.())
+              }
             >
               <Activity className="h-4 w-4" />
               See activity

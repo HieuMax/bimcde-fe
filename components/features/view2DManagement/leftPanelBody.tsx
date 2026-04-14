@@ -1,93 +1,132 @@
-'use client';
-import dynamic from 'next/dynamic';
-import FileDetailTab from './tabView2D/detailTab';
-import TodosTab from './tabView2D/todoTab';
-import ViewsTab from './tabView2D/viewTab';
+"use client";
 
-import {
-  FileItem,
-  ViewItem,
-  TodoItem,
-  PageItem,
-} from '@/app/types/api';
-const PagesTab = dynamic(() => import('./tabView2D/pageTab'), { 
-  ssr: false,
-  loading: () => <div className="p-4 text-xs text-gray-400">Loading sidebar...</div>
-});
-const CURRENT_USER = { name: 'hao nguyen' };
+import dynamic from "next/dynamic";
+import { AnimatePresence, motion } from "framer-motion";
 
-type ActiveTool = 'filedetail' | 'page' | 'view' | 'todo';
+import FileDetailTab from "./tabView2D/detailTab";
+import TodosTab from "./tabView2D/todoTab";
+import ViewsTab from "./tabView2D/viewTab";
 
-type LeftPanelData = {
-  file?: FileItem | null;
-  view?: ViewItem | null;
-  pages: PageItem[];
-  pageIndex: number;
-  views: ViewItem[];
-  todos: TodoItem[];
-};
+import { ViewItem, TodoItem, PageItem, IFile } from "@/types/explorer";
+import { IView } from "@/types/view";
+import VersionHistoryPanel from "./tabView2D/VersionHistoryPanel";
+
+const PagesTab = dynamic(() => import("./tabView2D/pageTab"), { ssr: false });
+
+const CURRENT_USER = { name: "hao nguyen" };
+
+type ActiveTab = "filedetail" | "page" | "view" | "todo" | "history";
 
 type LeftPanelBodyProps = {
-  activeTool: ActiveTool;
-  data: LeftPanelData;
-
-  // --- SỬA LẠI DÒNG NÀY ---
-  // Đổi từ (src, index) thành (item: PageItem) để khớp với PagesTab mới
-  onSelectPage: (item: PageItem) => void; 
-  
-  onSelectView: (view: ViewItem) => void;
+  activeTab: ActiveTab;
+  allowedKeys: ActiveTab[];
+  // 🌟 Thêm currentUser để nhận tên người dùng động từ viewHome truyền xuống
+  currentUser?: string;
+  data: {
+    file: IFile | null;
+    view?: IView | null;
+    pages: PageItem[];
+    pageIndex: number;
+    views: IView[];
+    todos: TodoItem[];
+  };
+  onSelectPage: (item: PageItem) => void;
+  onSelectView: (view: IView) => void;
   onSelectTodo: (todo: TodoItem) => void;
-
   onCreateView: () => void;
   onCreateTodo: () => void;
+  onDeleteView?: (id: string) => void;
+  onDeleteTodo?: (id: string) => void;
+  onEditView?: (view: IView) => void;
+
+  onOpenVersion?: (version: any) => void;
+  onDownloadVersion?: (version: any) => void;
+  onCloseHistory?: () => void;
+  onFileUpdated?: (file: IFile) => void;
 };
 
-export default function LeftPanelBody({
-  activeTool,
-  data,
-  onSelectPage,
-  onSelectView,
-  onSelectTodo,
-  onCreateView,
-  onCreateTodo,
-}: LeftPanelBodyProps) {
+export default function LeftPanelBody(props: LeftPanelBodyProps) {
+  const {
+    activeTab,
+    data,
+    currentUser = "Unknown User", // Fallback an toàn nếu không truyền
+    onSelectPage,
+    onSelectView,
+    onSelectTodo,
+    onCreateView,
+    onCreateTodo,
+    onDeleteView,
+    onDeleteTodo,
+    onEditView,
+    onOpenVersion,
+    onDownloadVersion,
+    onCloseHistory,
+  } = props;
 
-  switch (activeTool) {
-    case 'filedetail':
-      return <FileDetailTab file={data.file ?? null} view={data.view ?? null} />;
+  return (
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={activeTab}
+        initial={{ opacity: 0, x: -12 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={{ opacity: 0, x: 12 }}
+        transition={{ duration: 0.18, ease: "easeOut" }}
+        className="h-full"
+      >
+        {activeTab === "filedetail" && (
+          <FileDetailTab
+            file={data.file}
+            view={data.view ?? null}
+            onUpdateSuccess={props.onFileUpdated}
+          />
+        )}
 
-    case 'page':
-      return (
-        <PagesTab
-          pages={data.pages}
-          currentPageIndex={data.pageIndex}
-          // Truyền hàm callback đã sửa type xuống
-          onSelectPage={onSelectPage}
-          pdfUrl={data.file?.fileUrl}
-        />
-      );
+        {activeTab === "history" && (
+          <VersionHistoryPanel
+            file={data.file}
+            onClose={() => onCloseHistory?.()}
+            onOpenVersion={onOpenVersion}
+            onDownloadVersion={
+              onDownloadVersion ||
+              ((ver) => {
+                if (ver.location) window.open(ver.location, "_blank");
+              })
+            }
+          />
+        )}
 
-    case 'view':
-      return (
-        <ViewsTab
-          views={data.views}
-          currentUser={CURRENT_USER.name}
-          onSelectView={onSelectView}
-          onCreateView={onCreateView}
-        />
-      );
+        {activeTab === "page" && (
+          <PagesTab
+            pages={data.pages}
+            currentPageIndex={data.pageIndex}
+            onSelectPage={onSelectPage}
+            pdfUrl={data.file?.fileUrl}
+          />
+        )}
 
-    case 'todo':
-      return (
-        <TodosTab
-          todos={data.todos}
-          currentUser={CURRENT_USER.name}
-          onSelectTodo={onSelectTodo}
-          onCreateTodo={onCreateTodo}
-        />
-      );
+        {activeTab === "view" && (
+          <ViewsTab
+            views={data.views}
+            // 🌟 Sử dụng biến currentUser động
+            currentUser={currentUser}
+            onSelectView={onSelectView}
+            onCreateView={onCreateView}
+            onDeleteView={onDeleteView}
+            onEditView={onEditView}
+          />
+        )}
 
-    default:
-      return null;
-  }
+        {activeTab === "todo" && (
+          <TodosTab
+            todos={data.todos}
+            // 🌟 Sử dụng biến currentUser động
+            currentUser={currentUser}
+            onSelectTodo={onSelectTodo}
+            onCreateTodo={onCreateTodo}
+            onDeleteTodo={onDeleteTodo}
+          />
+        )}
+      </motion.div>
+    </AnimatePresence>
+  );
 }
