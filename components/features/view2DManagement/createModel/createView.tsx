@@ -44,7 +44,7 @@ export default function CreateViewPanel({
 
   const handleSave = async () => {
     if (!name.trim()) {
-      alert("Vui lòng nhập tên View!");
+      alert("Please enter a view name.");
       return;
     }
 

@@ -335,7 +335,7 @@ export default function page({
           }
         );
         if (res.success) {
-          toast.success("Đã cập nhật vai trò trong nhóm.");
+          toast.success("Group role updated.");
           const response = await get(
             `/team/getMemberGroup/${activeGroup._id}`
           );
@@ -347,12 +347,12 @@ export default function page({
           toast.error(
             (res.message as string) ||
               (res.error as string) ||
-              "Không thể cập nhật."
+              "Unable to update."
           );
         }
       } catch (e) {
         console.error(e);
-        toast.error("Lỗi khi cập nhật vai trò trong nhóm.");
+        toast.error("Failed to update group role.");
       } finally {
         setUpdatingGroupRoleUserId(null);
       }

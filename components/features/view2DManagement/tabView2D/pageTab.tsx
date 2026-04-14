@@ -116,7 +116,7 @@ export default function PagesTab({
                         /* HIỂN THỊ THUMBNAIL PDF */
                         <Document 
                           file={pdfUrl} 
-                          loading={<div className="text-xs text-gray-400 py-10">Đang tải...</div>}
+                          loading={<div className="text-xs text-gray-400 py-10">Loading...</div>}
                         >
                           <Page
                             pageNumber={pageNumber}

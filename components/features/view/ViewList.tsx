@@ -310,6 +310,11 @@ export const ViewList = () => {
     setEditIntent(true);
   };
 
+  /**
+   * Open a saved 3D view from Data → Views: same contract as ViewerClient.switchContextAndReload
+   * and explorer IFC open (viewer3d?urls=encodeURIComponent(JSON.stringify([...]))).
+   * Backend exposes GET /views3d?projectId=… only (no GET by id); list rows already include items + viewState.
+   */
   const handleViewClick = (view: IView) => {
     if (view.type === "3D") {
       const row = view as IView & {
@@ -358,7 +363,7 @@ export const ViewList = () => {
         newUrlsParams,
       )}`;
     } else {
-      router.push(`/projects/${projectId}/viewer?viewId/${view._id}`);
+      router.push(`/projects/${projectId}/viewer/${view._id}`);
     }
   };
 

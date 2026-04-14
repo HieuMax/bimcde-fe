@@ -16,6 +16,16 @@ import TagsView from "./views/TagsView";
 import ActivitiesView from "./components/views/ActivitiesView";
 import { useQueryClient } from "@tanstack/react-query";
 import { explorerService } from "@/services/explorer.service";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type ViewMode =
   | "details"
@@ -74,18 +84,21 @@ export default function PropertiesPanel({
 }: Props) {
   const [view, setView] = useState<ViewMode>("details");
   const [publishModalOpen, setPublishModalOpen] = useState(false);
+  const [archiveConfirmOpen, setArchiveConfirmOpen] = useState(false);
   const queryClient = useQueryClient();
 
   React.useEffect(() => {
     if (!open) {
       setView("details");
       setPublishModalOpen(false);
+      setArchiveConfirmOpen(false);
     }
   }, [open]);
 
   React.useEffect(() => {
     setView("details");
     setPublishModalOpen(false);
+    setArchiveConfirmOpen(false);
   }, [item?._id]);
 
   React.useEffect(() => {
@@ -116,7 +129,7 @@ export default function PropertiesPanel({
                 if (stage === "SHARED") await onPromote?.(stage);
               }}
               onOpenPromoteDestination={() => setPublishModalOpen(true)}
-              onOpenArchiveMove={() => setView("archiveMove")}
+              onOpenArchiveMove={() => setArchiveConfirmOpen(true)}
               isPromoting={isPromoting}
               onSubmitForReview={onSubmitForReview}
               isSubmittingReview={isSubmittingReview}
@@ -183,6 +196,32 @@ export default function PropertiesPanel({
               }}
             />
           )}
+
+          <AlertDialog
+            open={archiveConfirmOpen}
+            onOpenChange={setArchiveConfirmOpen}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Move to Archived</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This action cannot be undone. Are you sure you want to move this item
+                  to Archived?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    setArchiveConfirmOpen(false);
+                    setView("archiveMove");
+                  }}
+                >
+                  Move to Archived
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
           {view === "archiveMove" && item && (
             <ArchiveMoveDestinationView

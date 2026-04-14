@@ -23,17 +23,17 @@ import { Eye, EyeOff, Loader2 } from "lucide-react";
 
 const formSchema = z
   .object({
-    fullName: z.string().min(1, "Vui lòng nhập họ tên"),
-    email: z.string().email("Email không hợp lệ"),
+    fullName: z.string().min(1, "Please enter your full name"),
+    email: z.string().email("Invalid email"),
     phone: z.string().optional(),
-    password: z.string().min(6, "Mật khẩu phải có ít nhất 6 ký tự"),
+    password: z.string().min(6, "Password must be at least 6 characters"),
     confirmPassword: z.string(),
     acceptTerms: z.boolean().refine((v) => v === true, {
-      message: "Vui lòng chấp nhận điều khoản sử dụng",
+      message: "You must accept the terms of use",
     }),
   })
   .refine((data) => data.password === data.confirmPassword, {
-    message: "Mật khẩu xác nhận không khớp",
+    message: "Passwords do not match",
     path: ["confirmPassword"],
   });
 
@@ -80,9 +80,9 @@ export default function RegisterForm() {
       {/* Header */}
       <div className="text-center mb-10">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          Tạo tài khoản mới
+          Create an account
         </h1>
-        <p className="text-gray-500">Đăng ký để bắt đầu sử dụng BIM CDE</p>
+        <p className="text-gray-500">Register to start using BIM CDE</p>
       </div>
 
       <Form {...form}>
@@ -102,10 +102,10 @@ export default function RegisterForm() {
             name="fullName"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Họ và tên</FormLabel>
+                <FormLabel>Full name</FormLabel>
                 <FormControl>
                   <Input
-                    placeholder="Họ Và Tên"
+                    placeholder="Full name"
                     {...field}
                     className="h-12 text-base"
                   />
@@ -140,7 +140,7 @@ export default function RegisterForm() {
             name="phone"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Số điện thoại </FormLabel>
+                <FormLabel>Phone</FormLabel>
                 <FormControl>
                   <Input
                     placeholder="0123456789"
@@ -159,12 +159,12 @@ export default function RegisterForm() {
             name="password"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Mật khẩu</FormLabel>
+                <FormLabel>Password</FormLabel>
                 <FormControl>
                   <div className="relative">
                     <Input
                       type={showPassword ? "text" : "password"}
-                      placeholder="Tối thiểu 6 ký tự"
+                      placeholder="At least 6 characters"
                       {...field}
                       className="h-12 text-base"
                       autoComplete="password"
@@ -188,12 +188,12 @@ export default function RegisterForm() {
             name="confirmPassword"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Xác nhận mật khẩu</FormLabel>
+                <FormLabel>Confirm password</FormLabel>
                 <FormControl>
                   <div className="relative">
                     <Input
                       type={showConfirmPassword ? "text" : "password"}
-                      placeholder="Nhập lại mật khẩu"
+                      placeholder="Re-enter password"
                       {...field}
                       className="h-12 text-base"
                       autoComplete="confirmPassword"
@@ -230,17 +230,17 @@ export default function RegisterForm() {
                   />
                 </FormControl>
                 <div className="text-sm text-gray-700">
-                  Tôi đồng ý với{" "}
+                  I agree to the{" "}
                   <Link
                     href="/pages/terms"
                     className="font-medium underline hover:text-[#1D3F52]">
-                    Điều khoản sử dụng
+                    Terms of use
                   </Link>{" "}
-                  và{" "}
+                  and{" "}
                   <Link
                     href="/pages/privacy"
                     className="font-medium underline hover:text-[#1D3F52]">
-                    Chính sách bảo mật
+                    Privacy policy
                   </Link>
                 </div>
                 <FormMessage />
@@ -254,16 +254,16 @@ export default function RegisterForm() {
             disabled={loading}
             className="w-full h-14 flex justify-center items-center gap-2 bg-[#1D3F52] hover:bg-[#234a63] text-white rounded-lg">
             {loading && <Loader2 className="w-5 h-5 animate-spin" />}
-            {loading ? "Đang đăng ký..." : "Đăng ký"}
+            {loading ? "Registering..." : "Register"}
           </Button>
 
           {/* LOGIN LINK */}
           <p className="text-center text-sm text-gray-600">
-            Đã có tài khoản?{" "}
+            Already have an account?{" "}
             <Link
               href="/pages/login"
               className="font-medium text-[#1D3F52] hover:underline">
-              Đăng nhập ngay
+              Sign in
             </Link>
           </p>
         </form>

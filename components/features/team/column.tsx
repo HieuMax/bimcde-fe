@@ -113,7 +113,7 @@ export function getTeamTableColumns(options: {
 
   const groupCol: ColumnDef<TeamMemberRow> = {
     id: "groupMemberRole",
-    header: "Trong nhóm (ISO)",
+    header: "In group (ISO)",
     cell: ({ row }) => {
       const gr = row.original.groupMemberRole;
       const uid = row.original.userId

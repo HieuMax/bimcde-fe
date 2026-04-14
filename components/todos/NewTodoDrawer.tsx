@@ -1,35 +1,66 @@
-"use client"
+"use client";
 
-import { useState, useEffect, useRef } from "react"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
-import { toast } from "sonner"
-import { AxiosError } from "axios"
-import "./todoDrawer.css"
+import { useState, useEffect, useRef } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { AxiosError } from "axios";
+// import "./todoDrawer.css";
 
-import { Button } from "@/components/ui/button"
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
-import { Label } from "@/components/ui/label"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Button } from "@/components/ui/button";
 import {
-  Calendar, Eye, LinkIcon, MoveLeft, Plus, Trash2,
-  Paperclip, Download, X, File as FileIcon,
-  Pencil
-} from "lucide-react"
-import { todoService } from "@/services/todo3d.service"
-import { ITodo } from "@/types/todo3d"
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Calendar,
+  Eye,
+  LinkIcon,
+  MoveLeft,
+  Plus,
+  Trash2,
+  Paperclip,
+  Download,
+  X,
+  File as FileIcon,
+  Pencil,
+} from "lucide-react";
+import { todoService } from "@/services/todo3d.service";
+import { topicSettingsService } from "@/services/topicSettings.service";
+import {
+  IAssigneeTodo,
+  ITagTodo,
+  ITodo,
+  IPriority,
+  IType,
+} from "@/types/todo3d";
 
 import { AttachFileDialog } from "./AttachFileDialog";
+import { AssignedSelector } from "./AssignedSelector";
 import { useAuth } from "@/app/context/authContext";
+import { useApi } from "@/app/hooks/useApi";
+import CommentFormComponent from "@/components/features/todo/comment/commentForm";
+import ListCommentComponent from "@/components/features/todo/comment/listComment";
+import { TagSelector } from "./TagsSelector";
 
 interface NewTodoDrawerProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  onRestoreView?: (viewState: any) => void
-  projectId: string
-  todoToEdit?: ITodo | null
-  mode: "view" | "edit" | "create"
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onRestoreView?: (viewState: any) => void;
+  projectId: string;
+  todoToEdit?: ITodo | null;
+  mode: "view" | "edit" | "create";
   initialData?: {
     items?: {
       fileUrl: string;
@@ -39,7 +70,7 @@ interface NewTodoDrawerProps {
     title?: string;
     viewState?: any;
   } | null;
-  currentSelection?: any[]
+  currentSelection?: any[];
 }
 
 // Helper format size
@@ -51,47 +82,76 @@ const formatFileSize = (bytes: number) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
 };
 
-export function NewTodoDrawer({ open, onOpenChange, onRestoreView, projectId, todoToEdit, mode, initialData,
+export function NewTodoDrawer({
+  open,
+  onOpenChange,
+  onRestoreView,
+  projectId,
+  todoToEdit,
+  mode,
+  initialData,
   currentSelection = [],
 }: NewTodoDrawerProps) {
-  const queryClient = useQueryClient()
+  const queryClient = useQueryClient();
   const { user } = useAuth();
 
   // State Attachments
   const [attachments, setAttachments] = useState<any[]>([]);
   const [isAttachDialogOpen, setIsAttachDialogOpen] = useState(false);
+  const [commentList, setCommentList] = useState<any[]>([]);
 
+  // State for assignees
+  const [selectedAssigneeOptions, setSelectedAssigneeOptions] = useState<
+    IAssigneeTodo[]
+  >([]);
+
+  const [selectedTagsOptions, setSelectedTagsOptions] = useState<ITagTodo[]>(
+    [],
+  );
+  const [availableAssigneeOptions, setAvailableAssigneeOptions] = useState<
+    IAssigneeTodo[]
+  >([]);
+
+  // State for topic options (priority, type, status)
+  const [topicPriorities, setTopicPriorities] = useState<IPriority[]>([]);
+  const [topicTypes, setTopicTypes] = useState<IType[]>([]);
+  const [topicStatuses, setTopicStatuses] = useState<any[]>([]);
+
+  
+
+  const { get } = useApi();
   // Initial state helper
   const defaultState = {
     title: "",
     description: "",
     dueDate: "",
-    priority: "normal" as "high" | "normal" | "low",
+    priority: null as IPriority | null,
     completion: 0,
-    assignees: "",
-    type: "undefined" as "undefined" | "comment" | "issue" | "request" | "fault" | "inquiry" | "solution" | "remark" | "clash",
-    tags: "",
+    assignees: [] as IAssigneeTodo[],
+    type: null as IType | null,
+    tags: [] as ITagTodo[],
+    status: "" as string,
     items: [] as { fileUrl: string; modelId: string; expressId: string[] }[],
     viewState: null as any,
-  }
+  };
 
-  const [currentMode, setCurrentMode] = useState(mode)
+  const [currentMode, setCurrentMode] = useState(mode);
 
   useEffect(() => {
     if (open) {
-      setCurrentMode(mode)
+      setCurrentMode(mode);
     }
-  }, [mode, open])
+  }, [mode, open]);
 
   const formatDate = (date?: string) =>
-    date ? new Date(date).toLocaleDateString() : ""
-  const [formData, setFormData] = useState(defaultState)
+    date ? new Date(date).toLocaleDateString() : "";
+  const [formData, setFormData] = useState(defaultState);
   const dateInputRef = useRef<HTMLInputElement>(null);
 
   // Helper
   const getFileName = (url: string) => {
     try {
-      const parts = url.split('/');
+      const parts = url.split("/");
       return parts[parts.length - 1];
     } catch {
       return "Unknown Model";
@@ -103,86 +163,202 @@ export function NewTodoDrawer({ open, onOpenChange, onRestoreView, projectId, to
     if (open) {
       if (todoToEdit) {
         // Format date to YYYY-MM-DD for input[type="date"]
-        let formattedDate = ""
+        let formattedDate = "";
         if (todoToEdit.dueDate) {
-          const d = new Date(todoToEdit.dueDate)
+          const d = new Date(todoToEdit.dueDate);
           if (!isNaN(d.getTime())) {
-            formattedDate = d.toISOString().split('T')[0]
+            formattedDate = d.toISOString().split("T")[0];
           }
         }
         setFormData({
           title: todoToEdit.title || "",
           description: todoToEdit.description || "",
           dueDate: formattedDate,
-          priority: (todoToEdit.priority as any) || "normal",
+          priority: todoToEdit.priority || null,
           completion: todoToEdit.completion || 0,
-          // Convert arrays to comma-separated strings for the inputs
-          assignees: todoToEdit.assignees?.join(", ") || "",
-          type: (todoToEdit.type as any) || "undefined",
-          tags: todoToEdit.tags?.join(", ") || "",
+          assignees: todoToEdit.assignees || [],
+          type: todoToEdit.type || null,
+          status: (todoToEdit.status as any) || null,
+          tags: todoToEdit.tags || [],
           items: todoToEdit?.items || [],
           viewState: todoToEdit?.viewState || null,
-        })
+        });
         setAttachments(todoToEdit.attachments || []);
-      } else if (initialData && mode === 'create') {
+      } else if (initialData && mode === "create") {
         setFormData({
           ...defaultState,
           items: initialData?.items || [],
           viewState: initialData?.viewState || null,
-        })
+        });
         setAttachments([]);
+        setSelectedAssigneeOptions([]);
+        setSelectedTagsOptions([]);
+
       } else {
         // Reset to default if creating new
-        setFormData(defaultState)
+        setFormData(defaultState);
         setAttachments([]);
+        setSelectedAssigneeOptions([]);
+        setSelectedTagsOptions([]);
+
       }
     }
-  }, [open, todoToEdit])
+  }, [open, todoToEdit]);
+
+  // Sync selectedAssigneeOptions when todoToEdit or availableAssigneeOptions changes
+  useEffect(() => {
+    if (todoToEdit) {
+      // Sync assignees
+      const assigneeOptions = availableAssigneeOptions.filter((o) =>
+        todoToEdit.assignees?.some((a) => a.assigneeId === o.assigneeId),
+      );
+      setSelectedAssigneeOptions(assigneeOptions);
+
+      // Sync tags from formData
+      setSelectedTagsOptions(formData.tags || []);
+    }
+  }, [todoToEdit, availableAssigneeOptions]);
+
+  // Reset mode to view when todoToEdit changes (unless creating)
+  useEffect(() => {
+    if (todoToEdit && mode !== "create") {
+      setCurrentMode("view");
+    }
+  }, [todoToEdit, mode]);
+
+  // Fetch topic settings (priority, type, status) when opening
+  useEffect(() => {
+    if (open) {
+      const fetchTopicSettings = async () => {
+        try {
+          const settings = await topicSettingsService.getAll(projectId);
+
+          // Map API response to IPriority interface
+          const priorities: IPriority[] = (settings.topicPriorities || []).map(
+            (p: any) => ({
+              priorityId: p._id || "",
+              name: p.name || "",
+              color: p.color || "",
+            }),
+          );
+
+          // Map API response to IType interface
+          const types: IType[] = (settings.topicTypes || []).map((t: any) => ({
+            typeId: t._id || "",
+            name: t.name || "",
+          }));
+
+          setTopicPriorities(priorities);
+          setTopicTypes(types);
+          setTopicStatuses(settings.topicStatuses || []);
+        } catch (error) {
+          console.error("Failed to fetch topic settings:", error);
+        }
+      };
+      void fetchTopicSettings();
+    }
+  }, [open, projectId]);
+
+  // Fetch assignee options when opening
+  useEffect(() => {
+    if (open) {
+      const fetchAssigneeOptions = async () => {
+        try {
+          const [membersRes, groupsRes] = await Promise.all([
+            get(`/projects/${projectId}/members`),
+            get(`/team/getGroup/${projectId}`),
+          ]);
+
+          const nextOptions: IAssigneeTodo[] = [];
+
+          const members = membersRes.result || [];
+          members.forEach((m: any) => {
+            if (m.userId) {
+              nextOptions.push({
+                assigneeId: m.userId,
+                name: m.fullName,
+                type: "user",
+                label: m.email,
+              });
+            }
+          });
+
+          const groups = groupsRes.result || [];
+          groups.forEach((g: any) => {
+            nextOptions.push({
+              assigneeId: g._id,
+              name: g.name,
+              type: "group",
+            });
+          });
+
+          setAvailableAssigneeOptions(nextOptions);
+
+          // Set selected options based on latest formData (user edits) first,
+          // fallback to todoToEdit value for initial load.
+          const currentAssignees =
+            (formData.assignees && formData.assignees.length > 0
+              ? formData.assignees
+              : todoToEdit?.assignees) || [];
+
+          const selected = nextOptions.filter((o) =>
+            currentAssignees.some((a) => a.assigneeId === o.assigneeId),
+          );
+          setSelectedAssigneeOptions(selected);
+        } catch (error) {
+          console.error("Failed to fetch assignee options:", error);
+        }
+      };
+
+      fetchAssigneeOptions();
+    }
+  }, [open, projectId, todoToEdit]);
 
   const createMutation = useMutation({
     mutationFn: todoService.create,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["todos", projectId] })
-      toast.success("Todo created successfully")
-      handleCloseDrawer()
-      setFormData(defaultState)
+      queryClient.invalidateQueries({ queryKey: ["todos", projectId] });
+      toast.success("Todo created successfully");
+      handleCloseDrawer();
+      setFormData(defaultState);
     },
     onError: (error: AxiosError<{ message?: string }>) => {
-      const msg = error?.response?.data?.message || error.message || "Failed to create todo"
-      toast.error(msg)
+      const msg =
+        error?.response?.data?.message ||
+        error.message ||
+        "Failed to create todo";
+      toast.error(msg);
     },
-  })
+  });
 
   const updateMutation = useMutation({
     mutationFn: (data: any) => todoService.update(todoToEdit!._id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["todos", projectId] })
-      toast.success("Todo updated successfully")
-      handleCloseDrawer()
-      setFormData(defaultState)
+      queryClient.invalidateQueries({ queryKey: ["todos", projectId] });
+      toast.success("Todo updated successfully");
+      handleCloseDrawer();
+      setFormData(defaultState);
     },
     onError: (error: AxiosError<{ message?: string }>) => {
-      const msg = error?.response?.data?.message || error.message || "Failed to update todo"
-      toast.error(msg)
+      const msg =
+        error?.response?.data?.message ||
+        error.message ||
+        "Failed to update todo";
+      toast.error(msg);
     },
-  })
+  });
 
   const handleSaveTodo = () => {
     if (!formData.title.trim()) {
-      toast.error("Title is required")
-      return
+      toast.error("Title is required");
+      return;
     }
 
-    // Parse assignees and tags
-    const assigneesArray = formData.assignees
-      .split(",")
-      .map((a) => a.trim())
-      .filter((a) => a.length > 0)
-
-    const tagsArray = formData.tags
-      .split(",")
-      .map((t) => t.trim())
-      .filter((t) => t.length > 0)
+    // // Parse tags
+    // const tagsArray = formData.tags
+    //   .split(",")
+    //   .map((t) => t.trim())
+    //   .filter((t) => t.length > 0);
 
     const payload: any = {
       title: formData.title.trim(),
@@ -190,60 +366,96 @@ export function NewTodoDrawer({ open, onOpenChange, onRestoreView, projectId, to
       dueDate: formData.dueDate || undefined,
       priority: formData.priority,
       completion: formData.completion,
-      assignees: assigneesArray.length > 0 ? assigneesArray : undefined,
+      status: formData.status,
+      assignees: formData.assignees.length > 0 ? formData.assignees : undefined,
       type: formData.type,
-      tags: tagsArray.length > 0 ? tagsArray : undefined,
+      tags: formData.tags.length > 0 ? formData.tags : undefined,
       projectId,
       viewState: formData.viewState || undefined,
       items: formData.items || [],
       attachments: attachments,
-    }
-
-    console.log(payload)
+    };
 
     if (todoToEdit) {
-      updateMutation.mutate(payload)
+      updateMutation.mutate(payload);
     } else {
-      createMutation.mutate(payload)
+      createMutation.mutate(payload);
     }
-  }
+  };
 
   const handleCloseDrawer = () => {
-    onOpenChange(false)
+    onOpenChange(false);
 
     setTimeout(() => {
-      setCurrentMode("view")
-    }, 100)
-  }
+      setCurrentMode("view");
+    }, 100);
+  };
 
   const handleAddAttachments = (newFiles: any[]) => {
-    setAttachments(prev => [...prev, ...newFiles]);
+    setAttachments((prev) => [...prev, ...newFiles]);
   };
 
   const handleRemoveAttachment = (indexToRemove: number) => {
-    setAttachments(prev => prev.filter((_, idx) => idx !== indexToRemove));
+    setAttachments((prev) => prev.filter((_, idx) => idx !== indexToRemove));
+  };
+
+  const fetchComments = async () => {
+    if (!todoToEdit?._id) {
+      setCommentList([]);
+      return;
+    }
+
+    try {
+      const response = await get(`/todo/comment/getComment/${todoToEdit._id}`);
+      if (response?.success) {
+        setCommentList(response.result || []);
+      } else {
+        setCommentList([]);
+      }
+    } catch (error) {
+      console.error("Error fetching comments:", error);
+      setCommentList([]);
+    }
+  };
+
+  useEffect(() => {
+    if (open && todoToEdit) {
+      void fetchComments();
+      // void fetchAttachments();
+    } else {
+      setCommentList([]);
+      setAttachments([]);
+    }
+  }, [open, todoToEdit]);
+
+  const handleCommentChange = () => {
+    queryClient.invalidateQueries({ queryKey: ["todos", projectId] });
+    void fetchComments();
   };
 
   // --- LOGIC CONTROL LINKED ITEMS ---
 
   const handleRemoveLink = (fileUrl: string, idToRemove: string) => {
-    setFormData(prev => {
-      const newItems = prev.items?.map(group => {
-        if (group.fileUrl === fileUrl) {
-          return {
-            ...group,
-            expressId: group.expressId.filter(id => id !== idToRemove)
-          };
-        }
-        return group;
-      }).filter(group => group.expressId.length > 0) || [];
+    setFormData((prev) => {
+      const newItems =
+        prev.items
+          ?.map((group) => {
+            if (group.fileUrl === fileUrl) {
+              return {
+                ...group,
+                expressId: group.expressId.filter((id) => id !== idToRemove),
+              };
+            }
+            return group;
+          })
+          .filter((group) => group.expressId.length > 0) || [];
 
       return { ...prev, items: newItems };
     });
   };
 
   const handleUnlinkAll = () => {
-    setFormData(prev => ({ ...prev, items: [] }));
+    setFormData((prev) => ({ ...prev, items: [] }));
   };
 
   const handleAddSelection = () => {
@@ -253,14 +465,14 @@ export function NewTodoDrawer({ open, onOpenChange, onRestoreView, projectId, to
       return;
     }
 
-    setFormData(prev => {
+    setFormData((prev) => {
       const currentItems = [...(prev.items || [])];
 
-      currentSelection.forEach(sel => {
+      currentSelection.forEach((sel) => {
         const fileUrl = sel.fileUrl;
         const expressId = String(sel.expressID);
 
-        const existingGroup = currentItems.find(g => g.fileUrl === fileUrl);
+        const existingGroup = currentItems.find((g) => g.fileUrl === fileUrl);
 
         if (existingGroup) {
           if (!existingGroup.expressId.includes(expressId)) {
@@ -270,7 +482,7 @@ export function NewTodoDrawer({ open, onOpenChange, onRestoreView, projectId, to
           currentItems.push({
             fileUrl: fileUrl,
             modelId: String(sel.modelID),
-            expressId: [expressId]
+            expressId: [expressId],
           });
         }
       });
@@ -281,30 +493,27 @@ export function NewTodoDrawer({ open, onOpenChange, onRestoreView, projectId, to
     toast.success(`Linked ${currentSelection.length} objects to this Todo.`);
   };
 
-  const isPending = createMutation.isPending || updateMutation.isPending
+  const isPending = createMutation.isPending || updateMutation.isPending;
 
   return (
     <Sheet open={open} onOpenChange={handleCloseDrawer} modal={false}>
-      <SheetContent className="w-[400px] sm:w-[540px] flex flex-col p-0"
+      <SheetContent
+        className="w-[400px] sm:w-[540px] flex flex-col p-0"
         onInteractOutside={(e) => {
           e.preventDefault();
         }}
-
         style={{
           boxShadow: "-5px 0 15px rgba(0,0,0,0.1)",
           pointerEvents: "auto",
-          zIndex: 50
-        }}
-      >
-
+          zIndex: 50,
+        }}>
         <SheetHeader className="border-b px-6 py-4 flex items-center">
           <div className="flex items-center gap-2 justify-start w-full">
             {currentMode === "edit" && (
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => setCurrentMode("view")}
-              >
+                onClick={() => setCurrentMode("view")}>
                 <MoveLeft className="h-4 w-4" />
               </Button>
             )}
@@ -319,15 +528,12 @@ export function NewTodoDrawer({ open, onOpenChange, onRestoreView, projectId, to
               <Button
                 variant="ghost"
                 size="icon"
-                onClick={() => setCurrentMode("edit")}
-              >
+                onClick={() => setCurrentMode("edit")}>
                 <Pencil className="h-4 w-4" />
               </Button>
             )}
-
           </div>
         </SheetHeader>
-
 
         <div className="flex-1 overflow-y-auto px-6 ">
           <div className="space-y-6">
@@ -340,8 +546,7 @@ export function NewTodoDrawer({ open, onOpenChange, onRestoreView, projectId, to
                     onRestoreView(formData.viewState);
                     toast.success("Restoring 3D View...");
                   }
-                }}
-              >
+                }}>
                 <img
                   src={formData.viewState.thumbnail}
                   alt="3D Context View"
@@ -366,7 +571,9 @@ export function NewTodoDrawer({ open, onOpenChange, onRestoreView, projectId, to
               <ViewField label="Title" value={formData.title} />
             ) : (
               <div className="space-y-2">
-                <Label htmlFor="title" className="text-sm text-muted-foreground">
+                <Label
+                  htmlFor="title"
+                  className="text-sm text-muted-foreground">
                   Title (required)
                 </Label>
                 <Input
@@ -379,13 +586,14 @@ export function NewTodoDrawer({ open, onOpenChange, onRestoreView, projectId, to
               </div>
             )}
 
-
             {/* Description */}
             {currentMode === "view" ? (
               <ViewField label="Description" value={formData.description} />
             ) : (
               <div className="space-y-2">
-                <Label className="text-sm text-muted-foreground">Description</Label>
+                <Label className="text-sm text-muted-foreground">
+                  Description
+                </Label>
                 <Textarea
                   value={formData.description}
                   onChange={(e) =>
@@ -395,7 +603,6 @@ export function NewTodoDrawer({ open, onOpenChange, onRestoreView, projectId, to
               </div>
             )}
 
-
             {/* Due Date */}
             {currentMode === "view" ? (
               <ViewField
@@ -403,12 +610,17 @@ export function NewTodoDrawer({ open, onOpenChange, onRestoreView, projectId, to
                 value={formatDate(formData.dueDate)}
               />
             ) : (
-              <div className="space-y-2"
+              <div
+                className="space-y-2"
                 onClick={() => {
                   dateInputRef.current?.showPicker();
                 }}>
                 <div className="flex items-center gap-2">
-                  <Label htmlFor="dueDate" className="text-sm text-muted-foreground">Due date</Label>
+                  <Label
+                    htmlFor="dueDate"
+                    className="text-sm text-muted-foreground">
+                    Due date
+                  </Label>
                 </div>
                 <div className="relative w-full">
                   <Input
@@ -416,12 +628,12 @@ export function NewTodoDrawer({ open, onOpenChange, onRestoreView, projectId, to
                     id="dueDate"
                     type="date"
                     value={formData.dueDate}
-                    onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
+                    onChange={(e) =>
+                      setFormData({ ...formData, dueDate: e.target.value })
+                    }
                     className="w-full pr-10 cursor-pointer"
                   />
-                  <Calendar
-                    className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground cursor-pointer"
-                  />
+                  <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground cursor-pointer" />
                 </div>
               </div>
             )}
@@ -429,56 +641,90 @@ export function NewTodoDrawer({ open, onOpenChange, onRestoreView, projectId, to
             {/* Priority */}
             {currentMode === "view" ? (
               <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">Priority</Label>
+                <Label className="text-xs text-muted-foreground">
+                  Priority
+                </Label>
                 <div className="flex items-center gap-2 text-sm">
-                  <PriorityDot priority={formData.priority} />
-                  <span className="capitalize">{formData.priority}</span>
+                  <PriorityDot priority={formData.priority as any} />
+                  <span className="capitalize">{formData.priority?.name}</span>
                 </div>
               </div>
             ) : (
               <div className="space-y-2">
-                <Label htmlFor="priority" className="text-sm text-muted-foreground">
+                <Label
+                  htmlFor="priority"
+                  className="text-sm text-muted-foreground">
                   Priority
                 </Label>
 
                 <Select
-                  value={formData.priority}
-                  onValueChange={(value) =>
-                    setFormData({ ...formData, priority: value as any })
-                  }
-                >
+                  value={formData.priority?.priorityId || ""}
+                  onValueChange={(priorityId) => {
+                    const priority =
+                      topicPriorities.find(
+                        (p) => p.priorityId === priorityId,
+                      ) || formData.priority;
+                    setFormData({ ...formData, priority });
+                  }}>
                   <SelectTrigger id="priority" className="w-full">
                     <SelectValue>
                       {formData.priority && (
                         <div className="flex items-center gap-2">
                           <PriorityDot priority={formData.priority} />
-                          <span className="capitalize">{formData.priority}</span>
+                          <span className="capitalize">
+                            {formData.priority?.name}
+                          </span>
                         </div>
                       )}
                     </SelectValue>
                   </SelectTrigger>
 
                   <SelectContent>
-                    <SelectItem value="normal">
-                      <div className="flex items-center gap-2">
-                        <PriorityDot priority="normal" />
-                        <span>Normal</span>
-                      </div>
-                    </SelectItem>
+                    {topicPriorities.map((priority) => (
+                      <SelectItem
+                        key={priority.priorityId}
+                        value={priority.priorityId}>
+                        <div className="flex items-center gap-2">
+                          <PriorityDot priority={priority} />
+                          <span className="capitalize">{priority.name}</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
-                    <SelectItem value="high">
-                      <div className="flex items-center gap-2">
-                        <PriorityDot priority="high" />
-                        <span>High</span>
-                      </div>
-                    </SelectItem>
+            {/* Status */}
+            {currentMode === "view" ? (
+              <ViewField label="Status" value={formData.status} />
+            ) : (
+              <div className="space-y-2">
+                <Label
+                  htmlFor="status"
+                  className="text-sm text-muted-foreground">
+                  Status
+                </Label>
 
-                    <SelectItem value="low">
-                      <div className="flex items-center gap-2">
-                        <PriorityDot priority="low" />
-                        <span>Low</span>
-                      </div>
-                    </SelectItem>
+                <Select
+                  value={formData.status}
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, status: value as any })
+                  }>
+                  <SelectTrigger id="status" className="w-full">
+                    <SelectValue>
+                      {formData.status && (
+                        <span className="capitalize">{formData.status}</span>
+                      )}
+                    </SelectValue>
+                  </SelectTrigger>
+
+                  <SelectContent>
+                    {topicStatuses.map((status) => (
+                      <SelectItem key={status.name} value={status.name}>
+                        <span className="capitalize">{status.name}</span>
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -486,87 +732,110 @@ export function NewTodoDrawer({ open, onOpenChange, onRestoreView, projectId, to
 
             {/* Completion */}
             {currentMode === "view" ? (
-              <ViewField
-                label="Completion"
-                value={`${formData.completion}%`}
-              />
+              <ViewField label="Completion" value={`${formData.completion}%`} />
             ) : (
               <div className="space-y-2">
-                <Label htmlFor="completion" className="text-sm text-muted-foreground">Completion %</Label>
+                <Label
+                  htmlFor="completion"
+                  className="text-sm text-muted-foreground">
+                  Completion %
+                </Label>
                 <Input
                   id="completion"
                   type="number"
                   min="0"
                   max="100"
                   value={formData.completion}
-                  onChange={(e) => setFormData({ ...formData, completion: Number(e.target.value) })}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      completion: Number(e.target.value),
+                    })
+                  }
                 />
               </div>
             )}
-
 
             {/* Assignees */}
             {currentMode === "view" ? (
               <ViewField
                 label="Assignees"
-                value={formData.assignees || "Unassigned"}
-              />
-            ) : (
-              <Input
-                value={formData.assignees}
-                onChange={(e) =>
-                  setFormData({ ...formData, assignees: e.target.value })
-                }
-              />
-            )}
-
-
-            {/* Type */}
-            {currentMode === "view" ? (
-              <ViewField
-                label="Type"
-                value={formData.type || "undefined"}
+                value={selectedAssigneeOptions.map((o) => o.name).join(", ")}
               />
             ) : (
               <div className="space-y-2">
-                <Label htmlFor="type" className="text-sm text-muted-foreground">Type</Label>
+                <Label className="text-sm text-muted-foreground">
+                  Assignees
+                </Label>
+                <AssignedSelector
+                  projectId={projectId}
+                  initialOptions={selectedAssigneeOptions}
+                  onChange={(ids, options) => {
+                    setFormData((prev) => ({
+                      ...prev,
+                      assignees: options || [],
+                    }));
+                    setSelectedAssigneeOptions(options || []);
+                  }}
+                />
+              </div>
+            )}
+
+            {/* Type */}
+            {currentMode === "view" ? (
+              <ViewField label="Type" value={formData.type?.name} />
+            ) : (
+              <div className="space-y-2">
+                <Label htmlFor="type" className="text-sm text-muted-foreground">
+                  Type
+                </Label>
                 <Select
-                  value={formData.type}
-                  onValueChange={(value) => setFormData({ ...formData, type: value as any })}
-                >
+                  value={formData.type?.typeId || ""}
+                  onValueChange={(typeId) => {
+                    const type =
+                      topicTypes.find((t) => t.typeId === typeId) ||
+                      formData.type;
+                    setFormData({ ...formData, type });
+                  }}>
                   <SelectTrigger id="type" className="w-full">
-                    <SelectValue />
+                    <SelectValue>
+                      {formData.type && (
+                        <span className="capitalize">{formData.type.name}</span>
+                      )}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="undefined">Undefined</SelectItem>
-                    <SelectItem value="comment">Comment</SelectItem>
-                    <SelectItem value="issue">Issue</SelectItem>
-                    <SelectItem value="request">Request</SelectItem>
-                    <SelectItem value="fault">Fault</SelectItem>
-                    <SelectItem value="inquiry">Inquiry</SelectItem>
-                    <SelectItem value="solution">Solution</SelectItem>
-                    <SelectItem value="remark">Remark</SelectItem>
-                    <SelectItem value="clash">Clash</SelectItem>
+                    {topicTypes.map((type) => (
+                      <SelectItem key={type.typeId} value={type.typeId}>
+                        <span className="capitalize">{type.name}</span>
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
             )}
 
-
             {/* Tags */}
             {currentMode === "view" ? (
               <ViewField
                 label="Tags"
-                value={formData.tags || ""}
+                value={selectedTagsOptions.map((o) => o.name).join(", ")}
               />
             ) : (
               <div className="space-y-2">
-                <Label htmlFor="tags" className="text-sm text-muted-foreground">Tags</Label>
-                <Input
-                  id="tags"
-                  placeholder="Comma separated tags"
-                  value={formData.tags}
-                  onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
+                <Label className="text-sm text-muted-foreground">Tags</Label>
+
+                <TagSelector
+                  projectId={projectId}
+                  initialOptions={selectedTagsOptions}
+                  onChange={(ids, options) => {
+                    setFormData((prev) => ({
+                      ...prev,
+                      tags: options || [], // ✅ đúng field
+                    }));
+
+                    setSelectedTagsOptions(options || []); // ✅ đúng state
+                  }}
                 />
               </div>
             )}
@@ -592,7 +861,10 @@ export function NewTodoDrawer({ open, onOpenChange, onRestoreView, projectId, to
                   <LinkIcon className="w-4 h-4" />
                   Linked Objects
                   <span className="bg-slate-100 text-xs px-2 py-0.5 rounded-full">
-                    {formData.items?.reduce((acc, g) => acc + g.expressId.length, 0) || 0}
+                    {formData.items?.reduce(
+                      (acc, g) => acc + g.expressId.length,
+                      0,
+                    ) || 0}
                   </span>
                 </h3>
 
@@ -604,16 +876,14 @@ export function NewTodoDrawer({ open, onOpenChange, onRestoreView, projectId, to
                       variant="outline"
                       className="h-7 text-xs px-2"
                       onClick={handleUnlinkAll}
-                      disabled={!formData.items?.length}
-                    >
+                      disabled={!formData.items?.length}>
                       Clear All
                     </Button>
                     <Button
                       size="sm"
                       variant="secondary"
                       className="h-7 text-xs px-2 gap-1"
-                      onClick={handleAddSelection}
-                    >
+                      onClick={handleAddSelection}>
                       <Plus className="w-3 h-3" /> Add Selection
                     </Button>
                   </div>
@@ -630,21 +900,23 @@ export function NewTodoDrawer({ open, onOpenChange, onRestoreView, projectId, to
 
                 {formData.items?.map((group, gIdx) => (
                   <div key={gIdx} className="bg-slate-50 rounded-md p-2 border">
-                    <div className="text-xs font-semibold text-slate-700 mb-1 truncate" title={group.fileUrl}>
+                    <div
+                      className="text-xs font-semibold text-slate-700 mb-1 truncate"
+                      title={group.fileUrl}>
                       File: {getFileName(group.fileUrl)}
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {group.expressId.map((id) => (
                         <div
                           key={id}
-                          className="flex items-center gap-1 bg-white border rounded px-1.5 py-0.5 text-xs text-slate-600 shadow-sm group/tag"
-                        >
+                          className="flex items-center gap-1 bg-white border rounded px-1.5 py-0.5 text-xs text-slate-600 shadow-sm group/tag">
                           <span>#{id}</span>
                           {currentMode !== "view" && (
                             <button
-                              onClick={() => handleRemoveLink(group.fileUrl, id)}
-                              className="text-slate-400 hover:text-red-500 opacity-0 group-hover/tag:opacity-100 transition-opacity"
-                            >
+                              onClick={() =>
+                                handleRemoveLink(group.fileUrl, id)
+                              }
+                              className="text-slate-400 hover:text-red-500 opacity-0 group-hover/tag:opacity-100 transition-opacity">
                               <Trash2 className="w-3 h-3" />
                             </button>
                           )}
@@ -658,103 +930,118 @@ export function NewTodoDrawer({ open, onOpenChange, onRestoreView, projectId, to
             {/* ---------------------------------------------------------------------- */}
 
             {/* --- NEW SECTION: ATTACHMENTS --- */}
-            <div className="pt-4 border-t">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-medium flex items-center gap-2">
-                  <Paperclip className="w-4 h-4" />
-                  Attachments
-                  <span className="bg-slate-100 text-xs px-2 py-0.5 rounded-full">
-                    {attachments.length}
-                  </span>
-                </h3>
+            {todoToEdit && (
+              <div className="pt-4 border-t">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-medium flex items-center gap-2">
+                    <Paperclip className="w-4 h-4" />
+                    Attachments
+                    <span className="bg-slate-100 text-xs px-2 py-0.5 rounded-full">
+                      {attachments.length}
+                    </span>
+                  </h3>
 
-                {currentMode !== "view" && (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    className="h-7 text-xs px-2 gap-1"
-                    onClick={() => setIsAttachDialogOpen(true)}
-                  >
-                    <Plus className="w-3 h-3" /> Add Files
-                  </Button>
-                )}
-              </div>
+                  {currentMode === "edit" && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      className="h-7 text-xs px-2 gap-1"
+                      onClick={() => setIsAttachDialogOpen(true)}>
+                      <Plus className="w-3 h-3" /> Add Files
+                    </Button>
+                  )}
+                </div>
 
-              <div className="space-y-2">
-                {attachments.length === 0 && (
-                  <div className="text-sm text-muted-foreground italic px-2">
-                    No files attached.
-                  </div>
-                )}
+                <div className="space-y-2">
+                  {attachments.length === 0 && (
+                    <div className="text-sm text-muted-foreground italic px-2">
+                      No files attached.
+                    </div>
+                  )}
 
-                {attachments.map((file, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-2 rounded-md border bg-slate-50 hover:bg-slate-100 transition-colors group">
-                    <div className="flex items-center gap-3 overflow-hidden">
-                      <div className="w-8 h-8 rounded bg-white border flex items-center justify-center shrink-0">
-                        <FileIcon className="w-4 h-4 text-blue-500" />
+                  {attachments.map((file, idx) => (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between p-2 rounded-md border bg-slate-50 hover:bg-slate-100 transition-colors group">
+                      <div className="flex items-center gap-3 overflow-hidden">
+                        <div className="w-8 h-8 rounded bg-white border flex items-center justify-center shrink-0">
+                          <FileIcon className="w-4 h-4 text-blue-500" />
+                        </div>
+                        <div className="flex flex-col min-w-0">
+                          <a
+                            href={file.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm font-medium text-slate-700 truncate hover:underline">
+                            {file.name}
+                          </a>
+                          <span className="text-xs text-slate-400">
+                            {formatFileSize(file.size)}
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex flex-col min-w-0">
+
+                      <div className="flex items-center gap-1">
+                        {/* Download Button */}
                         <a
                           href={file.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm font-medium text-slate-700 truncate hover:underline"
-                        >
-                          {file.name}
+                          download={file.name}
+                          className="p-1.5 text-slate-400 hover:text-slate-700 rounded-md hover:bg-slate-200"
+                          target="_blank">
+                          <Download className="w-4 h-4" />
                         </a>
-                        <span className="text-xs text-slate-400">
-                          {formatFileSize(file.size)}
-                        </span>
+
+                        {/* Remove Button (Only in edit mode) */}
+                        {currentMode === "edit" && (
+                          <button
+                            onClick={() => handleRemoveAttachment(idx)}
+                            className="p-1.5 text-slate-400 hover:text-red-600 rounded-md hover:bg-red-50">
+                            <X className="w-4 h-4" />
+                          </button>
+                        )}
                       </div>
                     </div>
-
-                    <div className="flex items-center gap-1">
-                      {/* Download Button */}
-                      <a
-                        href={file.url}
-                        download={file.name}
-                        className="p-1.5 text-slate-400 hover:text-slate-700 rounded-md hover:bg-slate-200"
-                        target="_blank"
-                      >
-                        <Download className="w-4 h-4" />
-                      </a>
-
-                      {/* Remove Button (Only in edit/create mode) */}
-                      {currentMode !== "view" && (
-                        <button
-                          onClick={() => handleRemoveAttachment(idx)}
-                          className="p-1.5 text-slate-400 hover:text-red-600 rounded-md hover:bg-red-50"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
             {/* -------------------------------- */}
 
+            {currentMode === "view" && todoToEdit && (
+              <ListCommentComponent
+                listCommentData={commentList}
+                todoData={todoToEdit}
+                onCommentChange={handleCommentChange}
+              />
+            )}
           </div>
         </div>
 
-        <div className="border-t px-6 py-4 flex-shrink-0">
-          <div className="flex gap-3 justify-end">
-            <Button variant="outline" onClick={handleCloseDrawer} disabled={isPending}>
-              Cancel
-            </Button>
-            {currentMode !== "view" && (
+        {currentMode === "view" && todoToEdit ? (
+          <CommentFormComponent
+            data={todoToEdit}
+            todoData={todoToEdit}
+            onDataChange={handleCommentChange}
+          />
+        ) : (
+          <div className="border-t px-6 py-4 flex-shrink-0">
+            <div className="flex gap-3 justify-end">
+              <Button
+                variant="outline"
+                onClick={handleCloseDrawer}
+                disabled={isPending}>
+                Cancel
+              </Button>
               <Button onClick={handleSaveTodo} disabled={isPending}>
                 {isPending ? "Saving..." : "Save"}
               </Button>
-            )}
-
+            </div>
           </div>
-        </div>
+        )}
       </SheetContent>
 
       {/* Render Dialog */}
-      {isAttachDialogOpen && (
+      {todoToEdit && isAttachDialogOpen && currentMode === "edit" && (
         <AttachFileDialog
           open={isAttachDialogOpen}
           onOpenChange={setIsAttachDialogOpen}
@@ -764,42 +1051,44 @@ export function NewTodoDrawer({ open, onOpenChange, onRestoreView, projectId, to
         />
       )}
     </Sheet>
-  )
+  );
 }
 
-const PriorityDot = ({ priority }: { priority: "high" | "normal" | "low" }) => (
-  <div
-    className={`w-3 h-3 rounded-full ${priority === "high"
-      ? "bg-destructive"
-      : priority === "low"
-        ? "bg-gray-400"
-        : "bg-blue-500"
-      }`}
-  />
-);
+const PriorityDot = ({ priority }: { priority: IPriority | null }) => {
+  if (!priority) return null;
+
+  return (
+    <div
+      className="w-3 h-3 rounded-full"
+      style={{ backgroundColor: priority.color }}
+    />
+  );
+};
 
 interface FieldProps {
-  label: string
-  value?: string | string[]
-  children?: React.ReactNode
+  label: string;
+  value?: string | string[];
+  children?: React.ReactNode;
 }
 
 const ViewField = ({ label, value }: FieldProps) => (
   <div className="space-y-1">
     <Label className="text-xs text-muted-foreground">{label}</Label>
     <div className="text-sm text-foreground min-h-[20px]">
-      {Array.isArray(value) ? value.join(', ') : value || <span className="italic text-muted-foreground">—</span>}
+      {Array.isArray(value)
+        ? value.join(", ")
+        : value || <span className="italic text-muted-foreground">—</span>}
     </div>
   </div>
-)
+);
 
 const formatDateTime = (date?: string) => {
-  if (!date) return ""
-  return new Date(date).toLocaleString('vi-VN', {
-    hour: '2-digit',
-    minute: '2-digit',
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  })
-}
+  if (!date) return "";
+  return new Date(date).toLocaleString("vi-VN", {
+    hour: "2-digit",
+    minute: "2-digit",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+};

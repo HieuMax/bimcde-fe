@@ -26,26 +26,25 @@ export default function ForgotPasswordForm() {
     setError("");
 
     if (!email) {
-      setError("Vui lòng nhập địa chỉ email");
+      setError("Please enter your email address");
       return;
     }
 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setError("Vui lòng nhập email hợp lệ");
+      setError("Please enter a valid email address");
       return;
     }
 
     setIsLoading(true);
 
     try {
-      // Simulate API call
       const res = await post("/accounts/forgot-password", { email });
 
       if (res.success) {
         setEmailSent(true);
       }
     } catch (err) {
-      setError("Có lỗi xảy ra. Vui lòng thử lại");
+      setError("Something went wrong. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -59,22 +58,24 @@ export default function ForgotPasswordForm() {
             <CardHeader className="text-center space-y-4 pb-6">
               <div className="flex justify-center">
                 <div className="rounded-full bg-primary/10 p-3">
-                  <CheckCircle className="h-8 text-[#406D87]  w-8 text-primary" />
+                  <CheckCircle className="h-8 w-8 text-[#406D87]" />
                 </div>
               </div>
-              <CardTitle className="text-2xl">Email đã được gửi</CardTitle>
+              <CardTitle className="text-2xl">Email Sent</CardTitle>
               <CardDescription className="text-base">
-                Chúng tôi đã gửi hướng dẫn đặt lại mật khẩu đến <br />
-                <span className="font-semibold text-foreground">{email}</span>
+                We have sent password reset instructions to <br />
+                <span className="font-semibold text-foreground">
+                  {email}
+                </span>
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="bg-muted/50 rounded-lg p-4 space-y-2 text-sm">
-                <p className="font-medium">Tiếp theo:</p>
+                <p className="font-medium">Next steps:</p>
                 <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
-                  <li>Kiểm tra email của bạn</li>
-                  <li>Nhấp vào liên kết trong email</li>
-                  <li>Tạo mật khẩu mới</li>
+                  <li>Check your email</li>
+                  <li>Click the link in the email</li>
+                  <li>Create a new password</li>
                 </ol>
               </div>
             </CardContent>
@@ -91,13 +92,12 @@ export default function ForgotPasswordForm() {
           <CardHeader className="text-center space-y-4">
             <div className="flex justify-center">
               <div className="rounded-full bg-primary/10 p-3">
-                <Mail className="h-6 w-6 text-primary text-[#406D87] " />
+                <Mail className="h-6 w-6 text-[#406D87]" />
               </div>
             </div>
-            <CardTitle className="text-2xl">Quên mật khẩu?</CardTitle>
+            <CardTitle className="text-2xl">Forgot your password?</CardTitle>
             <CardDescription className="text-base">
-              Nhập địa chỉ email của bạn và chúng tôi sẽ gửi cho bạn hướng dẫn
-              để đặt lại mật khẩu
+              Enter your email address and we will send you a request to reset your password
             </CardDescription>
           </CardHeader>
 
@@ -109,7 +109,7 @@ export default function ForgotPasswordForm() {
                 <label
                   htmlFor="email"
                   className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                  Địa chỉ email
+                  Email address
                 </label>
                 <Input
                   id="email"
@@ -128,22 +128,22 @@ export default function ForgotPasswordForm() {
                 disabled={isLoading}>
                 {isLoading ? (
                   <div className="flex items-center gap-2">
-                    <div className="h-4 w-4 bg-[#406D87] hover:bg-[#345a70] animate-spin rounded-full border-2 border-current border-t-transparent" />
-                    Đang gửi...
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                    Sending...
                   </div>
                 ) : (
-                  "Gửi hướng dẫn"
+                  "Send Request"
                 )}
               </Button>
             </form>
 
             <div className="mt-6 text-center">
               <p className="text-sm text-muted-foreground">
-                Bạn nhớ mật khẩu rồi?{" "}
+                Remember your password?{" "}
                 <a
                   href="/login"
                   className="font-semibold text-primary hover:underline">
-                  Quay lại đăng nhập
+                  Back to login
                 </a>
               </p>
             </div>

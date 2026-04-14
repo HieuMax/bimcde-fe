@@ -180,7 +180,7 @@ export function Topics({
 
         const safeProjectId = projectId || (params?.projectId as string) || (params?.id as string);
         if (!projectId) {
-            alert("Lỗi: Không tìm thấy Project ID từ hệ thống.");
+            alert("Error: Project ID not found.");
             return;
         }
 

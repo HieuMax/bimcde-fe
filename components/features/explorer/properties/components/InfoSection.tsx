@@ -1,6 +1,8 @@
 import { format } from "date-fns";
 import { filesize } from "filesize";
+import { useQuery } from "@tanstack/react-query";
 import { IFile, IFolder } from "@/types/explorer";
+import { explorerService } from "@/services/explorer.service";
 
 function DetailItem({
   label,
@@ -17,19 +19,54 @@ function DetailItem({
   );
 }
 
+function fileCreatedByLabel(file: IFile): string {
+  const v0 = file.versions?.[0];
+  if (!v0?.uploadedBy) return "Unknown";
+  if (typeof v0.uploadedBy === "string") return v0.uploadedBy;
+  return v0.uploadedBy.fullName || "Unknown";
+}
+
 export default function InfoSection({
   item,
   onOpenHistory,
+  projectId,
 }: {
   item: IFile | IFolder;
   onOpenHistory: () => void;
+  /** Required for folder “Modified” (subtree activity) */
+  projectId?: string;
 }) {
   const isFile = "mimeType" in item;
   const fileSize = isFile ? (item as IFile).size : (item as IFolder).totalSize;
-  const createdDate =
-    isFile && (item as IFile).versions?.length > 0
-      ? (item as IFile).versions[0].createdAt
-      : item.updatedAt;
+
+  const file = isFile ? (item as IFile) : null;
+  const folder = !isFile ? (item as IFolder) : null;
+
+  const createdDate = file
+    ? file.versions?.length
+      ? file.versions[0].createdAt
+      : file.updatedAt
+    : folder?.createdAt ?? folder?.updatedAt ?? item.updatedAt;
+
+  const { data: subtreeActivity, isLoading: subtreeLoading } = useQuery({
+    queryKey: ["folder-subtree-activity", projectId, item._id],
+    queryFn: () =>
+      explorerService.getFolderSubtreeActivity(projectId!, item._id),
+    enabled: !isFile && !!projectId && !!item._id,
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
+  });
+
+  const modifiedDateStr = file?.updatedAt ?? item.updatedAt;
+  const modifiedByFile = file?.modifiedBy || "Unknown";
+  const modifiedDateFolder =
+    subtreeActivity?.lastModifiedAt ?? folder?.updatedAt ?? modifiedDateStr;
+  const modifiedByFolder =
+    subtreeActivity?.lastModifiedBy ??
+    folder?.createdBy ??
+    "Unknown";
+
+  const createdAtIso = createdDate ?? item.updatedAt;
 
   return (
     <div className="p-4 space-y-5">
@@ -54,12 +91,32 @@ export default function InfoSection({
           {filesize(fileSize || 0) as string}
         </DetailItem>
         <DetailItem label="Created">
-          {format(new Date(createdDate), "MMM dd, yyyy HH:mm")} by{" "}
-          {(item as IFile).modifiedBy || "Unknown"}
+          {format(new Date(createdAtIso ?? ""), "MMM dd, yyyy HH:mm")}{" "}
+          by{" "}
+          {isFile
+            ? fileCreatedByLabel(file!)
+            : folder?.createdBy || "Unknown"}
         </DetailItem>
         <DetailItem label="Modified">
-          {format(new Date(item.updatedAt), "MMM dd, yyyy HH:mm")} by{" "}
-          {(item as IFile).modifiedBy || "Unknown"}
+          {isFile ? (
+            <>
+              {format(
+                new Date(modifiedDateStr ?? ""),
+                "MMM dd, yyyy HH:mm",
+              )}{" "}
+              by {modifiedByFile}
+            </>
+          ) : subtreeLoading ? (
+            <span className="text-muted-foreground">Loading…</span>
+          ) : (
+            <>
+              {format(
+                new Date(modifiedDateFolder ?? ""),
+                "MMM dd, yyyy HH:mm",
+              )}{" "}
+              by {modifiedByFolder}
+            </>
+          )}
         </DetailItem>
       </div>
     </div>

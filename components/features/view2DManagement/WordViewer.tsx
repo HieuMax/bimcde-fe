@@ -51,7 +51,7 @@ export default function WordViewerClient({
 
       try {
         const response = await fetch(src);
-        if (!response.ok) throw new Error('Không thể tải file Word');
+        if (!response.ok) throw new Error('Unable to load Word file');
         const blob = await response.blob();
 
         if (isMounted && containerRef.current) {
@@ -107,7 +107,7 @@ export default function WordViewerClient({
         }
       } catch (err) {
         console.error('Lỗi khi render Word:', err);
-        if (isMounted) setError('Một số hình ảnh hoặc liên kết phức tạp có thể không hiển thị được.');
+        if (isMounted) setError('Some images or complex links may not display correctly.');
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -187,7 +187,7 @@ export default function WordViewerClient({
         <div className="absolute inset-0 flex items-center justify-center bg-[#6b6a73]/70 backdrop-blur-sm z-20">
           <div className="bg-white text-black px-6 py-4 rounded-lg shadow-xl flex items-center gap-3">
             <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-            <span className="font-medium">Đang xử lý tài liệu...</span>
+            <span className="font-medium">Processing document...</span>
           </div>
         </div>
       )}

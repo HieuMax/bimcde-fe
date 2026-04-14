@@ -24,11 +24,11 @@ export default function ShareResolvePage() {
 
           router.replace(targetUrl);
         } else {
-          setError("Thông tin chia sẻ không hợp lệ.");
+          setError("Invalid share information.");
           }
         } catch (err) {
           console.error("Invalid share token", err);
-          setError("Liên kết không tồn tại hoặc đã hết hạn.");
+          setError("Link is invalid or has expired.");
           setTimeout(() => router.replace("/login"), 3000);
         }
     }
@@ -39,7 +39,7 @@ export default function ShareResolvePage() {
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-gray-50 text-red-500 gap-2">
-        <p className="font-semibold">Lỗi truy cập</p>
+        <p className="font-semibold">Access error</p>
         <p>{error}</p>
       </div>
     );
@@ -48,7 +48,7 @@ export default function ShareResolvePage() {
   return (
     <div className="flex flex-col items-center justify-center h-screen bg-gray-50 text-gray-500 gap-3">
       <Loader2 className="h-10 w-10 animate-spin text-blue-600" />
-      <p>Đang mở tài liệu được chia sẻ...</p>
+      <p>Opening shared document...</p>
     </div>
   );
 }

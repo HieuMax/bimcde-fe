@@ -163,7 +163,7 @@ export default function ViewDetailPanel({
       onUpdateSuccess?.(updated);
     } catch (error) {
       console.error("Lỗi khi cập nhật View details:", error);
-      alert("Không thể lưu thay đổi. Vui lòng thử lại!");
+      alert("Could not save changes. Please try again.");
     } finally {
       setLoading(false);
     }

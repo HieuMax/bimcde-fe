@@ -226,7 +226,11 @@ export default function DetailsView({
             onOpenActivity={onOpenActivity}
           />
           <Separator />
-          <InfoSection item={item} onOpenHistory={onOpenHistory} />
+          <InfoSection
+            item={item}
+            onOpenHistory={onOpenHistory}
+            projectId={projectId}
+          />
           <Separator className="mx-4 w-auto" />
 
           {/* Permission Section */}

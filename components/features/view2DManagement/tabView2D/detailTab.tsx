@@ -229,7 +229,7 @@ export default function FileDetailTab({ file, onUpdateSuccess }: Props) {
       setMode("view");
     } catch (error) {
       console.error("Lỗi khi lưu thông tin file:", error);
-      alert("Đã xảy ra lỗi khi lưu. Vui lòng thử lại!");
+      alert("An error occurred while saving. Please try again.");
     } finally {
       setLoading(false);
     }

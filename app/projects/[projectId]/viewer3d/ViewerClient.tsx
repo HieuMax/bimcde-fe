@@ -340,6 +340,8 @@ export default function ViewerClient() {
     todo: any,
     mode: "view" | "edit" | "create",
   ) => {
+    setActiveTool(null);
+
     if (mode === "create") {
       onAddTodo();
       return;
@@ -424,7 +426,11 @@ export default function ViewerClient() {
           sessionStorage.setItem(storageKey, JSON.stringify(urls));
           router.replace(`/projects/${projectId}/viewer3d`);
         } else {
-          console.error("URLs param parsed but empty:", { rawParams, decoded, parsed });
+          console.error("URLs param parsed but empty:", {
+            rawParams,
+            decoded,
+            parsed,
+          });
         }
       } catch (e) {
         console.error("Error parsing URLs from params", e, { rawParams });
@@ -525,10 +531,8 @@ export default function ViewerClient() {
         new Set(todo.items.map((i: any) => i.fileUrl) as string[]),
       );
     }
-
     const isContextMatch =
       targetUrls.length === 0 || areArraysEqual(ifcUrls, targetUrls);
-
     if (isContextMatch) {
       setPendingClashSetId(null);
       sessionStorage.removeItem(STORAGE_PENDING_CLASH);
@@ -788,8 +792,7 @@ export default function ViewerClient() {
         <div className="w-10 min-h-full bg-gray-200 z-10">
           <div className="mt-[150]">
             <span
-              className={`flex justify-center cursor-pointer py-3 mb-2 text-black hover:bg-slate-600 hover:text-white`}
-            >
+              className={`flex justify-center cursor-pointer py-3 mb-2 text-black hover:bg-slate-600 hover:text-white`}>
               {isCollapsed ? (
                 <ChevronRight
                   style={{ cursor: "pointer" }}
@@ -809,12 +812,12 @@ export default function ViewerClient() {
               return (
                 <span
                   key={index}
-                  className={`flex justify-center cursor-pointer py-3 mb-2 p-3 ${isActive
-                    ? "bg-slate-600 text-white"
-                    : "text-black hover:bg-slate-600 hover:text-white"
-                    }`}
-                  onClick={() => setState(item.label)}
-                >
+                  className={`flex justify-center cursor-pointer py-3 mb-2 p-3 ${
+                    isActive
+                      ? "bg-slate-600 text-white"
+                      : "text-black hover:bg-slate-600 hover:text-white"
+                  }`}
+                  onClick={() => setState(item.label)}>
                   {item.icon}
                 </span>
               );
@@ -832,8 +835,7 @@ export default function ViewerClient() {
                   ? "calc(100% - 400px)"
                   : "100%",
               flexShrink: 0,
-            }}
-          >
+            }}>
             {/* PROGRESS OVERLAY */}
             {isRunningClash && (
               <div className="absolute top-4 right-4 z-50 bg-white p-4 rounded-lg shadow-lg border w-80 animate-in slide-in-from-right-10">
@@ -921,7 +923,7 @@ export default function ViewerClient() {
         availableModels={availableModelsForClash}
         onRunTest={runAnalysis}
         projectId={projectId as string}
-        onClashSetCreated={() => { }}
+        onClashSetCreated={() => {}}
       />
     </div>
   );
