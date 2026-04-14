@@ -31,15 +31,18 @@ export const ViewItem = ({
   onDelete,
   onClick,
 }: ViewItemProps) => {
+  // Hỗ trợ cả thumbnailUrl (3D) và previewSrc (2D)
+  const imageUrl = view.thumbnailUrl || (view as any).previewSrc;
+
   return (
     <Card
       className="group hover:shadow-lg transition-all duration-200 overflow-hidden cursor-pointer flex flex-col h-full"
       onClick={() => onClick(view)}
     >
       <div className="relative aspect-video bg-muted flex items-center justify-center overflow-hidden">
-        {view.thumbnailUrl ? (
+        {imageUrl ? (
           <img
-            src={view.thumbnailUrl}
+            src={imageUrl}
             alt={view.name}
             className="object-cover w-full h-full transition-transform duration-300 group-hover:scale-105"
           />
@@ -114,16 +117,20 @@ export const ViewItem = ({
         <div className="flex items-center gap-2">
           <Avatar className="h-6 w-6">
             <AvatarImage
-              src={`https://avatar.vercel.sh/${view.createdBy.email}`}
+              src={`https://avatar.vercel.sh/${view.createdBy?.email || "user"}`}
             />
-            <AvatarFallback>{view.createdBy.fullName.charAt(0)}</AvatarFallback>
+            <AvatarFallback>
+              {view.createdBy?.fullName?.charAt(0) || "U"}
+            </AvatarFallback>
           </Avatar>
           <span className="truncate max-w-[100px]">
-            {view.createdBy.fullName}
+            {view.createdBy?.fullName || "Unknown"}
           </span>
         </div>
-        <span title={new Date(view.updatedAt).toLocaleString()}>
-          {formatDistanceToNow(new Date(view.updatedAt), { addSuffix: true })}
+        <span title={new Date(view.updatedAt || new Date()).toLocaleString()}>
+          {formatDistanceToNow(new Date(view.updatedAt || new Date()), {
+            addSuffix: true,
+          })}
         </span>
       </CardFooter>
     </Card>

@@ -19,11 +19,11 @@ import CommentInput from "../../explorer/properties/components/comments/CommentI
 // Nhúng Hook useTags và Service API
 import { useTags } from "@/components/features/explorer/hooks/useTags";
 import { explorerService } from "@/services/explorer.service";
-import { IView } from "@/types/view";
+import { View2DItem } from "@/types/view2d";
 
 type Props = {
   file: IFile | null;
-  view?: IView | null;
+  view?: View2DItem | null;
   onUpdateSuccess?: (updatedFile: IFile) => void;
 };
 

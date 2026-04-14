@@ -10,15 +10,15 @@ import {
   Share2,
   Filter,
 } from "lucide-react";
-import { IView } from "@/types/view";
+import { View2DItem } from "@/types/view2d";
 
 type ViewsTabProps = {
-  views: IView[];
+  views: View2DItem[];
   currentUser: string;
-  onSelectView: (view: IView) => void;
+  onSelectView: (view: View2DItem) => void;
   onCreateView: () => void;
   onDeleteView?: (viewId: string) => void;
-  onEditView?: (view: IView) => void;
+  onEditView?: (view: View2DItem) => void;
 };
 
 export default function ViewsTab({
@@ -41,13 +41,14 @@ export default function ViewsTab({
     return () => window.removeEventListener("click", handleClickOutside);
   }, [activeMenuId]);
 
-  // Logic lọc dữ liệu an toàn hơn (thêm optional chaining ?.)
   const filtered = views.filter((v) => {
+    const creatorName =
+      typeof v.createdBy === "string"
+        ? v.createdBy
+        : (v.createdBy as any)?.fullName || "";
+
     const matchesFilter =
-      filterType === "mine"
-        ? v.sharedWith?.users?.includes(currentUser) ||
-          v.createdBy?.fullName === currentUser
-        : true;
+      filterType === "mine" ? creatorName === currentUser : true;
 
     const viewName = v.name || "";
     const matchesSearch = viewName
@@ -121,12 +122,15 @@ export default function ViewsTab({
                   onClick={() => onSelectView(v)}
                   className="w-24 aspect-video rounded-md bg-gray-200 overflow-hidden shrink-0 border border-gray-100 cursor-pointer shadow-sm group-hover:shadow-md transition-all"
                 >
-                  {/* 👇 SỬA ĐỔI QUAN TRỌNG: Dùng thumbnailUrl thay vì previewSrc */}
-                  {v.thumbnailUrl ? (
+                  {v.previewSrc ? (
                     <img
-                      src={v.thumbnailUrl.split("#coords:")[0]}
+                      src={v.previewSrc.split("#coords:")[0]}
                       alt={v.name || "View"}
                       className="w-full h-full object-cover transform group-hover:scale-105 transition-transform duration-500"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src =
+                          "/placeholder-image.png";
+                      }}
                     />
                   ) : (
                     <div className="w-full h-full flex flex-col items-center justify-center text-gray-300">
@@ -157,7 +161,6 @@ export default function ViewsTab({
                       <span className="w-0.5 h-0.5 rounded-full bg-gray-300" />
 
                       <span>
-                        {/* 👇 Dùng ObjectId để check, Mongoose thường không trả về createdAt nếu Schema không bật timestamps, nhưng nếu có thì hiển thị */}
                         {v.createdAt
                           ? new Date(v.createdAt).toLocaleDateString()
                           : "Just now"}

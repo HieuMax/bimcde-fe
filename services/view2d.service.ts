@@ -1,9 +1,9 @@
 import { useApi as apiClient } from "@/app/hooks/useApi";
 // import { View2DItem } from "@/types/view2d";
-import { IView } from "@/types/view";
+import { View2DItem } from "@/types/view2d";
 
 const api = apiClient();
-const BASE_URL = "/views";
+const BASE_URL = "/views2d";
 
 export const view2DService = {
   /**
@@ -11,28 +11,28 @@ export const view2DService = {
    */
   getViewsByFile: async (fileId: string) => {
     const data = await api.get(`${BASE_URL}/file/${fileId}`);
-    return data as IView[];
+    return data as View2DItem[];
   },
 
   getViewsByProject: async (projectId: string) => {
     const data = await api.get(`${BASE_URL}/project/${projectId}`);
-    return data as IView[];
+    return data as View2DItem[];
   },
 
   /**
    * GIỮ NGUYÊN createView
    */
-  createView: async (payload: Partial<IView>) => {
+  createView: async (payload: Partial<View2DItem>) => {
     const res = await api.post(BASE_URL, payload);
-    return res as IView;
+    return res as View2DItem;
   },
 
   updateView: async (
     viewId: string,
-    payload: Partial<IView>
+    payload: Partial<View2DItem>
   ) => {
     const res = await api.put(`${BASE_URL}/${viewId}`, payload);
-    return res as IView;
+    return res as View2DItem;
   },
 
   deleteView: async (viewId: string) => {

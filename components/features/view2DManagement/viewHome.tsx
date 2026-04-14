@@ -11,8 +11,7 @@ import TodoDetailPanel from "./tabView2D/properties2DView/todoProperties";
 import CreateViewPanel from "./createModel/createView";
 import CreateTodoPanel from "./createModel/createTodo";
 import FileViewport from "./viewPort";
-// import { view2DService } from "@/services/view2d.service";
-import { viewService } from "@/services/view.service";
+import { view2DService } from "@/services/view2d.service"; // 🌟 ĐÃ ĐỔI SANG VIEW2D SERVICE
 import { todo2DService } from "@/services/todo2d.service";
 
 // --- PDF SETUP ---
@@ -33,15 +32,22 @@ const ensurePdfjs = async (): Promise<PdfjsInstance | null> => {
 // --- IMPORT TYPES ---
 
 import type { IFile, IFileVersion, PageItem, TodoItem } from "@/types/explorer";
-import { ToolType, IAnnotation, View2DMarkup, ViewState } from "@/types/view2d";
-import { CreateViewDTO, UpdateViewDTO, IView } from "@/types/view"; // ĐÃ ĐỔI SANG DÙNG IView
+import {
+  ToolType,
+  IAnnotation,
+  View2DMarkup,
+  ViewState,
+  View2DItem, // 🌟 SỬ DỤNG View2DItem
+  CreateView2DDTO, // 🌟 SỬ DỤNG CreateView2DDTO
+  UpdateView2DDTO, // 🌟 SỬ DỤNG UpdateView2DDTO
+} from "@/types/view2d";
 import { motion, AnimatePresence } from "framer-motion";
 import { AnimatedPanel } from "@/components/ui/amination";
 import React from "react";
 import VersionHistoryPanel from "./tabView2D/VersionHistoryPanel";
 
 type RightPanelState =
-  | { type: "viewDetail"; data: IView } // ĐỔI TỪ ViewItem SANG IView
+  | { type: "viewDetail"; data: View2DItem }
   | { type: "history" }
   | { type: "todoDetail"; data: TodoItem }
   | { type: "createView" }
@@ -88,11 +94,11 @@ export default function DetailView2D({
   const currentProjectId =
     routeProjectId || selectedFile?.projectId || file?.projectId || "";
 
-  const [views, setViews] = useState<IView[]>([]); // SỬ DỤNG IView
+  const [views, setViews] = useState<View2DItem[]>([]); // 🌟 SỬ DỤNG View2DItem
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const [pages, setPages] = useState<PageItem[]>([]);
 
-  const [selectedView, setSelectedView] = useState<IView | null>(null); // SỬ DỤNG IView
+  const [selectedView, setSelectedView] = useState<View2DItem | null>(null); // 🌟 SỬ DỤNG View2DItem
   const [selectedTodo, setSelectedTodo] = useState<TodoItem | null>(null);
   const [annotations, setAnnotations] = useState<IAnnotation[]>([]);
   const [isAutoEditView, setIsAutoEditView] = useState(false);
@@ -200,96 +206,88 @@ export default function DetailView2D({
 
     try {
       const container = document.getElementById("file-viewport-container");
-      const canvases = document.querySelectorAll(
-        "#file-viewport-container canvas",
-      );
-      const containerRect = container?.getBoundingClientRect();
+      if (!container) return { snapshotUrl, actualPageIndex };
 
-      let maxVisibleArea = 0;
-      let bestCanvas: HTMLCanvasElement | null = null;
+      // 1. Tìm thẻ ảnh (nếu là Image) và tất cả thẻ canvas (nếu là PDF / Annotation)
+      const imgElement = container.querySelector("img");
+      const canvases = container.querySelectorAll("canvas");
 
-      if (containerRect && canvases.length > 0) {
-        canvases.forEach((c) => {
-          const canvas = c as HTMLCanvasElement;
-          const rect = canvas.getBoundingClientRect();
-          const overlapX = Math.max(
-            0,
-            Math.min(rect.right, containerRect.right) -
-              Math.max(rect.left, containerRect.left),
-          );
-          const overlapY = Math.max(
-            0,
-            Math.min(rect.bottom, containerRect.bottom) -
-              Math.max(rect.top, containerRect.top),
-          );
-          const area = overlapX * overlapY;
-          if (area > maxVisibleArea) {
-            maxVisibleArea = area;
-            bestCanvas = canvas;
-          }
-        });
+      let baseCanvas: HTMLCanvasElement | null = null;
+      let drawCanvas: HTMLCanvasElement | null = null;
+
+      if (canvases.length > 1) {
+        // TH PDF: canvas[0] thường là nền PDF, canvas cuối cùng là nét vẽ
+        baseCanvas = canvases[0];
+        drawCanvas = canvases[canvases.length - 1];
+      } else if (canvases.length === 1) {
+        // TH Ảnh: Chỉ có 1 canvas là nét vẽ
+        drawCanvas = canvases[0];
       }
 
-      if (bestCanvas && container && containerRect) {
-        const parentPage = bestCanvas.closest(".react-pdf__Page");
-        if (parentPage) {
-          const pageNum = parentPage.getAttribute("data-page-number");
-          if (pageNum) actualPageIndex = parseInt(pageNum, 10);
+      // 2. Xác định kích thước ảnh xuất ra (Ưu tiên theo canvas nét vẽ)
+      const targetWidth = drawCanvas
+        ? drawCanvas.width
+        : imgElement
+          ? imgElement.naturalWidth || imgElement.clientWidth
+          : container.clientWidth;
+
+      const targetHeight = drawCanvas
+        ? drawCanvas.height
+        : imgElement
+          ? imgElement.naturalHeight || imgElement.clientHeight
+          : container.clientHeight;
+
+      // 3. Tạo một Canvas ảo để "chập" các lớp lại với nhau
+      const offCanvas = document.createElement("canvas");
+      offCanvas.width = targetWidth;
+      offCanvas.height = targetHeight;
+      const ctx = offCanvas.getContext("2d");
+
+      if (ctx) {
+        // Lót nền trắng để tránh ảnh bị trong suốt xỉn màu
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, targetWidth, targetHeight);
+
+        // --- LỚP DƯỚI CÙNG: VẼ ẢNH GỐC HOẶC NỀN PDF ---
+        if (imgElement) {
+          // Khởi tạo Image mới để ép tải lại ảnh với CORS hợp lệ
+          const safeImg = new Image();
+          safeImg.crossOrigin = "anonymous"; // QUAN TRỌNG NHẤT: Tránh lỗi CORS Tainted
+          // Thêm timestamp để ép trình duyệt không lấy cache cũ bị lỗi
+          safeImg.src =
+            imgElement.src +
+            (imgElement.src.includes("?") ? "&" : "?") +
+            "t=" +
+            new Date().getTime();
+
+          await new Promise((resolve) => {
+            safeImg.onload = () => {
+              // Ép ảnh gốc khớp vừa vặn với kích thước nét vẽ
+              ctx.drawImage(safeImg, 0, 0, targetWidth, targetHeight);
+              resolve(true);
+            };
+            safeImg.onerror = () => {
+              console.warn("Lỗi tải ảnh nền CORS, snapshot sẽ chỉ có nét vẽ.");
+              resolve(false);
+            };
+          });
+        } else if (baseCanvas) {
+          ctx.drawImage(baseCanvas, 0, 0, targetWidth, targetHeight);
         }
 
-        const canvasRect = bestCanvas.getBoundingClientRect();
-        const sx = Math.max(0, containerRect.left - canvasRect.left);
-        const sy = Math.max(0, containerRect.top - canvasRect.top);
-        const sWidth = Math.min(canvasRect.width - sx, containerRect.width);
-        const sHeight = Math.min(canvasRect.height - sy, containerRect.height);
-
-        const offCanvas = document.createElement("canvas");
-        offCanvas.width = sWidth;
-        offCanvas.height = sHeight;
-        const ctx = offCanvas.getContext("2d");
-
-        const scaleX = bestCanvas.width / canvasRect.width;
-        const scaleY = bestCanvas.height / canvasRect.height;
-
-        if (ctx) {
-          ctx.drawImage(
-            bestCanvas,
-            sx * scaleX,
-            sy * scaleY,
-            sWidth * scaleX,
-            sHeight * scaleY,
-            0,
-            0,
-            sWidth,
-            sHeight,
-          );
-          snapshotUrl = offCanvas.toDataURL("image/jpeg", 0.8);
+        // --- LỚP TRÊN CÙNG: VẼ LAYER NÉT VẼ ---
+        if (drawCanvas) {
+          ctx.drawImage(drawCanvas, 0, 0, targetWidth, targetHeight);
         }
+
+        // 4. Xuất ra mã Base64
+        snapshotUrl = offCanvas.toDataURL("image/jpeg", 0.8);
       }
     } catch (e) {
-      console.warn("Lỗi cắt ảnh từ Canvas:", e);
+      console.warn("Lỗi capture thủ công:", e);
     }
 
-    if (!snapshotUrl || snapshotUrl === "data:,") {
-      const container = getScrollContainer() as HTMLElement;
-      if (container) {
-        try {
-          const canvas = await html2canvas(container, {
-            scale: 0.5,
-            useCORS: true,
-            logging: false,
-            x: container.scrollLeft,
-            y: container.scrollTop,
-            width: container.clientWidth,
-            height: container.clientHeight,
-          });
-          snapshotUrl = canvas.toDataURL("image/jpeg", 0.7);
-        } catch (captureErr) {
-          console.warn(captureErr);
-        }
-      }
-    }
-
+    // 5. Fallback an toàn nếu hệ thống vẫn thất bại
     if (!snapshotUrl || snapshotUrl === "data:,") {
       const currentPageInfo = pages.find(
         (p) => p.pageNumber === actualPageIndex || p.index === actualPageIndex,
@@ -297,6 +295,7 @@ export default function DetailView2D({
       snapshotUrl =
         currentPageInfo?.imageSrc || currentSrc || file?.fileUrl || "";
     }
+
     return { snapshotUrl, actualPageIndex };
   };
 
@@ -314,12 +313,12 @@ export default function DetailView2D({
       return;
     }
     const savedUser = localStorage.getItem("user");
-    const currentUser = savedUser ? JSON.parse(savedUser) : null;
+    const currentUserObj = savedUser ? JSON.parse(savedUser) : null;
+    const currentUserId = currentUserObj?._id || currentUserObj?.id;
 
     try {
       const { snapshotUrl: capturedUrl, actualPageIndex } =
         await captureCurrentScreen();
-
       const snapshotUrl =
         capturedUrl ||
         `https://ui-avatars.com/api/?name=${encodeURIComponent(data.name || "View")}&background=random`;
@@ -331,42 +330,36 @@ export default function DetailView2D({
         scrollX = scrollContainer.scrollLeft;
         scrollY = scrollContainer.scrollTop;
       }
-      const finalPreviewSrc = `${snapshotUrl}#coords:${scrollX},${scrollY}`;
 
-      const view2DData: View2DMarkup = {
-        annotations: annotations,
-        viewport: {
-          rotate: pageRotations[actualPageIndex] || 0,
-          pageIndex: actualPageIndex,
-        },
-      };
+      // Xóa nối đuôi #coords để giữ nguyên tính hợp lệ của chuỗi Base64
+      const finalPreviewSrc = snapshotUrl;
 
+      // Lưu trữ tọa độ vào camera thay vì chuỗi URL
       const newViewState: ViewState = {
         camera: {
-          position: { x: 0, y: 0, z: zoom },
+          position: { x: scrollX, y: scrollY, z: zoom },
           target: { x: 0, y: 0, z: 0 },
           up: { x: 0, y: 1, z: 0 },
           projection: "ORTHO",
           zoom: zoom,
         },
-        markupData: view2DData,
+        markupData: annotations as any,
       };
 
-      const payload: CreateViewDTO = {
+      const payload: CreateView2DDTO = {
         projectId: targetProjectId,
         name: data.name,
         description: data.description,
-        type: "2D",
-        relatedFileId: targetFileId,
-        thumbnailUrl: finalPreviewSrc,
-        viewState: newViewState,
-        sharedWith: {
-          isPublic: false,
-          users: data.sharedWithUsers || [],
-        },
+        fileId: targetFileId,
+        createdBy: currentUserId,
+        previewSrc: finalPreviewSrc,
+        pageIndex: actualPageIndex,
+        scale: zoom,
+        rotation: pageRotations[actualPageIndex] || 0,
+        viewState: newViewState as any,
       };
 
-      const newView: any = await viewService.createView(payload as any);
+      const newView: any = await view2DService.createView(payload as any);
 
       const hydratedView: any = {
         ...newView,
@@ -375,21 +368,20 @@ export default function DetailView2D({
             ? {
                 _id: newView.createdBy,
                 fullName:
-                  currentUser?.fullName || currentUser?.name || "Unknown",
-                email: "",
+                  currentUserObj?.fullName || currentUserObj?.name || "Unknown",
+                email: currentUserObj?.email || "",
               }
             : newView.createdBy,
-        // Đã update lại theo chuẩn backend
-        relatedFileId:
-          typeof newView.relatedFileId === "string"
+        fileId:
+          typeof newView.fileId === "string"
             ? {
-                _id: newView.relatedFileId,
+                _id: newView.fileId,
                 name: (selectedFile || file)?.name || "Unknown File",
               }
-            : newView.relatedFileId,
+            : newView.fileId,
       };
 
-      setViews((prev) => [hydratedView as IView, ...prev]);
+      setViews((prev) => [hydratedView as View2DItem, ...prev]);
       setRightPanel(null);
       setActiveTab("view");
     } catch (error) {
@@ -398,12 +390,10 @@ export default function DetailView2D({
     }
   };
 
-  const handleUpdateViewSnapshot = async (targetView: IView) => {
-    // SỬ DỤNG IView
+  const handleUpdateViewSnapshot = async (targetView: View2DItem) => {
     try {
       const { snapshotUrl: capturedUrl, actualPageIndex } =
         await captureCurrentScreen();
-
       const snapshotUrl =
         capturedUrl ||
         `https://ui-avatars.com/api/?name=${encodeURIComponent(targetView.name || "View")}&background=random`;
@@ -416,34 +406,29 @@ export default function DetailView2D({
         scrollY = scrollContainer.scrollTop;
       }
 
-      const finalThumbnailUrl = `${snapshotUrl}#coords:${scrollX},${scrollY}`;
-
-      const view2DData: View2DMarkup = {
-        annotations: annotations,
-        viewport: {
-          rotate: pageRotations[actualPageIndex] || 0,
-          pageIndex: actualPageIndex,
-        },
-      };
+      const finalThumbnailUrl = snapshotUrl;
 
       const newViewState = {
         ...targetView.viewState,
         camera: {
-          position: { x: 0, y: 0, z: zoom },
+          position: { x: scrollX, y: scrollY, z: zoom },
           target: { x: 0, y: 0, z: 0 },
           up: { x: 0, y: 1, z: 0 },
           projection: "ORTHO" as const,
           zoom: zoom,
         },
-        markupData: view2DData,
+        markupData: annotations as any,
       };
 
-      const payload = {
-        thumbnailUrl: finalThumbnailUrl,
-        viewState: newViewState,
+      const payload: UpdateView2DDTO = {
+        previewSrc: finalThumbnailUrl,
+        pageIndex: actualPageIndex,
+        scale: zoom,
+        rotation: pageRotations[actualPageIndex] || 0,
+        viewState: newViewState as any,
       };
 
-      const updated = await viewService.updateView(
+      const updated = await view2DService.updateView(
         targetView._id,
         payload as any,
       );
@@ -451,16 +436,24 @@ export default function DetailView2D({
       const manuallyUpdatedView = {
         ...targetView,
         ...updated,
-        thumbnailUrl: finalThumbnailUrl,
-        viewState: newViewState,
+        previewSrc: finalThumbnailUrl,
+        pageIndex: actualPageIndex,
+        scale: zoom,
+        rotation: pageRotations[actualPageIndex] || 0,
+        viewState: newViewState as any,
       };
 
       setViews((prev) =>
         prev.map((v) =>
-          v._id === manuallyUpdatedView._id ? (manuallyUpdatedView as any) : v,
+          v._id === manuallyUpdatedView._id
+            ? (manuallyUpdatedView as View2DItem)
+            : v,
         ),
       );
-      setRightPanel({ type: "viewDetail", data: manuallyUpdatedView as any });
+      setRightPanel({
+        type: "viewDetail",
+        data: manuallyUpdatedView as View2DItem,
+      });
 
       if (actualPageIndex !== pageIndex) {
         setPageIndex(actualPageIndex);
@@ -473,7 +466,8 @@ export default function DetailView2D({
 
   const handleDeleteView = async (viewId: string) => {
     try {
-      await viewService.deleteView(viewId);
+      // 🌟 GỌI VIEW 2D SERVICE
+      await view2DService.deleteView(viewId);
       setViews((prev) => prev.filter((v) => v._id !== viewId));
       if (rightPanel?.type === "viewDetail" && rightPanel.data._id === viewId) {
         setRightPanel(null);
@@ -486,42 +480,42 @@ export default function DetailView2D({
   };
 
   // ==========================================
-  // 👇 LOGIC ĐỌC VÀ ĐIỀU HƯỚNG VIEW ĐÃ ĐƯỢC CẬP NHẬT
+  // 👇 LOGIC ĐỌC VÀ ĐIỀU HƯỚNG VIEW (View2DItem)
   // ==========================================
   const applyViewPosition = (
-    v: IView, // SỬ DỤNG IView
+    v: View2DItem,
     overridePages?: PageItem[],
     overrideFile?: IFile,
   ) => {
     const activePages = overridePages || pages;
     const activeFile = overrideFile || selectedFile || file;
 
-    // 1. Phân tích bóc tách MarkupData an toàn từ IView
-    let markup: View2DMarkup | null = null;
+    // 1. Phân tích bóc tách trực tiếp mảng Annotations từ markupData
+    let parsedAnnotations: IAnnotation[] = [];
     if (v.viewState?.markupData) {
       try {
-        markup =
+        const rawMarkup =
           typeof v.viewState.markupData === "string"
-            ? (JSON.parse(v.viewState.markupData) as View2DMarkup)
-            : (v.viewState.markupData as View2DMarkup);
-        setAnnotations(markup?.annotations || []);
+            ? JSON.parse(v.viewState.markupData)
+            : v.viewState.markupData;
+
+        // Hỗ trợ tương thích ngược nếu data cũ còn bị bọc trong object có key 'annotations'
+        parsedAnnotations = Array.isArray(rawMarkup)
+          ? rawMarkup
+          : rawMarkup.annotations || [];
       } catch (err) {
         console.warn("Failed to parse markupData", err);
-        setAnnotations([]);
+        parsedAnnotations = [];
       }
-    } else {
-      setAnnotations([]);
     }
+    setAnnotations(parsedAnnotations);
 
-    // 2. Lấy Rotate và PageIndex từ trong markupData.viewport
-    const targetPage =
-      markup?.viewport?.pageIndex && markup.viewport.pageIndex > 0
-        ? markup.viewport.pageIndex
-        : 1;
-    const rotationToRestore = markup?.viewport?.rotate ?? 0;
+    // 2. Lấy Rotate và PageIndex trực tiếp từ root (mặc định page 1, rotate 0 nếu không có)
+    const targetPage = v.pageIndex && v.pageIndex > 0 ? v.pageIndex : 1;
+    const rotationToRestore = v.rotation ?? 0;
 
-    // 3. Lấy Zoom từ viewState.camera
-    const zoomToRestore = v.viewState?.camera?.zoom ?? 1;
+    // 3. Lấy Zoom từ state root (ưu tiên), hoặc fallback từ camera
+    const zoomToRestore = v.scale ?? v.viewState?.camera?.zoom ?? 1;
 
     setPageIndex(targetPage);
     setZoom(zoomToRestore);
@@ -537,8 +531,7 @@ export default function DetailView2D({
       setCurrentSrc(null);
     }
 
-    // Đổi v.previewSrc thành v.thumbnailUrl
-    const coordsMatch = v.thumbnailUrl?.match(/#coords:(\d+),(\d+)/);
+    const coordsMatch = v.previewSrc?.match(/#coords:(\d+),(\d+)/);
     if (coordsMatch) {
       setPendingScroll({
         x: parseInt(coordsMatch[1], 10),
@@ -552,7 +545,7 @@ export default function DetailView2D({
 
   const loadNewFileForView = async (
     newFileId: string,
-    viewToApply: IView, // SỬ DỤNG IView
+    viewToApply: View2DItem,
   ) => {
     try {
       setIsViewLoading(true);
@@ -635,37 +628,39 @@ export default function DetailView2D({
     }
   };
 
-  // Hàm fetch chi tiết View và đưa lên Canvas
   const loadViewById = async (viewId: string) => {
     try {
       setIsViewLoading(true);
 
-      // 1. Gọi API lấy dữ liệu View chi tiết từ Database
-      const viewData: IView = await viewService.getViewById(viewId);
+      // 🌟 GỌI VIEW 2D SERVICE (NẾU CÓ GET BY ID TRONG SERVICE, CHÚ Ý NẾU KO CÓ BẠN CÓ THỂ TÌM TRONG state views)
+      // Thường service sẽ có getViewById, giả định là gọi được.
+      const viewData: View2DItem | undefined = views.find(
+        (v) => v._id === viewId,
+      );
+
+      // Nếu API getViewById có sẵn trong service của bạn:
+      // viewData = await view2dService.getViewById(viewId);
 
       if (!viewData) {
         throw new Error("Không tìm thấy dữ liệu View");
       }
 
-      // 2. Cập nhật State giao diện
       setSelectedView(viewData);
       setSelectedTodo(null);
       setIsAutoEditView(false);
       setRightPanel({ type: "viewDetail", data: viewData });
 
-      // 3. Kiểm tra xem View này nằm trên File nào
+      // 🌟 Thay đổi logic lấy ID File
       const viewFileId =
-        typeof viewData.relatedFileId === "string"
-          ? viewData.relatedFileId
-          : (viewData.relatedFileId as any)?._id;
+        typeof viewData.fileId === "string"
+          ? viewData.fileId
+          : (viewData.fileId as any)?._id;
 
       const currentActiveFileId = selectedFile?._id || file?._id;
 
-      // 4. Nếu View nằm trên một File khác với File đang hiển thị -> Tải lại File đó
       if (viewFileId && viewFileId !== currentActiveFileId) {
         await loadNewFileForView(viewFileId, viewData);
       } else {
-        // Nếu cùng File đang xem -> Áp dụng ngay tọa độ, zoom và nét vẽ lên Canvas
         applyViewPosition(viewData);
       }
     } catch (error) {
@@ -675,18 +670,16 @@ export default function DetailView2D({
     }
   };
 
-  const handleSelectView = async (v: IView) => {
-    // SỬ DỤNG IView
+  const handleSelectView = async (v: View2DItem) => {
     setIsViewLoading(true);
     setSelectedView(v);
     setSelectedTodo(null);
     setIsAutoEditView(false);
     setRightPanel({ type: "viewDetail", data: v });
 
+    // 🌟 SỬ DỤNG fileId CHUẨN MỚI
     const viewFileId =
-      typeof v.relatedFileId === "string"
-        ? v.relatedFileId
-        : (v.relatedFileId as any)?._id; // Update relatedFileId
+      typeof v.fileId === "string" ? v.fileId : (v.fileId as any)?._id;
     const currentActiveFileId = selectedFile?._id || file?._id;
 
     if (viewFileId && viewFileId !== currentActiveFileId) {
@@ -696,18 +689,16 @@ export default function DetailView2D({
     }
   };
 
-  const handleEditView = async (v: IView) => {
-    // SỬ DỤNG IView
+  const handleEditView = async (v: View2DItem) => {
     setIsViewLoading(true);
     setSelectedView(v);
     setSelectedTodo(null);
     setIsAutoEditView(true);
     setRightPanel({ type: "viewDetail", data: v });
 
+    // 🌟 SỬ DỤNG fileId
     const viewFileId =
-      typeof v.relatedFileId === "string"
-        ? v.relatedFileId
-        : (v.relatedFileId as any)?._id;
+      typeof v.fileId === "string" ? v.fileId : (v.fileId as any)?._id;
     const currentActiveFileId = selectedFile?._id || file?._id;
 
     if (viewFileId && viewFileId !== currentActiveFileId) {
@@ -820,7 +811,7 @@ export default function DetailView2D({
 
       if (!isShareMode) {
         if (loadedFileIdRef.current === targetId) return;
-        loadedFileIdRef.current = targetId;
+        loadedFileIdRef.current = targetId as string;
       }
 
       try {
@@ -829,10 +820,10 @@ export default function DetailView2D({
 
         const raw: IFile = activeShareToken
           ? await explorerService.getFileDetailPublic(
-              targetId,
+              targetId as string,
               activeShareToken,
             )
-          : await explorerService.getFileDetail(targetId);
+          : await explorerService.getFileDetail(targetId as string);
 
         const hasVersions =
           Array.isArray(raw.versions) && raw.versions.length > 0;
@@ -943,10 +934,13 @@ export default function DetailView2D({
       if (!currentProjectId) return;
 
       try {
-        const viewsData = await viewService.getViews(currentProjectId);
-        if (Array.isArray(viewsData)) setViews(viewsData as any);
-
         const targetId = fileId || params.viewId;
+        const viewsData = targetId
+          ? await view2DService.getViewsByFile(targetId)
+          : await view2DService.getViewsByProject(currentProjectId);
+
+        if (Array.isArray(viewsData)) setViews(viewsData);
+
         if (targetId) {
           const todosData = await todo2DService.getTodosByFile(targetId);
           if (Array.isArray(todosData)) setTodos(todosData);
@@ -991,7 +985,7 @@ export default function DetailView2D({
   // Logic reload pages
   useEffect(() => {
     if (activeTab !== "page") return;
-    if (selectedView?.thumbnailUrl) return; // Update: Dùng thumbnailUrl thay vì previewSrc
+    if (selectedView?.previewSrc) return; // 🌟 SỬ DỤNG previewSrc
     if (!selectedFile) return;
 
     async function reLoadPagesForPageTab() {
@@ -1091,10 +1085,10 @@ export default function DetailView2D({
               allowedKeys={allowedTools}
               data={{
                 file: selectedFile || file,
-                view: selectedView,
+                view: selectedView as any,
                 pages,
                 pageIndex,
-                views,
+                views: views as any,
                 todos,
               }}
               onSelectPage={(item) => {
