@@ -43,6 +43,9 @@ export default function IfcViewer({
   onOpenViewDrawer,
   onRestoreView,
   onUpdateSnapshot,
+  autoOpenTopicId,
+  onAutoOpenTopicHandled,
+  onOpenTopicContext,
   modelOpacity,
   onOpacityChange,
   onOpenNewClashDrawer,
@@ -63,6 +66,25 @@ export default function IfcViewer({
   const selectedItemsRef = useRef([]);
   const selectionModeRef = useRef(selectionMode)
   const modelUrlMap = useRef({})
+
+  const normalizeIfcUrl = (url) => {
+    if (!url) return "";
+
+    try {
+      const decoded = decodeURIComponent(String(url)).trim().toLowerCase();
+      return decoded.split("#")[0].split("?")[0];
+    } catch {
+      return String(url).trim().toLowerCase().split("#")[0].split("?")[0];
+    }
+  };
+
+  const extractIfcFileKey = (url) => {
+    const normalizedUrl = normalizeIfcUrl(url);
+    if (!normalizedUrl) return "";
+
+    const baseName = normalizedUrl.split("/").pop() || normalizedUrl;
+    return baseName.replace(/^\d+_[0-9a-f-]+_/i, "");
+  };
 
   const [isLoading, setIsLoading] = useState(false);
   const [selectedModelIndex, setSelectedModelIndex] = useState(null);
@@ -92,6 +114,7 @@ export default function IfcViewer({
 
   // Model list
   const [models, setModels] = useState([]);
+  const [loadError, setLoadError] = useState(null);
 
   const [hiddenLayers, setHiddenLayers] = useState(new Set());
 
@@ -245,6 +268,10 @@ export default function IfcViewer({
 
   useEffect(() => {
     if (!ifcUrls?.length || !canvasRef.current) return;
+
+    // Create AbortController for this load cycle
+    const abortController = new AbortController();
+    let isMounted = true;
 
     const load = async () => {
       setIsLoading(true);
@@ -412,27 +439,50 @@ export default function IfcViewer({
       }
 
       //
-      // LOADING MODELS
+      // LOADING MODELS WITH ABORT SUPPORT
       //
       if (ifcUrls?.length) {
         loaderRef.current.clearModels();
 
         modelUrlMap.current = {};
-
-        // const loadPromises = ifcUrls.map(url => loaderRef.current.loadIfcUrl(url));
+        setLoadError(null); // Clear previous errors
 
         const newModels = [];
+        const failedUrls = [];
 
         for (let i = 0; i < ifcUrls.length; i++) {
+          // Check if this load cycle was aborted
+          if (abortController.signal.aborted) {
+            console.log(`[Viewer] Load cycle aborted, stopping model load at ${i + 1}/${ifcUrls.length}`);
+            break;
+          }
+
           const url = ifcUrls[i];
           console.log(`[Viewer] Loading model ${i + 1}/${ifcUrls.length}: ${url}`);
 
           try {
             const model = await loaderRef.current.loadIfcUrl(url);
+            
+            // Check again after async operation
+            if (abortController.signal.aborted) {
+              console.log(`[Viewer] Aborting after model ${i + 1} loaded (context switched)`);
+              break;
+            }
+
+            if (!isMounted) {
+              console.log(`[Viewer] Component unmounted, skipping model ${i + 1}`);
+              break;
+            }
+
             const modelID = model.modelID;
             modelUrlMap.current[modelID] = url;
 
             const { tree, layers } = await loaderRef.current.getSpatialTree(modelID);
+
+            if (abortController.signal.aborted || !isMounted) {
+              console.log(`[Viewer] Aborting after spatial tree for model ${i + 1}`);
+              break;
+            }
 
             newModels.push({
               id: i,
@@ -444,17 +494,43 @@ export default function IfcViewer({
               visible: true,
             });
           } catch (err) {
+            if (abortController.signal.aborted) {
+              console.log(`[Viewer] Load cancelled for model ${url}`);
+              break;
+            }
             console.error(`Error loading model ${url}:`, err);
+            failedUrls.push({ url, error: err.message || String(err) });
           }
         }
-        setModels(newModels);
-        if (onLoaded) onLoaded();
+
+        if (isMounted && !abortController.signal.aborted) {
+          // If no models loaded successfully, set error
+          if (failedUrls.length > 0 && newModels.length === 0) {
+            const errorMsg = `Failed to load all models. ${failedUrls.map(f => `${f.url}: ${f.error}`).join('; ')}`;
+            console.error("[Viewer]", errorMsg);
+            setLoadError(errorMsg);
+          } else if (failedUrls.length > 0) {
+            // Some failed but some succeeded - just warn
+            const warnMsg = `${failedUrls.length} model(s) failed to load`;
+            console.warn("[Viewer]", warnMsg, failedUrls);
+          }
+
+          setModels(newModels);
+          if (onLoaded) onLoaded();
+        }
       }
 
       setIsLoading(false);
     };
 
     load();
+
+    // Cleanup: Abort pending loads if effect reruns or unmounts
+    return () => {
+      isMounted = false;
+      abortController.abort();
+      console.log("[Viewer] Effect cleanup: aborted pending model loads");
+    };
   }, [ifcUrls]);
 
   const sidebarWidth = isCollapsed ? COLLAPSED_WIDTH : EXPANDED_WIDTH;
@@ -544,15 +620,40 @@ export default function IfcViewer({
     const urlToNewId = {};
     Object.keys(modelUrlMap.current).forEach(id => {
       const url = modelUrlMap.current[id];
-      urlToNewId[url] = parseInt(id);
+      const normalizedUrl = normalizeIfcUrl(url);
+      if (normalizedUrl) {
+        urlToNewId[normalizedUrl] = parseInt(id);
+      }
     });
+
+    const findMappedModelId = (url) => {
+      const normalizedUrl = normalizeIfcUrl(url);
+      const fileKey = extractIfcFileKey(url);
+      if (!normalizedUrl) return undefined;
+
+      if (urlToNewId[normalizedUrl] !== undefined) {
+        return urlToNewId[normalizedUrl];
+      }
+
+      const matchedEntry = Object.entries(urlToNewId).find(
+        ([savedUrl]) =>
+          savedUrl.endsWith(normalizedUrl) ||
+          normalizedUrl.endsWith(savedUrl) ||
+          (fileKey && extractIfcFileKey(savedUrl) === fileKey),
+      );
+
+      return matchedEntry ? matchedEntry[1] : undefined;
+    };
 
     const oldIdToUrl = {};
 
     // R1: Todo Items
     if (todoItems && Array.isArray(todoItems)) {
       todoItems.forEach(item => {
-        if (item.fileUrl) oldIdToUrl[String(item.modelId)] = item.fileUrl;
+        const oldModelId = item.modelId ?? item.modelID;
+        if (item.fileUrl && oldModelId !== undefined && oldModelId !== null) {
+          oldIdToUrl[String(oldModelId)] = item.fileUrl;
+        }
       });
     }
 
@@ -597,7 +698,7 @@ export default function IfcViewer({
           url = ifcUrls[0];
         }
 
-        const newID = urlToNewId[url];
+        const newID = findMappedModelId(url);
 
         if (newID !== undefined && group.ids && group.ids.length > 0) {
           const numericIds = group.ids.map(id => Number(id));
@@ -627,8 +728,11 @@ export default function IfcViewer({
 
     if (sourceItems && Array.isArray(sourceItems)) {
       sourceItems.forEach(item => {
-        const url = item.fileUrl || oldIdToUrl[String(item.modelID)];
-        const newID = urlToNewId[url];
+        const url =
+          item.fileUrl ||
+          oldIdToUrl[String(item.modelID ?? item.modelId)] ||
+          (ifcUrls.length === 1 ? ifcUrls[0] : undefined);
+        const newID = findMappedModelId(url);
 
         if (newID !== undefined) {
           const rawIds = item.expressId ? item.expressId : [item.expressID];
@@ -741,7 +845,7 @@ export default function IfcViewer({
     const safeSelection = rawSelection.map(item => ({
       fileUrl: item.fileUrl || modelUrlMap.current[item.modelID],
       expressID: item.expressID,
-      modelID: ""
+      modelID: item.modelID
     }));
 
     const thumbnail = sceneRef.current.getScreenshot();
@@ -800,13 +904,23 @@ export default function IfcViewer({
 
 
   const Loading = () => {
-    if (isLoading) {
+    if (isLoading || loadError) {
       return (
         <div className="w-full h-full flex items-center justify-center absolute top-0 left-0 bg-white/80 z-50 flex-col gap-4">
-          <div className="text-gray-500">Loading IFC models...</div>
-          <div className="w-32">
-            <LoadingBar loading={isLoading} />
-          </div>
+          {loadError ? (
+            <div className="flex flex-col gap-2 items-center px-4 max-w-md">
+              <div className="text-red-600 font-semibold">⚠️ Failed to Load Models</div>
+              <div className="text-red-500 text-sm break-words">{loadError}</div>
+              <div className="text-gray-600 text-xs mt-2">Please try refreshing or switching to a different file.</div>
+            </div>
+          ) : (
+            <>
+              <div className="text-gray-500">Loading IFC models...</div>
+              <div className="w-32">
+                <LoadingBar loading={isLoading} />
+              </div>
+            </>
+          )}
         </div>
       );
     }
@@ -1302,11 +1416,16 @@ export default function IfcViewer({
                 >
                   <Topics 
                     projectId={projectId} 
+                    ifcUrls={ifcUrls}
+                    autoOpenTopicId={autoOpenTopicId}
                     onAddTodoForTopic={onAddTodoForTopic}
                     capture3DState={
                       async () =>{
                         const snapshot = getSnapshot();
-                        const context = getContext();
+                        const context =
+                          snapshot?.selection && snapshot.selection.length > 0
+                            ? snapshot.selection
+                            : getContext();
 
                         let thumbnailBase64 ="";
                         if(canvasRef.current && sceneRef.current) {
@@ -1325,6 +1444,8 @@ export default function IfcViewer({
                       }
                     }
                     onRestoreView={restoreState}
+                    onOpenTopicContext={onOpenTopicContext}
+                    onAutoOpenTopicHandled={onAutoOpenTopicHandled}
                     onAddMarkerStart={(cb) => { markerCallbackRef.current = cb; }}
                     onAddMarkerCancel={() => { markerCallbackRef.current = null; }}
                   />

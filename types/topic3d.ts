@@ -5,10 +5,12 @@ export type TopicType = "Undefined" | "Comment" | "Issue" | "Request" | "Fault" 
 
 export interface TopicItem {
   _id: string;
-  topicKey: string; // Ví dụ: "THEBU-5", "THEBU-4"
+  topicKey: string;
   title: string;
   description?: string;
   projectId: string;
+  fileId?: string | null;
+  linkedFileVersion?: number | null;
   
   priority: TopicPriority;
   status: TopicStatus;
@@ -40,7 +42,12 @@ export interface TopicItem {
       items?: any[];
   }[];
 
-  items?: any[];
+  // items?: any[];
+    items: Array<{
+    modelID: number;
+    expressID: number;
+    fileUrl: string;
+  }>;
   viewState?: any;
   references?: any[]
 }
@@ -50,4 +57,5 @@ export interface TopicFilters {
   assignee?: string;
   createdBy?: string;
   search?: string;
+  sortBy?: "date-created" | "name" | "date-modified";
 }

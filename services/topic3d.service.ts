@@ -4,7 +4,6 @@ import { TopicItem, TopicFilters } from "@/types/topic3d";
 
 const api = apiClient();
 const BASE = "/topics/items";
-
 function unwrap<T>(data: unknown): T {
   if (
     data &&
@@ -28,7 +27,7 @@ export const topicService = {
       : "";
 
     const data = await api.get(
-      `${BASE}/project/${projectId}${queryString}`,
+      `${BASE}/viewer/${projectId}${queryString}`,
     );
     return data as TopicItem[];
   },
@@ -57,9 +56,27 @@ export const topicService = {
     await api.delete(`${BASE}/${topicId}`);
   },
 
-  addSnapshot: async (topicId: string, payload: unknown) => {
-    const res = await api.post(`${BASE}/${topicId}/snapshots`, payload);
-    return res as TopicItem;
+
+  addSnapshot: async (topicId: string, payload: any) => {
+    const res = await api.post(`${BASE}/${topicId}/snapshots`, {
+      viewState: payload.viewState,
+      items: payload.items || [],
+      thumbnailUrl: payload.thumbnailUrl,
+    });
+
+    return res;
+  },
+
+  deleteSnapshot: async (topicId: string, snapshotId: string) => {
+    return await api.delete(
+      `/topics/items/${topicId}/snapshots/${snapshotId}`
+    );
+  },
+
+  deleteAllSnapshots: async (topicId: string) => {
+    return await api.delete(
+      `/topics/items/${topicId}/snapshots`
+    );
   },
 
   getLinkableTopics: async (projectId: string) => {

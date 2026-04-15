@@ -35,6 +35,36 @@ export function ViewList({
 }: ViewListProps) {
     const queryClient = useQueryClient()
 
+    // --- URL NORMALIZATION HELPERS (sync with Topics.tsx) ---
+    const normalizeIfcUrl = (url?: string) => {
+        if (!url) return "";
+        const decoded = decodeURIComponent(String(url)).trim().toLowerCase();
+        return decoded.split("#")[0].split("?")[0];
+    };
+
+    const extractIfcFileKey = (url?: string) => {
+        const normalizedUrl = normalizeIfcUrl(url);
+        if (!normalizedUrl) return "";
+
+        const baseName = normalizedUrl.split("/").pop() || normalizedUrl;
+        return baseName.replace(/^\d+_[0-9a-f-]+_/i, "");
+    };
+
+    const urlsMatch = (left?: string, right?: string) => {
+        const normalizedLeft = normalizeIfcUrl(left);
+        const normalizedRight = normalizeIfcUrl(right);
+        const leftFileKey = extractIfcFileKey(left);
+        const rightFileKey = extractIfcFileKey(right);
+
+        if (!normalizedLeft || !normalizedRight) return false;
+        if (normalizedLeft === normalizedRight) return true;
+        if (leftFileKey && rightFileKey && leftFileKey === rightFileKey) return true;
+        return (
+            normalizedLeft.endsWith(normalizedRight) ||
+            normalizedRight.endsWith(normalizedLeft)
+        );
+    };
+
     // --- STATES ---
     const [showSearch, setShowSearch] = useState(false)
     const [searchQuery, setSearchQuery] = useState("")
@@ -77,7 +107,9 @@ export function ViewList({
         } else if (filterType === "current-context") {
             result = result.filter(v => {
                 if (!v.items || v.items.length === 0) return false;
-                return v.items.some(item => ifcUrls.includes(item.fileUrl));
+                return v.items.some(item => 
+                    ifcUrls.some(activeUrl => urlsMatch(item.fileUrl, activeUrl))
+                );
             });
         }
 

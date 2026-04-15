@@ -208,9 +208,16 @@ export default function TodoDetailPanel({
               className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm text-gray-800 bg-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
               disabled={loading}
             >
-              <option value="Issue">Issue</option>
               <option value="Comment">Comment</option>
               <option value="Undefined">Undefined</option>
+              <option value="Issue">Issue</option>
+              <option value="Request">Request</option>
+              <option value="Fault">Fault</option>
+              <option value="Inquiry">Inquiry</option>
+              <option value="Solution">Solution</option>
+              <option value="Clash">Clash</option>
+              <option value="Remark">Remark</option>
+                           
             </select>
           </div>
 
@@ -222,10 +229,10 @@ export default function TodoDetailPanel({
               className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm text-gray-800 bg-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
               disabled={loading}
             >
-              <option value="Low">Low</option>
-              <option value="Normal">Normal</option>
+              <option value="Critical">Critical</option>
               <option value="High">High</option>
-              <option value="Urgent">Urgent</option>
+              <option value="Normal">Normal</option>
+              <option value="Low">Low</option>
             </select>
           </div>
 
@@ -241,7 +248,7 @@ export default function TodoDetailPanel({
               <option value="Open">Open</option>
               <option value="In Progress">In Progress</option>
               <option value="Done">Done</option>
-              <option value="On Hold">On Hold</option>
+              <option value="Closed">Closed</option>
             </select>
           </div>
 

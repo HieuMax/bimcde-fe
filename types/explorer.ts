@@ -216,9 +216,10 @@ export interface ViewItem {
 
 export interface TodoItem {
   _id: string;
+  code?: string;
   title: string;
   description?: string;
-  status?: "Open" | "In Progress" | "Done" | "On Hold";
+  status?: "New" | "Open" | "In Progress" | "Done" | "On Hold" | "Closed";
   priority?: "Low" | "Normal" | "High" | "Urgent";
   type?: string;
   dueDate?: string;
