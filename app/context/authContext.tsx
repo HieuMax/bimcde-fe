@@ -129,19 +129,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       client.interceptors.response.use(
         (response) => response,
         async (error) => {
-          if (error.response?.status === 401) {
-            const success = await refreshAccessToken();
-            if (success) {
-              // Retry the original request
-              const originalRequest = error.config;
-              originalRequest.headers["Authorization"] = `Bearer ${getCookie(
-                "accessToken"
-              )}`;
-              return client(originalRequest);
-            }
+          const status = error.response?.status;
+          const originalRequest = error.config as
+            | (typeof error.config & { _retry?: boolean })
+            | undefined;
+
+          if (status !== 401 || !originalRequest) {
+            return Promise.reject(error);
+          }
+
+          const url = String(originalRequest.url ?? "");
+          // Tránh vòng lặp: không refresh khi chính request là refresh / login.
+          if (
+            url.includes("/accounts/refresh-token") ||
+            url.includes("/accounts/login")
+          ) {
+            return Promise.reject(error);
+          }
+
+          if (originalRequest._retry) {
+            return Promise.reject(error);
+          }
+          originalRequest._retry = true;
+
+          const success = await refreshAccessToken();
+          if (success) {
+            originalRequest.headers = originalRequest.headers ?? {};
+            originalRequest.headers["Authorization"] = `Bearer ${getCookie(
+              "accessToken",
+            )}`;
+            return client(originalRequest);
           }
           return Promise.reject(error);
-        }
+        },
       );
       interceptorAdded.current = true;
     }

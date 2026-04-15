@@ -12,12 +12,13 @@ import {
   TagIcon,
   RotateCw,
 } from "lucide-react";
-import { viewService } from "@/services/view.service";
+// import { viewService } from "@/services/view.service";
 import { useComments } from "@/components/features/explorer/hooks/useComments";
 import CommentList from "@/components/features/explorer/properties/components/comments/CommentList";
 import CommentInput from "@/components/features/explorer/properties/components/comments/CommentInput";
 import { RecipientSelector } from "@/components/features/release/RecipientSelector";
 import { useTags } from "@/components/features/explorer/hooks/useTags";
+import { view2DService } from "@/services/view2d.service";
 
 // --- Types ---
 interface Attachment {
@@ -156,7 +157,7 @@ export default function ViewDetailPanel({
         // tags: editForm.tags, // Tạm đóng nếu Backend chưa map tag
       };
 
-      const updated = await viewService.updateView(view._id, payload);
+      const updated = await view2DService.updateView(view._id, payload);
 
       setIsEditing(false);
       onUpdateSuccess?.(updated);

@@ -28,7 +28,7 @@ export const topicService = {
       : "";
 
     const data = await api.get(
-      `${BASE}/viewer/${projectId}${queryString}`,
+      `${BASE}/project/${projectId}${queryString}`,
     );
     return data as TopicItem[];
   },

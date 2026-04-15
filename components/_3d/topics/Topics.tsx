@@ -195,19 +195,29 @@ export function Topics({
     mutationFn: (newTopic: Partial<TopicItem>) =>
       topicService.createTopic(newTopic),
     onSuccess: () => {
-      // Sửa lại cú pháp invalidate cho React Query v5 (nếu dùng bản mới)
       queryClient.invalidateQueries({ queryKey: ["topics", projectId] });
       setView("list");
-      // Reset form sau khi tạo xong
       setFormData({
         title: "",
         description: "",
-        type: "undefined",
-        priority: "normal",
-        status: "new",
+        type: "Undefined",
+        priority: "Normal",
+        status: "New",
       });
     },
+    onError: (err: unknown) => {
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message ||
+        (err as Error)?.message ||
+        "Create topic failed";
+      toast.error(msg);
+    },
   });
+
+  const stopViewerHotkeys = (e: React.KeyboardEvent<HTMLElement>) => {
+    e.stopPropagation();
+  };
 
   const updateMutation = useMutation({
     mutationFn: ({
@@ -1192,6 +1202,7 @@ export function Topics({
             className="w-full border border-slate-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
             placeholder="Add a title"
             value={formData.title}
+            onKeyDown={stopViewerHotkeys}
             onChange={(e) =>
               setFormData({ ...formData, title: e.target.value })
             }
@@ -1203,6 +1214,7 @@ export function Topics({
             className="w-full border border-slate-300 rounded px-3 py-1.5 text-sm h-20 resize-none focus:outline-none focus:border-blue-500"
             placeholder="Add a description"
             value={formData.description}
+            onKeyDown={stopViewerHotkeys}
             onChange={(e) =>
               setFormData({ ...formData, description: e.target.value })
             }
@@ -1214,6 +1226,7 @@ export function Topics({
             className="w-full border border-slate-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
             placeholder="Please enter users, groups"
             value={formData.assignee}
+            onKeyDown={stopViewerHotkeys}
             onChange={(e) =>
               setFormData({ ...formData, assignee: e.target.value })
             }
@@ -1224,12 +1237,13 @@ export function Topics({
           <select
             className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 bg-white"
             value={formData.type}
+            onKeyDown={stopViewerHotkeys}
             onChange={(e) =>
               setFormData({ ...formData, type: e.target.value as any })
             }
           >
             <option>Select type</option>
-            <option value="uUndefined">Undefined</option>
+            <option value="Undefined">Undefined</option>
             <option value="Comment">Comment</option>
             <option value="Issue">Issue</option>
             <option value="Request">Request</option>
@@ -1238,7 +1252,6 @@ export function Topics({
             <option value="Solution">Solution</option>
             <option value="Remark">Remark</option>
             <option value="Clash">Clash</option>
-            <option value="Ppo">Opo</option>
           </select>
         </div>
         <div className="space-y-1">
@@ -1246,15 +1259,16 @@ export function Topics({
           <select
             className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 bg-white"
             value={formData.priority}
+            onKeyDown={stopViewerHotkeys}
             onChange={(e) =>
               setFormData({ ...formData, priority: e.target.value as any })
             }
           >
             <option>Select priority</option>
-            <option value="low">Low</option>
-            <option value="normal">Normal</option>
-            <option value="high">High</option>
-            <option value="critical">Critical</option>
+            <option value="Low">Low</option>
+            <option value="Normal">Normal</option>
+            <option value="High">High</option>
+            <option value="Critical">Critical</option>
           </select>
         </div>
         <div className="space-y-1">
@@ -1263,6 +1277,7 @@ export function Topics({
             type="date"
             className="w-full border border-slate-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
             value={formData.dueDate ? formData.dueDate.split("T")[0] : ""}
+            onKeyDown={stopViewerHotkeys}
             onChange={(e) =>
               setFormData({
                 ...formData,
@@ -1278,6 +1293,7 @@ export function Topics({
           <input
             className="w-full border border-slate-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
             placeholder="Begin typing to search..."
+            onKeyDown={stopViewerHotkeys}
           />
         </div>
         <div className="space-y-1">
@@ -1332,6 +1348,7 @@ export function Topics({
             className="w-full border border-slate-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
             placeholder="Add a title"
             value={formData.title}
+            onKeyDown={stopViewerHotkeys}
             onChange={(e) =>
               setFormData({ ...formData, title: e.target.value })
             }
@@ -1343,6 +1360,7 @@ export function Topics({
             className="w-full border border-slate-300 rounded px-3 py-1.5 text-sm h-20 resize-none focus:outline-none focus:border-blue-500"
             placeholder="Add a description"
             value={formData.description}
+            onKeyDown={stopViewerHotkeys}
             onChange={(e) =>
               setFormData({ ...formData, description: e.target.value })
             }
@@ -1354,6 +1372,7 @@ export function Topics({
             className="w-full border border-slate-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
             placeholder="Please enter users, groups"
             value={formData.assignee}
+            onKeyDown={stopViewerHotkeys}
             onChange={(e) =>
               setFormData({ ...formData, assignee: e.target.value })
             }
@@ -1364,6 +1383,7 @@ export function Topics({
           <select
             className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 bg-white"
             value={formData.type}
+            onKeyDown={stopViewerHotkeys}
             onChange={(e) =>
               setFormData({ ...formData, type: e.target.value as any })
             }
@@ -1378,7 +1398,6 @@ export function Topics({
             <option value="Solution">Solution</option>
             <option value="Remark">Remark</option>
             <option value="Clash">Clash</option>
-            <option value="Opo">Opo</option>
           </select>
         </div>
         <div className="space-y-1">
@@ -1386,15 +1405,16 @@ export function Topics({
           <select
             className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 bg-white"
             value={formData.priority}
+            onKeyDown={stopViewerHotkeys}
             onChange={(e) =>
               setFormData({ ...formData, priority: e.target.value as any })
             }
           >
             <option>Select priority</option>
-            <option value="low">Low</option>
-            <option value="normal">Normal</option>
-            <option value="high">High</option>
-            <option value="critical">Critical</option>
+            <option value="Low">Low</option>
+            <option value="Normal">Normal</option>
+            <option value="High">High</option>
+            <option value="Critical">Critical</option>
           </select>
         </div>
         <div className="space-y-1">
@@ -1418,6 +1438,7 @@ export function Topics({
           <input
             className="w-full border border-slate-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
             placeholder="Begin typing to search..."
+            onKeyDown={stopViewerHotkeys}
           />
         </div>
         <div className="space-y-1">
@@ -1425,6 +1446,7 @@ export function Topics({
           <select
             className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 bg-white"
             value={formData.status ?? "New"}
+            onKeyDown={stopViewerHotkeys}
             onChange={(e) =>
               setFormData({
                 ...formData,

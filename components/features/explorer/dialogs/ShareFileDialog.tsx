@@ -16,7 +16,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { httpClient } from "@/lib/http-client";
+import { useApi } from "@/app/hooks/useApi";
 
 // IMPORT RECIPIENT SELECTOR
 import { RecipientSelector, RecipientOption } from "../../release/RecipientSelector";
@@ -35,6 +35,7 @@ type AccessLevel = "VIEW" | "DOWNLOAD";
 export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
   const params = useParams();
   const projectId = params?.projectId as string;
+  const api = useApi();
 
   /* --- STATE --- */
   const [shareType, setShareType] = useState<ShareType>("PUBLIC_LINK");
@@ -91,7 +92,16 @@ export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
       }
 
       // Gọi API
-      const res = await httpClient.post<{ token?: string, shareToken?: string }>("/share", {
+      const res = await api.post<{
+        fileId: string | undefined;
+        projectId: string;
+        type: ShareType;
+        recipients: string[];
+        note: string;
+        expiresAt: Date | null;
+        accessLevel: AccessLevel;
+        showLatestVersion: boolean;
+      }>("/share", {
         fileId: file?._id,
         projectId,
         type: shareType,
@@ -101,7 +111,7 @@ export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
         accessLevel,
         showLatestVersion: showLatest,
       });
-      return res.data;
+      return res;
     },
     onSuccess: (data: any) => {
       const token = data.token || data.shareToken || data?.share?.token;
@@ -121,7 +131,7 @@ export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
       }
     },
     onError: (err: any) => {
-      toast.error(err?.response?.data?.message || "Error when performing sharing");
+      toast.error(err?.response?.data?.message || err?.message || "Error when performing sharing");   
     }
   });
 
@@ -182,22 +192,6 @@ export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
                       />
                   </div>
                 </div>
-
-                {/* 👇 THÊM KHUNG NHẬP EMAIL THỦ CÔNG */}
-                {/* <div className="space-y-1.5">
-                  <Label className="text-xs text-slate-500">
-                    Or enter email addresses <span className="text-red-500">*</span>
-                  </Label>
-                  <Input
-                    placeholder="example1@gmail.com, example2@yahoo.com"
-                    value={customEmails}
-                    onChange={e => setCustomEmails(e.target.value)}
-                  />
-                </div> */}
-
-                {/* <div className="pt-1 text-xs text-slate-500">
-                  Note: Any access restrictions placed on the files are removed when the files are shared.
-                </div> */}
               </div>
             )}
 
