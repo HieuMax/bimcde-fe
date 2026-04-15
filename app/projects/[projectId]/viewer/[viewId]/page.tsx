@@ -137,6 +137,8 @@ export default function Page() {
         onToggleFullscreen={() => setIsFullscreen((v) => !v)}
         onOpenViewPanel={() => openViewPanelRef.current?.()}
         onOpenTodoPanel={() => openTodoPanelRef.current?.()}
+
+        
       />
       <DrawingToolBar
         onDownload={handleDownloadRaw}
