@@ -73,6 +73,7 @@ export interface CreateTodoDto {
   dueDate?: string;
   projectId: string;
   topicId?: string | null;
+  topicItemId?: string | null;
   items?: {
     fileUrl: string;
     modelId: string;
@@ -92,6 +93,7 @@ export interface UpdateTodoDto {
   tags?: ITagTodo[] | null;
   dueDate?: string;
   topicId?: string | null;
+  topicItemId?: string | null;
   items?: {
     fileUrl: string;
     modelId: string;

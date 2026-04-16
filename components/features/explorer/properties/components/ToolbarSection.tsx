@@ -130,6 +130,8 @@ export default function ToolbarSection({
       : "full";
   const isFileBasicPanel = isFile && filePanelAccess === "basic";
   const isIsoAdmin = workflowMode === "ISO_19650" && !!cdeCapabilities?.isProjectAdmin;
+  const canShowCheckinCheckout =
+    workflowMode !== "ISO_19650" || !!cdeCapabilities?.isProjectAdmin;
   const isRootFolder = !isFile && folderItem?.parentId === null;
   const isGroupHomeFolder = !isFile && folderItem?.isGroupHomeFolder === true;
   const isIsoAdminRestrictedFolder =
@@ -323,7 +325,7 @@ export default function ToolbarSection({
               <span>See history</span>
             </DropdownMenuItem>
 
-            {!isIsoAdminRestrictedFolder && (
+            {!isIsoAdminRestrictedFolder && canShowCheckinCheckout && (
               <>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
@@ -452,21 +454,25 @@ export default function ToolbarSection({
                   <CheckSquare className="mr-2 h-4 w-4 text-slate-500" />
                   <span>Add to ToDo</span>
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => onToggleLock("LOCK")}
-                  className="cursor-pointer"
-                >
-                  <Lock className="mr-2 h-4 w-4 text-slate-500" />
-                  <span>Checkin file(s)</span>
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => onToggleLock("UNLOCK")}
-                  className="cursor-pointer"
-                >
-                  <Unlock className="mr-2 h-4 w-4 text-slate-500" />
-                  <span>Checkout file(s)</span>
-                </DropdownMenuItem>
+                {canShowCheckinCheckout && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      onClick={() => onToggleLock("LOCK")}
+                      className="cursor-pointer"
+                    >
+                      <Lock className="mr-2 h-4 w-4 text-slate-500" />
+                      <span>Checkin file(s)</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => onToggleLock("UNLOCK")}
+                      className="cursor-pointer"
+                    >
+                      <Unlock className="mr-2 h-4 w-4 text-slate-500" />
+                      <span>Checkout file(s)</span>
+                    </DropdownMenuItem>
+                  </>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem className="cursor-pointer" onClick={onAddTags}>
                   <Tags className="mr-2 h-4 w-4 text-slate-500" />
