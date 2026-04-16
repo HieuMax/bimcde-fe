@@ -154,10 +154,13 @@ export function NewTodoDrawer({
       (currentMode === "create" || currentMode === "edit"),
   })
 
+  const linkedTopicItemId =
+    (todoToEdit as any)?.topicItemId ?? (todoToEdit as any)?.topicId ?? null;
+
   const { data: linkedTopicMeta } = useQuery({
-    queryKey: ["topic3d", todoToEdit?.topicId],
-    queryFn: () => topicService.getTopicById(todoToEdit!.topicId!),
-    enabled: open && !!todoToEdit?.topicId && currentMode === "view",
+    queryKey: ["topic3d", linkedTopicItemId],
+    queryFn: () => topicService.getTopicById(String(linkedTopicItemId)),
+    enabled: open && !!linkedTopicItemId && currentMode === "view",
   })
 
   // Helper
@@ -332,11 +335,10 @@ export function NewTodoDrawer({
       setLinkedTopicId(presetTopicId)
       return
     }
-    if (todoToEdit?.topicId) {
-      setLinkedTopicId(todoToEdit.topicId)
-    } else {
-      setLinkedTopicId("__none__")
-    }
+    const tid =
+      (todoToEdit as any)?.topicItemId ?? (todoToEdit as any)?.topicId ?? null;
+    if (tid) setLinkedTopicId(String(tid));
+    else setLinkedTopicId("__none__");
   }, [open, todoToEdit, presetTopicId])
 
   const createMutation = useMutation({
@@ -403,12 +405,13 @@ export function NewTodoDrawer({
       attachments: attachments,
     }
 
+    // Board todo links to TopicItem via `topicItemId`.
     if (presetTopicId) {
-      payload.topicId = presetTopicId
+      payload.topicItemId = presetTopicId;
     } else if (todoToEdit) {
-      payload.topicId = linkedTopicId === "__none__" ? null : linkedTopicId
+      payload.topicItemId = linkedTopicId === "__none__" ? null : linkedTopicId;
     } else if (linkedTopicId !== "__none__") {
-      payload.topicId = linkedTopicId
+      payload.topicItemId = linkedTopicId;
     }
 
     if (todoToEdit) {
@@ -875,14 +878,14 @@ export function NewTodoDrawer({
               </div>
             )}
 
-            {/* Linked Topic3D (optional) */}
-            {currentMode === "view" && todoToEdit?.topicId ? (
+            {/* Linked Topic (optional) */}
+            {currentMode === "view" && linkedTopicItemId ? (
               <ViewField
                 label="Linked topic"
                 value={
                   linkedTopicMeta
                     ? `${linkedTopicMeta.topicKey} — ${linkedTopicMeta.title}`
-                    : todoToEdit.topicId
+                    : String(linkedTopicItemId)
                 }
               />
             ) : null}
