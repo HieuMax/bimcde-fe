@@ -2,10 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ViewItem } from "@/types/explorer";
 import { IFile } from "@/types/explorer";
 import {
-  Paperclip,
   Pencil,
   X,
   Tag as TagIcon,
@@ -20,6 +18,8 @@ import CommentInput from "../../explorer/properties/components/comments/CommentI
 import { useTags } from "@/components/features/explorer/hooks/useTags";
 import { explorerService } from "@/services/explorer.service";
 import { View2DItem } from "@/types/view2d";
+// import VersionHistoryPanel from "../VersionHistoryPanel";
+import VersionHistoryPanel from "./VersionHistoryPanel";
 
 type Props = {
   file: IFile | null;
@@ -43,11 +43,47 @@ function formatDate(date?: string) {
   return new Date(date).toLocaleDateString();
 }
 
+// ✅ Helper: Extract nearest folder from location path
+function getNearestFolder(location?: string): { folderName: string; folderId: string; fullPath: string } | null {
+  if (!location) return null;
+
+  // Format: "project/folder1/folder2" or "project/folder1/folder2/file.ifc"
+  const parts = location.split("/").filter((p) => p.trim());
+  
+  if (parts.length <= 1) return null; // Only project, no folder
+  
+  // Skip project (first part)
+  const folderParts = parts.slice(1);
+  
+  // Check if last part is a file (has extension like .ifc, .pdf, .docx)
+  const lastPart = folderParts[folderParts.length - 1];
+  const hasExtension = /\.[a-z0-9]{2,5}$/i.test(lastPart);
+  
+  // Remove file if it has extension
+  if (hasExtension) {
+    folderParts.pop();
+  }
+  
+  // If no folder parts left, return null
+  if (folderParts.length === 0) return null;
+  
+  // Get the last (nearest) folder
+  const nearestFolder = folderParts[folderParts.length - 1];
+  const fullPath = folderParts.join(" > ");
+  
+  return { 
+    folderName: nearestFolder, 
+    folderId: nearestFolder, // Use folder name as ID for now, backend can map
+    fullPath
+  };
+}
+
 export default function FileDetailTab({ file, onUpdateSuccess }: Props) {
   const router = useRouter();
 
   const [mode, setMode] = useState<"view" | "edit">("view");
   const [loading, setLoading] = useState(false); // Thêm state loading khi Save
+  const [showVersionHistory, setShowVersionHistory] = useState(false); // ✅ State for History Version panel
 
   // State gom nhóm cho form edit
   const [editForm, setEditForm] = useState({
@@ -72,8 +108,12 @@ export default function FileDetailTab({ file, onUpdateSuccess }: Props) {
   } = useComments(file?._id || "", "file");
 
   // Fetch tags của project chứa file này
+  const projectId = typeof file?.projectId === "string" 
+    ? file.projectId 
+    : (file?.projectId as any)?._id;
+    
   const { tags: availableTags, isLoading: isTagsLoading } = useTags(
-    file?.projectId || "",
+    projectId || "",
   );
 
   // Đồng bộ dữ liệu file vào state edit khi file thay đổi hoặc đổi mode
@@ -91,62 +131,34 @@ export default function FileDetailTab({ file, onUpdateSuccess }: Props) {
     return <div className="p-4 text-sm text-gray-500">No file selected</div>;
   }
 
-  // ===== HÀM XỬ LÝ LƯU (GỌI API) =====
+  const handleLocationClick = () => {
+    // Extract projectId 
+    const projectId = typeof file.projectId === "string" 
+      ? file.projectId 
+      : (file.projectId as any)?._id;
+    
+    if (!projectId) return;
 
-  // const handleSaveDetails = async () => {
-  //   let finalName = editForm.name.trim();
+    // If file has folderId → navigate to /data (folder view)
+    // If no folderId → navigate to project root
+    if (file.folderId) {
+      router.push(`/projects/${projectId}/data`);
+    } else {
+      router.push(`/projects/${projectId}`);
+    }
+  };
 
-  //   if (!finalName) {
-  //      alert("Title is required");
-  //      return;
-  //   }
+  const handleShowVersionHistory = () => {
+    setShowVersionHistory(true);
+  };
 
-  //   // --- FIX LỖI LẶP ĐUÔI FILE (.pdf.pdf.pdf) ---
-  //   // 1. Lấy đuôi mở rộng của file gốc (VD: .pdf, .docx)
-  //   const extMatch = file.name.match(/\.[0-9a-z]+$/i);
-  //   if (extMatch) {
-  //     const ext = extMatch[0].toLowerCase();
-  //     // 2. Cắt bỏ toàn bộ các đuôi bị lặp ở cuối chuỗi
-  //     const extRegex = new RegExp(`(${ext.replace(/\./g, '\\.')})+$`, 'i');
-  //     finalName = finalName.replace(extRegex, '');
-  //     // 3. Nối lại đúng 1 đuôi duy nhất
-  //     finalName = finalName + ext;
-  //   }
-  //   // --------------------------------------------
+  const handleOpenVersion = (version: any) => {
+    // Close history panel
+    setShowVersionHistory(false);
+    
+    console.log("Opening version:", version);
+  };
 
-  //   setLoading(true);
-  //   try {
-  //     // 1. Lấy userId từ localStorage
-  //     let userObj: any = null;
-  //     try {
-  //       const userStr = localStorage.getItem('user');
-  //       if (userStr) userObj = JSON.parse(userStr);
-  //     } catch (e) {}
-  //     const userId = userObj?._id || userObj?.id || currentUserId || "";
-
-  //     // Gọi API với finalName đã được chuẩn hóa
-  //     if (finalName !== file.name) {
-  //       await explorerService.renameFile(file._id, finalName, userId);
-  //     }
-
-  //     await explorerService.assignTags([file._id], editForm.tags);
-
-  //     // Cập nhật lại UI với tên mới
-  //     file.name = finalName;
-  //     file.tags = editForm.tags.map(tagId => {
-  //        const found = availableTags?.find((at: any) => at._id === tagId);
-  //        return found || tagId;
-  //     });
-
-  //     // Tắt mode edit
-  //     setMode('view');
-  //   } catch (error) {
-  //     console.error("Lỗi khi lưu thông tin file:", error);
-  //     alert("Đã xảy ra lỗi khi lưu. Vui lòng thử lại!");
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // };
 
   const handleSaveDetails = async () => {
     let finalName = editForm.name.trim();
@@ -156,22 +168,18 @@ export default function FileDetailTab({ file, onUpdateSuccess }: Props) {
       return;
     }
 
-    // --- FIX LỖI LẶP ĐUÔI FILE (.pdf.pdf.pdf) ---
     const extMatch = file.name.match(/\.[0-9a-z]+$/i);
     if (extMatch) {
-      const ext = extMatch[0]; // Lấy đuôi gốc, ví dụ: .pdf hoặc .DOCX
+      const ext = extMatch[0];
       let cleaned = finalName;
 
-      // 1. Cắt bỏ dấu chấm hoặc khoảng trắng bị gõ thừa ở cuối cùng
       cleaned = cleaned.replace(/[\.\s]+$/, "");
 
-      // 2. Vòng lặp bóc tách: Cứ thấy đuôi ở cuối là cắt bỏ, kể cả các dấu chấm đứng giữa
       while (cleaned.toLowerCase().endsWith(ext.toLowerCase())) {
-        cleaned = cleaned.slice(0, -ext.length); // Cắt đuôi
-        cleaned = cleaned.replace(/[\.\s]+$/, ""); // Cắt tiếp dấu chấm thừa (vd trong trường hợp ..DOCX)
+        cleaned = cleaned.slice(0, -ext.length); 
+        cleaned = cleaned.replace(/[\.\s]+$/, "");
       }
 
-      // 3. Nối lại đúng 1 lần đuôi gốc
       finalName = cleaned + ext;
     }
     // --------------------------------------------
@@ -185,10 +193,8 @@ export default function FileDetailTab({ file, onUpdateSuccess }: Props) {
       } catch (e) {}
       const userId = userObj?._id || userObj?.id || currentUserId || "";
 
-      // 1. Tạo một object clone để chứa dữ liệu mới
       let updatedFileRes: any = { ...file };
 
-      // 2. Gọi API Rename và lấy kết quả trả về từ Backend (chứa version mới)
       if (finalName !== file.name) {
         const renameResult = await explorerService.renameFile(
           file._id,
@@ -200,7 +206,6 @@ export default function FileDetailTab({ file, onUpdateSuccess }: Props) {
         }
       }
 
-      // 3. Gọi API gán Tag
       const tagUpdatedFiles = await explorerService.assignTags(
         [file._id],
         editForm.tags,
@@ -214,9 +219,7 @@ export default function FileDetailTab({ file, onUpdateSuccess }: Props) {
         }
       }
 
-      // 4. BƯỚC QUAN TRỌNG: Gửi object mới lên component cha (viewHome) để re-render
       if (onUpdateSuccess) {
-        // Đảm bảo tags được map lại đúng format để UI hiển thị không bị lỗi
         updatedFileRes.tags = editForm.tags.map((tagId) => {
           const found = availableTags?.find((at: any) => at._id === tagId);
           return found || tagId;
@@ -225,7 +228,6 @@ export default function FileDetailTab({ file, onUpdateSuccess }: Props) {
         onUpdateSuccess(updatedFileRes);
       }
 
-      // Tắt mode edit
       setMode("view");
     } catch (error) {
       console.error("Lỗi khi lưu thông tin file:", error);
@@ -363,134 +365,158 @@ export default function FileDetailTab({ file, onUpdateSuccess }: Props) {
 
   /* ================= VIEW MODE ================= */
   return (
-    <div className="flex flex-col h-full bg-white">
-      {/* Header */}
-      <div className="flex items-start justify-between px-4 py-3 border-b">
-        <div className="text-sm font-bold uppercase tracking-wider text-gray-800 break-all pr-4">
-          {file.name}
+    <div className="flex flex-col h-full bg-white relative">
+      {/* ✅ Version History Panel Overlay */}
+      {showVersionHistory && (
+        <div className="absolute inset-0 z-50 bg-white rounded-lg shadow-lg border">
+          <VersionHistoryPanel
+            file={file}
+            onClose={() => setShowVersionHistory(false)}
+            onOpenVersion={handleOpenVersion}
+            onDownloadVersion={(version) => {
+              // Handle download if needed
+              console.log("Downloading version:", version);
+            }}
+          />
         </div>
+      )}
 
-        <div className="flex items-center gap-1 shrink-0">
-          <button
-            className="p-1.5 text-gray-400 hover:text-[#005a9e] hover:bg-blue-50 rounded transition-all"
-            onClick={() => setMode("edit")}
-            title="Edit File Details"
-          >
-            <Pencil size={16} />
-          </button>
-
-          <button className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition-all">
-            <X size={18} />
-          </button>
-        </div>
-      </div>
-
-      {/* Details */}
-      <div className="p-4 text-sm space-y-4 border-b bg-slate-50">
-        <h3 className="text-sm font-semibold text-gray-800">Details</h3>
-
-        {/* HIỂN THỊ TAGS DẠNG BADGE */}
-        {file.tags && file.tags.length > 0 && (
-          <div>
-            <div className="text-[11px] text-gray-500 uppercase tracking-tight mb-1">
-              Tags
+      {!showVersionHistory && (
+        <>
+          {/* Header */}
+          <div className="flex items-start justify-between px-4 py-3 border-b">
+            <div className="text-sm font-bold uppercase tracking-wider text-gray-800 break-all pr-4">
+              {file.name}
             </div>
-            <div className="flex flex-wrap gap-1.5">
-              {file.tags.map((t: any) => {
-                const tagId = typeof t === "string" ? t : t._id;
-                const foundTag = availableTags?.find(
-                  (at: any) => at._id === tagId,
-                );
-                const tagName =
-                  foundTag?.name ||
-                  (typeof t === "string" ? t : t.name) ||
-                  "Unknown Tag";
-                const tagColor = foundTag?.color || "#9ca3af";
 
-                return (
-                  <span
-                    key={tagId}
-                    className="px-2 py-0.5 text-[10px] font-semibold rounded text-white shadow-sm flex items-center gap-1"
-                    style={{ backgroundColor: tagColor }}
-                  >
-                    <TagIcon size={10} />
-                    {tagName}
-                  </span>
-                );
-              })}
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                className="p-1.5 text-gray-400 hover:text-[#005a9e] hover:bg-blue-50 rounded transition-all"
+                onClick={() => setMode("edit")}
+                title="Edit File Details"
+              >
+                <Pencil size={16} />
+              </button>
+
+              <button className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition-all">
+                <X size={18} />
+              </button>
             </div>
           </div>
-        )}
 
-        <DetailRow
-          label="Version"
-          value={file.currentVersion ? `v${file.currentVersion}` : "--"}
-          actionLabel="See history"
-        />
+          {/* Details */}
+          <div className="p-4 text-sm space-y-4 border-b bg-slate-50">
+            <h3 className="text-sm font-semibold text-gray-800">Details</h3>
 
-        <DetailRow label="Size" value={formatFileSize(file.size)} />
+            {/* HIỂN THỊ TAGS DẠNG BADGE */}
+            {file.tags && file.tags.length > 0 && (
+              <div>
+                <div className="text-[11px] text-gray-500 uppercase tracking-tight mb-1">
+                  Tags
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {file.tags.map((t: any) => {
+                    const tagId = typeof t === "string" ? t : t._id;
+                    const foundTag = availableTags?.find(
+                      (at: any) => at._id === tagId,
+                    );
+                    const tagName =
+                      foundTag?.name ||
+                      (typeof t === "string" ? t : t.name) ||
+                      "Unknown Tag";
+                    const tagColor = foundTag?.color || "#9ca3af";
 
-        <DetailRow
-          label="Location"
-          value={file.location || file.projectName || "Project Root"}
-          valueClass="text-blue-600 font-medium cursor-pointer hover:underline"
-          onValueClick={() => router.push("/projects")}
-        />
+                    return (
+                      <span
+                        key={tagId}
+                        className="px-2 py-0.5 text-[10px] font-semibold rounded text-white shadow-sm flex items-center gap-1"
+                        style={{ backgroundColor: tagColor }}
+                      >
+                        <TagIcon size={10} />
+                        {tagName}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
-        <DetailRow
-          label="Created"
-          value={
-            file.createdAt
-              ? `${formatDate(file.createdAt)} by ${
-                  typeof file.createdBy === "string"
-                    ? file.createdBy
-                    : (file.createdBy ?? "Unknown")
-                }`
-              : "--"
-          }
-        />
+            <DetailRow
+              label="Version"
+              value={file.currentVersion ? `v${file.currentVersion}` : "--"}
+              actionLabel="See history"
+              onActionClick={handleShowVersionHistory}
+            />
 
-        <DetailRow
-          label="Modified"
-          value={
-            file.updatedAt
-              ? `${formatDate(file.updatedAt)} by ${
-                  typeof file.modifiedBy === "string"
-                    ? file.modifiedBy
-                    : (file.modifiedBy ?? "Unknown")
-                }`
-              : "--"
-          }
-        />
-      </div>
+            <DetailRow label="Size" value={formatFileSize(file.size)} />
 
-      {/* ===== COMMENTS ===== */}
-      <div className="flex-1 flex flex-col relative min-h-0 bg-white">
-        {/* Danh sách Comment */}
-        <div className="flex-1 overflow-y-auto pb-16 custom-scrollbar">
-          <CommentList
-            comments={comments}
-            totalComments={totalComments}
-            isLoading={isCommentsLoading}
-            hasNextPage={hasNextPage}
-            isFetchingNextPage={isFetchingNextPage}
-            fetchNextPage={fetchNextPage}
-            currentUserId={currentUserId}
-            onUpdate={updateComment}
-            onDelete={deleteComment}
-          />
-        </div>
+            <DetailRow
+              label="Location"
+              value={
+                getNearestFolder(file.location)?.fullPath ||
+                file.projectName || 
+                "Project Root" 
+              }
+              valueClass="text-blue-600 font-medium cursor-pointer hover:underline"
+              onValueClick={handleLocationClick}
+            />
 
-        {/* Khung nhập Comment cố định dưới đáy */}
-        <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-10 shrink-0">
-          <CommentInput
-            value={commentInput}
-            onChange={setCommentInput}
-            onSend={addComment}
-            isSending={isAddingComment}
-          />
-        </div>
-      </div>
+            <DetailRow
+              label="Created"
+              value={
+                file.createdAt
+                  ? `${formatDate(file.createdAt)} by ${
+                      typeof file.createdBy === "string"
+                        ? file.createdBy
+                        : (file.createdBy ?? "Unknown")
+                    }`
+                  : "--"
+              }
+            />
+
+            <DetailRow
+              label="Modified"
+              value={
+                file.updatedAt
+                  ? `${formatDate(file.updatedAt)} by ${
+                      typeof file.modifiedBy === "string"
+                        ? file.modifiedBy
+                        : (file.modifiedBy ?? "Unknown")
+                    }`
+                  : "--"
+              }
+            />
+          </div>
+
+          {/* ===== COMMENTS ===== */}
+          <div className="flex-1 flex flex-col relative min-h-0 bg-white">
+            {/* Danh sách Comment */}
+            <div className="flex-1 overflow-y-auto pb-16 custom-scrollbar">
+              <CommentList
+                comments={comments}
+                totalComments={totalComments}
+                isLoading={isCommentsLoading}
+                hasNextPage={hasNextPage}
+                isFetchingNextPage={isFetchingNextPage}
+                fetchNextPage={fetchNextPage}
+                currentUserId={currentUserId}
+                onUpdate={updateComment}
+                onDelete={deleteComment}
+              />
+            </div>
+
+            {/* Khung nhập Comment cố định dưới đáy */}
+            <div className="absolute bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-10 shrink-0">
+              <CommentInput
+                value={commentInput}
+                onChange={setCommentInput}
+                onSend={addComment}
+                isSending={isAddingComment}
+              />
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -503,12 +529,14 @@ function DetailRow({
   actionLabel,
   valueClass,
   onValueClick,
+  onActionClick,
 }: {
   label: string;
   value?: string;
   actionLabel?: string;
   valueClass?: string;
   onValueClick?: () => void;
+  onActionClick?: () => void;
 }) {
   return (
     <div>
@@ -525,7 +553,10 @@ function DetailRow({
         </div>
 
         {actionLabel && (
-          <button className="text-xs text-blue-600 hover:underline">
+          <button
+            className="text-xs text-blue-600 hover:underline"
+            onClick={onActionClick}
+          >
             {actionLabel}
           </button>
         )}

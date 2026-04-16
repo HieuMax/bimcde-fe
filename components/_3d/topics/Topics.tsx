@@ -46,19 +46,27 @@ type ViewState = "list" | "create" | "references" | "detail" | "edit";
 
 export function Topics({
   projectId,
+  ifcUrls = [],
+  autoOpenTopicId = null,
   capture3DState,
   onRestoreView,
+  onOpenTopicContext,
+  onAutoOpenTopicHandled,
   onAddMarkerStart,
   onAddMarkerCancel,
   onAddTodoForTopic,
 }: {
   projectId: string;
+  ifcUrls?: string[];
+  autoOpenTopicId?: string | null;
   capture3DState: () => Promise<{
     viewState: any;
     items: any[];
     thumbnail: string;
   }>;
   onRestoreView: (viewState: any, items: any[]) => void;
+  onOpenTopicContext?: (topic: TopicItem, targetUrls: string[]) => void | Promise<void>;
+  onAutoOpenTopicHandled?: () => void;
   onAddMarkerStart?: (
     callback: (point: { x: number; y: number; z: number }) => void,
   ) => void;
@@ -182,6 +190,92 @@ export function Topics({
   });
   const blockingTodoCount = linkedTodoOpen?.count ?? 0;
 
+  const normalizeIfcUrl = (url?: string) => {
+    if (!url) return "";
+    const decoded = decodeURIComponent(String(url)).trim().toLowerCase();
+    return decoded.split("#")[0].split("?")[0];
+  };
+
+  const extractIfcFileKey = (url?: string) => {
+    const normalizedUrl = normalizeIfcUrl(url);
+    if (!normalizedUrl) return "";
+
+    const baseName = normalizedUrl.split("/").pop() || normalizedUrl;
+    return baseName.replace(/^\d+_[0-9a-f-]+_/i, "");
+  };
+
+  const urlsMatch = (left?: string, right?: string) => {
+    const normalizedLeft = normalizeIfcUrl(left);
+    const normalizedRight = normalizeIfcUrl(right);
+    const leftFileKey = extractIfcFileKey(left);
+    const rightFileKey = extractIfcFileKey(right);
+
+    if (!normalizedLeft || !normalizedRight) return false;
+    if (normalizedLeft === normalizedRight) return true;
+    if (leftFileKey && rightFileKey && leftFileKey === rightFileKey) return true;
+    return (
+      normalizedLeft.endsWith(normalizedRight) ||
+      normalizedRight.endsWith(normalizedLeft)
+    );
+  };
+
+  const activeIfcUrls = useMemo(
+    () => (ifcUrls || []).map(normalizeIfcUrl).filter(Boolean),
+    [ifcUrls],
+  );
+
+  const extractTopicFileUrls = (
+    topic: TopicItem,
+    options?: { includeSnapshots?: boolean },
+  ) => {
+    const relatedUrls = new Set<string>();
+    const collectUrl = (value?: string) => {
+      const normalized = normalizeIfcUrl(value);
+      if (normalized) relatedUrls.add(normalized);
+    };
+
+    const collectItems = (items?: any[]) => {
+      if (!Array.isArray(items)) return;
+      items.forEach((item: any) => collectUrl(item?.fileUrl));
+    };
+
+    collectItems(topic.items);
+    collectItems(topic.viewState?.selection);
+
+    if (Array.isArray(topic.viewState?.visibility)) {
+      topic.viewState.visibility.forEach((item: any) => collectUrl(item?.fileUrl));
+    }
+
+    if (options?.includeSnapshots && Array.isArray(topic.snapshots)) {
+      topic.snapshots.forEach((snapshot: any) => {
+        collectItems(snapshot?.items);
+        collectItems(snapshot?.viewState?.selection);
+
+        if (Array.isArray(snapshot?.viewState?.visibility)) {
+          snapshot.viewState.visibility.forEach((item: any) =>
+            collectUrl(item?.fileUrl),
+          );
+        }
+      });
+    }
+
+    return Array.from(relatedUrls);
+  };
+
+  const extractPrimaryTopicFileUrls = (topic: TopicItem) =>
+    extractTopicFileUrls(topic, { includeSnapshots: false });
+
+  const topicBelongsToCurrentModels = (topic: TopicItem) => {
+    if (activeIfcUrls.length === 0) return true;
+
+    const topicUrls = extractPrimaryTopicFileUrls(topic);
+    if (topicUrls.length === 0) return true;
+
+    return topicUrls.every((topicUrl) =>
+      activeIfcUrls.some((activeUrl) => urlsMatch(topicUrl, activeUrl)),
+    );
+  };
+
   const [formData, setFormData] = useState<Partial<TopicItem>>({
     title: "",
     description: "",
@@ -195,41 +289,30 @@ export function Topics({
     mutationFn: (newTopic: Partial<TopicItem>) =>
       topicService.createTopic(newTopic),
     onSuccess: () => {
-      // Sửa lại cú pháp invalidate cho React Query v5 (nếu dùng bản mới)
       queryClient.invalidateQueries({ queryKey: ["topics", projectId] });
       setView("list");
-      // Reset form sau khi tạo xong
       setFormData({
         title: "",
         description: "",
-        type: "undefined",
-        priority: "normal",
-        status: "new",
+        type: "Undefined",
+        priority: "Normal",
+        status: "New",
       });
-    },
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: ({
-      id,
-      payload,
-    }: {
-      id: string;
-      payload: Partial<TopicItem>;
-    }) => topicService.updateTopic(id, payload),
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["topics", projectId] });
-      setSelectedTopic3D(data);
     },
     onError: (err: unknown) => {
       const msg =
         (err as { response?: { data?: { message?: string } } })?.response?.data
           ?.message ||
         (err as Error)?.message ||
-        "Update failed";
+        "Create topic failed";
       toast.error(msg);
     },
   });
+
+  const stopViewerHotkeys = (e: React.KeyboardEvent<HTMLElement>) => {
+    // Avoid global 3D hotkeys hijacking keys while typing in form fields.
+    e.stopPropagation();
+  };
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => topicService.deleteTopic(id),
@@ -282,8 +365,7 @@ export function Topics({
       return;
     }
 
-    // let payload = { ...formData, projectId: projectId, references: selectedRefs }
-    let payload = {
+    let payload: any = {
       ...formData,
       projectId: safeProjectId,
       references: selectedRefs,
@@ -306,6 +388,19 @@ export function Topics({
           items,
           thumbnailUrl: thumbnail,
         };
+
+        // Extract fileId from items if available
+        if (items && items.length > 0 && items[0].fileUrl) {
+          try {
+            // Try to resolve fileId from the file explorer service
+            // by searching files that match the fileUrl
+            console.log("[Topic Create] Attempting to resolve fileId from fileUrl...");
+            // TODO: Implement file search by URL to get fileId
+            // For now, fileId will be added during backend processing
+          } catch (error) {
+            console.warn("[Topic Create] Could not resolve fileId from fileUrl:", error);
+          }
+        }
       } catch (error) {
         console.error("Error capturing 3D state:", error);
       }
@@ -331,22 +426,49 @@ export function Topics({
   const handleCaptureNewView = async () => {
     if (!capture3DState || !selectedTopic3D) return;
     try {
-      const { viewState, items, thumbnail } = await capture3DState();
+      const { viewState, thumbnail } = await capture3DState();
+
+      // Lấy selection từ viewState - đây đã là format flat đúng chuẩn
+      const finalSelection = viewState.selection || [];
+
+      // KHÔNG cần group lại nữa, lưu thẳng format flat
+      const itemsToSave = finalSelection.length > 0 
+        ? finalSelection 
+        : (selectedTopic3D.items || []);
+
       if (selectedTopic3D.viewState?.marker) {
         viewState.marker = selectedTopic3D.viewState.marker;
       }
+
       const payload = {
         viewState,
-        items,
+        items: itemsToSave, // Lưu format flat
         thumbnailUrl: thumbnail,
       };
-      // Gửi dữ liệu mới lên API PATCH
-      updateMutation.mutate({ id: selectedTopic3D._id, payload });
-      addSnapshotMutation.mutate({ id: selectedTopic3D._id, payload }); // Tạo snapshot mới
+      
+      addSnapshotMutation.mutate({ id: selectedTopic3D._id, payload }); 
     } catch (error) {
       console.error("Error capturing view:", error);
     }
   };
+
+  const deleteSnapshotMutation = useMutation({
+    mutationFn: ({ topicId, snapshotId }: any) =>
+      topicService.deleteSnapshot(topicId, snapshotId),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["topics", projectId] });
+      setSelectedTopic3D(data);
+    },
+  });
+
+  const deleteAllSnapshotsMutation = useMutation({
+    mutationFn: (topicId: string) =>
+      topicService.deleteAllSnapshots(topicId),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["topics", projectId] });
+      setSelectedTopic3D(data);
+    },
+  });
 
   const formatDate = (dateString: string) => {
     if (!dateString) return "";
@@ -467,6 +589,114 @@ export function Topics({
     });
   };
 
+  // Helper function to normalize items to flat format
+  const normalizeItemsToFlat = (items: any[]): any[] => {
+    if (!items || items.length === 0) return [];
+    
+    // Nếu là format grouped cũ (có expressId là mảng)
+    if (Array.isArray(items[0]?.expressId)) {
+      const flatItems: any[] = [];
+      items.forEach((group: any) => {
+        const expressIds = group.expressId || [];
+        expressIds.forEach((id: string) => {
+          flatItems.push({
+            modelID: Number(group.modelId),
+            expressID: Number(id),
+            fileUrl: group.fileUrl
+          });
+        });
+      });
+      return flatItems;
+    }
+    
+    // Nếu là format flat mới
+    if (items[0]?.expressID !== undefined) {
+      return items.map((item: any) => ({
+        modelID: Number(item.modelID),
+        expressID: Number(item.expressID),
+        fileUrl: item.fileUrl
+      }));
+    }
+    
+    return items;
+  };
+
+  const getRestorableItems = (...sources: any[]): any[] => {
+    for (const source of sources) {
+      const normalized = normalizeItemsToFlat(
+        Array.isArray(source) ? source : [],
+      ).filter((item: any) => item?.fileUrl && item?.expressID !== undefined);
+
+      if (normalized.length > 0) {
+        return normalized;
+      }
+    }
+
+    return [];
+  };
+
+  const restoreTopicView = (viewState: any, ...itemSources: any[]) => {
+    if (!onRestoreView || !viewState) return;
+
+    const restorableItems = getRestorableItems(
+      ...itemSources,
+      viewState?.selection,
+    );
+
+    onRestoreView(
+      {
+        ...viewState,
+        selection: restorableItems,
+      },
+      restorableItems,
+    );
+  };
+
+  const openTopicDetail = (
+    topic: TopicItem,
+    options?: { skipContextSwitch?: boolean },
+  ) => {
+    const targetUrls = extractPrimaryTopicFileUrls(topic);
+    const shouldSwitchContext =
+      !options?.skipContextSwitch &&
+      !topicBelongsToCurrentModels(topic) &&
+      targetUrls.length > 0;
+
+    if (shouldSwitchContext) {
+      onOpenTopicContext?.(topic, targetUrls);
+      return;
+    }
+
+    setSelectedTopic3D(topic);
+    setActiveSnapshotIndex(0);
+    setView("detail");
+
+    if (topic.viewState) {
+      restoreTopicView(topic.viewState, topic.items, topic.viewState?.selection);
+    }
+  };
+
+  const openTopics = useMemo(
+    () => topics.filter((t) => t.status !== "Closed"),
+    [topics]
+  );
+
+  const closedTopics = useMemo(
+    () => topics.filter((t) => t.status === "Closed"),
+    [topics]
+  );
+
+  useEffect(() => {
+    if (!autoOpenTopicId || topics.length === 0) return;
+
+    const topicToOpen = topics.find((topic) => topic._id === autoOpenTopicId);
+    if (topicToOpen) {
+      openTopicDetail(topicToOpen, { skipContextSwitch: true });
+    }
+
+    onAutoOpenTopicHandled?.();
+  }, [autoOpenTopicId, topics]);
+
   const renderDetailView = () => {
     if (!selectedTopic3D) return null;
     const snapshotCount =
@@ -475,7 +705,40 @@ export function Topics({
         : selectedTopic3D.thumbnailUrl
           ? 0
           : 0;
+    const renderTopicItem = (topic: TopicItem) => (
+      <div
+        key={topic._id}
+        className="bg-white p-3 mb-[2px] cursor-pointer hover:bg-blue-50 transition-colors border-l-4 border-transparent hover:border-blue-500"
+        onClick={() => openTopicDetail(topic)}
+      >
+        <div className="flex items-start gap-3">
+          <div className="w-16 h-12 bg-slate-200 rounded overflow-hidden border">
+            {topic.thumbnailUrl ? (
+              <img src={topic.thumbnailUrl} className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-[10px] text-slate-400">No Image</span>
+            )}
+          </div>
 
+          <div className="flex flex-col flex-1">
+            <div className="text-xs text-slate-500">{topic.topicKey}</div>
+            <div className="font-semibold text-sm text-slate-800">
+              {topic.title}
+            </div>
+
+            <div className="text-[11px] text-slate-500 mt-1">
+              Created by: {topic.createdBy?.fullName || "Unknown"}
+            </div>
+
+            <div className="flex gap-3 mt-2 text-[11px]">
+              <span>{topic.priority}</span>
+              <span>{topic.status}</span>
+              <span>{topic.type}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
     return (
       <div className="flex flex-col flex-1 bg-white h-full relative">
         {/* Thanh công cụ */}
@@ -491,16 +754,6 @@ export function Topics({
             <ArrowLeft className="h-5 w-5 text-slate-600" />
           </Button>
           <div className="flex items-center gap-1 text-slate-500">
-            {/* {onAddTodoForTopic && selectedTopic3D?._id ? (
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="h-8 text-xs mr-1"
-                                    onClick={() => onAddTodoForTopic(selectedTopic3D._id)}
-                                >
-                                    Add todo
-                                </Button>
-                            ) : null} */}
             <Button
               variant="ghost"
               size="icon"
@@ -637,40 +890,88 @@ export function Topics({
                 {selectedTopic3D.references?.length || 0}
               </span>
             </button>
-            <button
+            {/* <button
               className={`flex-1 flex justify-center py-3 text-sm transition-colors ${activeDetailTab === "models" ? "text-[#005a9e] border-b-2 border-[#005a9e] font-semibold" : "text-slate-500 hover:text-slate-700"}`}
               onClick={() => setActiveDetailTab("models")}
             >
               <Box className="w-4 h-4" />
-            </button>
+            </button> */}
           </div>
 
           {/* Tab Nội dung (Views) */}
           {activeDetailTab === "views" && (
             <div className="p-4">
-              <div className="text-[11px] font-bold text-slate-500 tracking-widest mb-3">
-                VIEW
+              {/* HEADER */}
+              <div className="flex justify-between items-center mb-3">
+                <div className="text-[11px] font-bold text-slate-500 tracking-widest">
+                  VIEW
+                </div>
+
+                {(selectedTopic3D.snapshots?.length ?? 0) > 0 && (
+                  <button
+                    className="text-xs text-red-500 hover:underline"
+                    onClick={() => {
+                      if (confirm("Delete all snapshots?")) {
+                        deleteAllSnapshotsMutation.mutate(selectedTopic3D._id);
+                      }
+                    }}
+                  >
+                    Delete all
+                  </button>
+                )}
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
+              {/* GRID */}
+              <div className="grid grid-cols-3 gap-2" key={selectedTopic3D._id}>
                 {selectedTopic3D.snapshots &&
-                selectedTopic3D.snapshots.length > 0 ? (
+                (selectedTopic3D.snapshots?.length ?? 0) > 0 ? (
                   selectedTopic3D.snapshots.map((snap: any, index: number) => {
-                    const isActive = index === activeSnapshotIndex; // Kiểm tra xem ảnh nào đang được click
+                    const isActive = index === activeSnapshotIndex;
 
                     return (
                       <div
-                        key={index}
-                        // CSS VIỀN XANH KHI ACTIVE
-                        className={`aspect-square border-[3px] rounded bg-slate-100 flex justify-center items-center overflow-hidden cursor-pointer relative group transition-colors ${isActive ? "border-[#005a9e]" : "border-transparent hover:border-slate-300"}`}
-                        onClick={() => {
-                          // Khi click: Hiện viền xanh & Zoom 3D
-                          setActiveSnapshotIndex(index);
-                          if (onRestoreView && snap.viewState) {
-                            onRestoreView(snap.viewState, snap.items || []);
-                          }
-                        }}
+                        key={snap._id || index}
+                        className={`aspect-square border-[3px] rounded bg-slate-100 flex justify-center items-center overflow-hidden cursor-pointer relative group transition-colors ${
+                          isActive
+                            ? "border-[#005a9e]"
+                            : "border-transparent hover:border-slate-300"
+                        }`}
+                        // onClick={() => {
+                        //   setActiveSnapshotIndex(index);
+                        //   if (onRestoreView && snap.viewState) {
+                        //     setTimeout(() => {
+                        //       // onRestoreView(snap.viewState, snap.items || []);
+                        //       onRestoreView(
+                        //         snap.viewState,
+                        //         (snap.items || []).map((group: any) => ({
+                        //           fileUrl: group.fileUrl,
+                        //           modelID: group.modelId,
+                        //           expressId: group.expressId?.map((id: any) => Number(id)) || []
+                        //         }))
+                        //       );
+                        //     }, 200);
+                        //   }
+                        // }}
+                      onClick={() => {
+                        setActiveSnapshotIndex(index);
+                        if (snap.viewState) {
+                          restoreTopicView(
+                            {
+                              ...snap.viewState,
+                              camera:
+                                snap.viewState.camera ||
+                                selectedTopic3D?.viewState?.camera,
+                            },
+                            snap.items,
+                            snap.viewState?.selection,
+                            selectedTopic3D?.items,
+                            selectedTopic3D?.viewState?.selection,
+                          );
+                        }
+                      }}
+
                       >
+                        {/* IMAGE */}
                         {snap.thumbnailUrl ? (
                           <img
                             src={snap.thumbnailUrl}
@@ -683,10 +984,31 @@ export function Topics({
                           </span>
                         )}
 
-                        {/* Hiệu ứng mờ đen và icon Play khi di chuột */}
+                        {/* ❌ DELETE BUTTON */}
+                        <button
+                          className="absolute top-1 right-1 bg-black/60 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteSnapshotMutation.mutate({
+                              topicId: selectedTopic3D._id,
+                              snapshotId: snap._id,
+                            });
+                          }}
+                        >
+                          ✕
+                        </button>
+
+                        {/* ▶️ OVERLAY */}
                         {!isActive && (
                           <div className="absolute inset-0 bg-black/10 hidden group-hover:flex items-center justify-center">
                             <Play className="w-6 h-6 text-white opacity-90 fill-white" />
+                          </div>
+                        )}
+
+                        {/* ACTIVE LABEL */}
+                        {isActive && (
+                          <div className="absolute bottom-1 left-1 text-[10px] bg-blue-600 text-white px-1 rounded">
+                            Active
                           </div>
                         )}
                       </div>
@@ -872,12 +1194,11 @@ export function Topics({
                                   id: selectedTopic3D._id,
                                   payload: { viewState: updatedViewState },
                                 });
-                                if (onRestoreView) {
-                                  onRestoreView(
-                                    updatedViewState,
-                                    selectedTopic3D.items || [],
-                                  );
-                                }
+                                restoreTopicView(
+                                  updatedViewState,
+                                  selectedTopic3D.items,
+                                  selectedTopic3D.viewState?.selection,
+                                );
                               }}
                             >
                               Remove marker
@@ -1016,18 +1337,11 @@ export function Topics({
                         variant="secondary"
                         className="w-full bg-[#e2e3e5] hover:bg-[#d1d2d4] text-slate-700 font-normal h-9"
                         onClick={() => {
-                          if (onRestoreView && selectedTopic3D) {
-                            // Ưu tiên dùng mảng items đã gom nhóm để highlight
-                            const linkedItems =
-                              selectedTopic3D.items &&
-                              selectedTopic3D.items.length > 0
-                                ? selectedTopic3D.items
-                                : selectedTopic3D.viewState?.selection || [];
-
-                            // Truyền vào IfcViewer để khôi phục góc nhìn và bôi màu
-                            onRestoreView(
+                          if (selectedTopic3D) {
+                            restoreTopicView(
                               selectedTopic3D.viewState || {},
-                              linkedItems,
+                              selectedTopic3D.items,
+                              selectedTopic3D.viewState?.selection,
                             );
                           }
                         }}
@@ -1192,6 +1506,7 @@ export function Topics({
             className="w-full border border-slate-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
             placeholder="Add a title"
             value={formData.title}
+            onKeyDown={stopViewerHotkeys}
             onChange={(e) =>
               setFormData({ ...formData, title: e.target.value })
             }
@@ -1203,6 +1518,7 @@ export function Topics({
             className="w-full border border-slate-300 rounded px-3 py-1.5 text-sm h-20 resize-none focus:outline-none focus:border-blue-500"
             placeholder="Add a description"
             value={formData.description}
+            onKeyDown={stopViewerHotkeys}
             onChange={(e) =>
               setFormData({ ...formData, description: e.target.value })
             }
@@ -1214,6 +1530,7 @@ export function Topics({
             className="w-full border border-slate-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
             placeholder="Please enter users, groups"
             value={formData.assignee}
+            onKeyDown={stopViewerHotkeys}
             onChange={(e) =>
               setFormData({ ...formData, assignee: e.target.value })
             }
@@ -1224,12 +1541,13 @@ export function Topics({
           <select
             className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 bg-white"
             value={formData.type}
+            onKeyDown={stopViewerHotkeys}
             onChange={(e) =>
               setFormData({ ...formData, type: e.target.value as any })
             }
           >
             <option>Select type</option>
-            <option value="uUndefined">Undefined</option>
+            <option value="Undefined">Undefined</option>
             <option value="Comment">Comment</option>
             <option value="Issue">Issue</option>
             <option value="Request">Request</option>
@@ -1238,7 +1556,6 @@ export function Topics({
             <option value="Solution">Solution</option>
             <option value="Remark">Remark</option>
             <option value="Clash">Clash</option>
-            <option value="Ppo">Opo</option>
           </select>
         </div>
         <div className="space-y-1">
@@ -1246,15 +1563,16 @@ export function Topics({
           <select
             className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 bg-white"
             value={formData.priority}
+            onKeyDown={stopViewerHotkeys}
             onChange={(e) =>
               setFormData({ ...formData, priority: e.target.value as any })
             }
           >
             <option>Select priority</option>
-            <option value="low">Low</option>
-            <option value="normal">Normal</option>
-            <option value="high">High</option>
-            <option value="critical">Critical</option>
+            <option value="Low">Low</option>
+            <option value="Normal">Normal</option>
+            <option value="High">High</option>
+            <option value="Critical">Critical</option>
           </select>
         </div>
         <div className="space-y-1">
@@ -1263,6 +1581,7 @@ export function Topics({
             type="date"
             className="w-full border border-slate-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
             value={formData.dueDate ? formData.dueDate.split("T")[0] : ""}
+            onKeyDown={stopViewerHotkeys}
             onChange={(e) =>
               setFormData({
                 ...formData,
@@ -1278,6 +1597,7 @@ export function Topics({
           <input
             className="w-full border border-slate-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
             placeholder="Begin typing to search..."
+            onKeyDown={stopViewerHotkeys}
           />
         </div>
         <div className="space-y-1">
@@ -1332,6 +1652,7 @@ export function Topics({
             className="w-full border border-slate-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
             placeholder="Add a title"
             value={formData.title}
+            onKeyDown={stopViewerHotkeys}
             onChange={(e) =>
               setFormData({ ...formData, title: e.target.value })
             }
@@ -1343,6 +1664,7 @@ export function Topics({
             className="w-full border border-slate-300 rounded px-3 py-1.5 text-sm h-20 resize-none focus:outline-none focus:border-blue-500"
             placeholder="Add a description"
             value={formData.description}
+            onKeyDown={stopViewerHotkeys}
             onChange={(e) =>
               setFormData({ ...formData, description: e.target.value })
             }
@@ -1354,6 +1676,7 @@ export function Topics({
             className="w-full border border-slate-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
             placeholder="Please enter users, groups"
             value={formData.assignee}
+            onKeyDown={stopViewerHotkeys}
             onChange={(e) =>
               setFormData({ ...formData, assignee: e.target.value })
             }
@@ -1364,6 +1687,7 @@ export function Topics({
           <select
             className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 bg-white"
             value={formData.type}
+            onKeyDown={stopViewerHotkeys}
             onChange={(e) =>
               setFormData({ ...formData, type: e.target.value as any })
             }
@@ -1378,7 +1702,6 @@ export function Topics({
             <option value="Solution">Solution</option>
             <option value="Remark">Remark</option>
             <option value="Clash">Clash</option>
-            <option value="Opo">Opo</option>
           </select>
         </div>
         <div className="space-y-1">
@@ -1386,15 +1709,16 @@ export function Topics({
           <select
             className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 bg-white"
             value={formData.priority}
+            onKeyDown={stopViewerHotkeys}
             onChange={(e) =>
               setFormData({ ...formData, priority: e.target.value as any })
             }
           >
             <option>Select priority</option>
-            <option value="low">Low</option>
-            <option value="normal">Normal</option>
-            <option value="high">High</option>
-            <option value="critical">Critical</option>
+            <option value="Low">Low</option>
+            <option value="Normal">Normal</option>
+            <option value="High">High</option>
+            <option value="Critical">Critical</option>
           </select>
         </div>
         <div className="space-y-1">
@@ -1418,6 +1742,7 @@ export function Topics({
           <input
             className="w-full border border-slate-300 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-blue-500"
             placeholder="Begin typing to search..."
+            onKeyDown={stopViewerHotkeys}
           />
         </div>
         <div className="space-y-1">
@@ -1425,6 +1750,7 @@ export function Topics({
           <select
             className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:border-blue-500 bg-white"
             value={formData.status ?? "New"}
+            onKeyDown={stopViewerHotkeys}
             onChange={(e) =>
               setFormData({
                 ...formData,
@@ -1752,19 +2078,22 @@ export function Topics({
                 No topics found.
               </div>
             ) : (
-              topics.map((topic: TopicItem) => (
+              openTopics.map((topic: TopicItem) => (
                 <div
                   key={topic._id}
                   className="bg-white p-3 mb-[2px] cursor-pointer hover:bg-blue-50 transition-colors border-l-4 border-transparent hover:border-blue-500"
                   // Thêm sự kiện onClick để xem chi tiết / Zoom 3D sau này
-                  onClick={() => {
-                    setSelectedTopic3D(topic);
-                    setView("detail");
+                  // onClick={() => {
+                  //   setSelectedTopic3D(topic);
+                  //   setActiveSnapshotIndex(0); 
+                  //   setView("detail");
 
-                    if (onRestoreView && topic.viewState) {
-                      onRestoreView(topic.viewState, topic.items || []);
-                    }
-                  }}
+                  //   if (onRestoreView && topic.viewState) {
+                  //     onRestoreView(topic.viewState, topic.items || []);
+                  //   }
+                  // }}
+                onClick={() => openTopicDetail(topic)}
+
                 >
                   <div className="flex items-start gap-3">
                     {/* Thumbnail */}

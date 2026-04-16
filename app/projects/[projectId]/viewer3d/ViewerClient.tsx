@@ -24,6 +24,7 @@ import {
 } from "@/components/layout/navbar/Navbar";
 import { NewTodoDrawer } from "@/components/todos/NewTodoDrawer";
 import { viewService3D as viewService } from "@/services/view3d.service";
+import { explorerService } from "@/services/explorer.service";
 import { toast } from "sonner";
 import { ViewDrawer } from "@/components/views/ViewDrawer";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -108,6 +109,7 @@ export default function ViewerClient() {
   // } | null>(null);
 
   const [pendingTodo, setPendingTodo] = useState<any>(null);
+  const [autoOpenTopicId, setAutoOpenTopicId] = useState<string | null>(null);
 
   const viewerActions = React.useRef<{
     capture: () => any;
@@ -612,7 +614,11 @@ export default function ViewerClient() {
         const { todo, mode, type } = pendingTodo;
 
         // Restore Camera & Items
-        if (viewerActions.current?.restore && todo.viewState) {
+        if (
+          type !== "topic" &&
+          viewerActions.current?.restore &&
+          todo.viewState
+        ) {
           viewerActions.current.restore(todo.viewState, todo.items || []);
         }
 
@@ -622,6 +628,11 @@ export default function ViewerClient() {
           setIsViewDrawerOpen(true);
           setIsDrawerOpen(false);
           if (state !== "views") setState("views");
+        } else if (type === "topic") {
+          setIsDrawerOpen(false);
+          setIsViewDrawerOpen(false);
+          setAutoOpenTopicId(todo?._id || null);
+          if (state !== "topics") setState("topics");
         } else {
           setTodoToEdit(todo);
           setDrawerMode(mode);
@@ -663,6 +674,87 @@ export default function ViewerClient() {
     const newUrlsParams = JSON.stringify(targetUrls);
     console.log("Switching context via Hard Reload...", targetUrls);
     window.location.href = `/projects/${projectId}/viewer3d?urls=${encodeURIComponent(newUrlsParams)}`;
+  };
+
+  const handleOpenTopicContext = async (topic: any, targetUrls: string[]) => {
+    if (!topic?.viewState || !Array.isArray(targetUrls) || targetUrls.length === 0) {
+      return;
+    }
+
+    let resolvedTargetUrls = [...targetUrls];
+    let fileId = topic?.fileId;
+
+    // Fallback: If no fileId, try to extract from items
+    if (!fileId && topic?.items && topic.items.length > 0) {
+      const firstItem = topic.items[0];
+      if (firstItem.fileUrl) {
+        console.warn(
+          "[Context Switch] Topic missing fileId, attempting to use stored fileUrl:",
+          firstItem.fileUrl,
+        );
+        // Use the fileUrl from items as fallback (might be stale)
+        resolvedTargetUrls = [firstItem.fileUrl];
+      }
+    }
+
+    // Try to resolve to latest URL if fileId exists
+    if (fileId) {
+      try {
+        const fileDetail = await explorerService.getFileDetail(String(fileId));
+
+        if (!fileDetail) {
+          throw new Error("File not found or deleted");
+        }
+
+        const versionHistory = Array.isArray(fileDetail?.versions)
+          ? fileDetail.versions
+          : [];
+
+        const matchedVersion =
+          typeof topic.linkedFileVersion === "number"
+            ? versionHistory.find(
+                (version: any) =>
+                  Number(version?.version) === Number(topic.linkedFileVersion),
+              )
+            : null;
+
+        const latestKnownUrl =
+          matchedVersion?.location ||
+          fileDetail?.fileUrl ||
+          fileDetail?.location;
+
+        if (latestKnownUrl) {
+          resolvedTargetUrls = [String(latestKnownUrl)];
+          console.log(
+            "[Context Switch] Resolved to latest URL:",
+            latestKnownUrl,
+          );
+        } else {
+          throw new Error("No valid URL found for this file");
+        }
+      } catch (error) {
+        console.error("[Context Switch] Failed to resolve file via fileId:", error);
+        
+        // If fileId resolution fails but we have fallback URL from items, warn but continue
+        if (resolvedTargetUrls.length > 0 && resolvedTargetUrls[0] !== targetUrls[0]) {
+          console.warn("[Context Switch] Using fallback URL from topic items");
+          // Continue with fallback URL
+        } else {
+          toast.error(
+            "Unable to access the file referenced by this topic. It may have been deleted or moved.",
+            { duration: 6000 },
+          );
+          return;
+        }
+      }
+    }
+
+    console.log("[Context Switch] Switching to URLs:", resolvedTargetUrls);
+    switchContextAndReload(
+      resolvedTargetUrls,
+      { todo: topic, mode: "view", type: "topic" },
+      "view_todo",
+    );
   };
 
   useEffect(() => {
@@ -928,6 +1020,9 @@ export default function ViewerClient() {
               onOpenViewDrawer={handleOpenViewDrawer}
               onRestoreView={handleRestoreView}
               onUpdateSnapshot={handleUpdateSnapshot}
+              autoOpenTopicId={autoOpenTopicId}
+              onAutoOpenTopicHandled={() => setAutoOpenTopicId(null)}
+              onOpenTopicContext={handleOpenTopicContext}
               modelOpacity={modelOpacity}
               onOpacityChange={setModelOpacity}
               onOpenNewClashDrawer={() => setIsClashDrawerOpen(true)}

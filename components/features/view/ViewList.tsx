@@ -38,6 +38,7 @@ import { DateFilter } from "../activity/DateFilter";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ViewPropertiesPanel } from "./properties/ViewPropertiesPanel";
 import { ViewBulkPanel } from "./properties/ViewBulkPanel";
+import { view2DService } from "@/services/view2d.service";
 
 // Mock Filter Button component cho giống giao diện
 const FilterButton = ({ label }: { label: string }) => (

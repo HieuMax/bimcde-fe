@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react';
 import { 
     Plus, Search, Filter, Calendar, 
     User, AlertCircle, CheckCircle2, Clock, HelpCircle,
-    MoreVertical, Trash2, Edit, Share2
+    MoreVertical, Trash2, Edit, Share2, ChevronUp, ChevronDown
 } from 'lucide-react';
 import { TodoItem } from '@/types/explorer';
 
@@ -22,6 +22,7 @@ export default function TodosTab({
 }) {
   const [filter, setFilter] = useState<'all' | 'mine'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [closedExpanded, setClosedExpanded] = useState(true);
   
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
 
@@ -33,8 +34,10 @@ export default function TodosTab({
 
   const getStatusStyle = (status?: string) => {
       switch(status) {
+          case 'New': return { bg: 'bg-slate-50', text: 'text-slate-700', border: 'border-slate-200', icon: <HelpCircle size={12}/> };
           case 'Done': return { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200', icon: <CheckCircle2 size={12}/> };
           case 'In Progress': return { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200', icon: <Clock size={12}/> };
+          case 'Closed': return { bg: 'bg-slate-100', text: 'text-slate-600', border: 'border-slate-200', icon: <CheckCircle2 size={12}/> };
           case 'On Hold': return { bg: 'bg-orange-50', text: 'text-orange-700', border: 'border-orange-200', icon: <AlertCircle size={12}/> };
           default: return { bg: 'bg-gray-50', text: 'text-gray-600', border: 'border-gray-200', icon: <HelpCircle size={12}/> };
       }
@@ -50,11 +53,73 @@ export default function TodosTab({
      }
   }
 
+  const getTodoCode = (todo: TodoItem) => {
+    if (todo.code?.trim()) return todo.code.trim();
+    if (todo._id) return todo._id.slice(-8).toUpperCase();
+    return 'TODO';
+  };
+
+  const getAssigneeLabel = (todo: TodoItem) => {
+    return todo.assignee?.trim() || 'Unassigned';
+  };
+
   const filtered = todos.filter(t => {
       const matchUser = filter === 'mine' ? t.assignee === currentUser : true;
       const matchSearch = t.title.toLowerCase().includes(searchQuery.toLowerCase());
       return matchUser && matchSearch;
   });
+
+  const activeTodos = filtered.filter(t => t.status !== 'Closed');
+  const closedTodos = filtered.filter(t => t.status === 'Closed');
+
+  const renderTodoMenu = (t: TodoItem, compact = false) => (
+    <div className={`absolute right-1 ${compact ? 'top-3' : 'top-2'} ${activeMenuId === t._id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setActiveMenuId(activeMenuId === t._id ? null : t._id);
+        }}
+        className="p-1 rounded hover:bg-white hover:shadow-sm text-gray-400 hover:text-gray-700"
+      >
+        <MoreVertical size={16} />
+      </button>
+
+      {activeMenuId === t._id && (
+        <div 
+          className="absolute right-0 top-6 w-32 bg-white rounded-md shadow-xl border border-gray-100 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100 origin-top-right"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button 
+            onClick={() => {
+              onSelectTodo(t);
+              setActiveMenuId(null);
+            }}
+            className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 hover:text-blue-600 flex items-center gap-2"
+          >
+            <Edit size={12} /> Edit
+          </button>
+          <button 
+            className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 hover:text-blue-600 flex items-center gap-2"
+            onClick={() => setActiveMenuId(null)}
+          >
+            <Share2 size={12} /> Share
+          </button>
+          <div className="h-[1px] bg-gray-100 my-0.5" />
+          <button 
+            onClick={() => {
+              if(confirm(`Delete "${t.title}"?`)) {
+                onDeleteTodo?.(t._id);
+              }
+              setActiveMenuId(null);
+            }}
+            className="w-full text-left px-3 py-2 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2"
+          >
+            <Trash2 size={12} /> Delete
+          </button>
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <div className="flex flex-col h-full bg-white text-slate-700">
@@ -94,7 +159,8 @@ export default function TodosTab({
              <CheckCircle2 size={24} strokeWidth={1.5} className="opacity-20" /><span className="text-xs">No tasks found</span>
            </div>
         ) : (
-            filtered.map(t => {
+            <>
+            {activeTodos.map(t => {
                 const style = getStatusStyle(t.status);
                 return (
                 <div 
@@ -143,56 +209,62 @@ export default function TodosTab({
                         </div>
                     )}
 
-                    <div className={`absolute right-1 top-2 ${activeMenuId === t._id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'} transition-opacity`}>
-                        <button
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                setActiveMenuId(activeMenuId === t._id ? null : t._id);
-                            }}
-                            className="p-1 rounded hover:bg-white hover:shadow-sm text-gray-400 hover:text-gray-700"
-                        >
-                            <MoreVertical size={16} />
-                        </button>
-
-                        {/* Dropdown Menu */}
-                        {activeMenuId === t._id && (
-                            <div 
-                                className="absolute right-0 top-6 w-32 bg-white rounded-md shadow-xl border border-gray-100 z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100 origin-top-right"
-                                onClick={(e) => e.stopPropagation()}
-                            >
-                                <button 
-                                    onClick={() => {
-                                        onSelectTodo(t);
-                                        setActiveMenuId(null);
-                                    }}
-                                    className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 hover:text-blue-600 flex items-center gap-2"
-                                >
-                                    <Edit size={12} /> Edit
-                                </button>
-                                <button 
-                                    className="w-full text-left px-3 py-2 text-xs text-gray-700 hover:bg-gray-50 hover:text-blue-600 flex items-center gap-2"
-                                    onClick={() => setActiveMenuId(null)}
-                                >
-                                    <Share2 size={12} /> Share
-                                </button>
-                                <div className="h-[1px] bg-gray-100 my-0.5" />
-                                <button 
-                                    onClick={() => {
-                                        if(confirm(`Delete "${t.title}"?`)) {
-                                            onDeleteTodo?.(t._id);
-                                        }
-                                        setActiveMenuId(null);
-                                    }}
-                                    className="w-full text-left px-3 py-2 text-xs text-red-600 hover:bg-red-50 flex items-center gap-2"
-                                >
-                                    <Trash2 size={12} /> Delete
-                                </button>
-                            </div>
-                        )}
-                    </div>
+                    {renderTodoMenu(t)}
                 </div>
                 );
-            })
+            })}
+
+            <div className="pt-1">
+              <button
+                onClick={() => setClosedExpanded((prev) => !prev)}
+                className="w-full flex items-center justify-between px-4 py-3 border-t border-gray-200 text-left text-[15px] font-semibold text-[#1f2a44] bg-white"
+              >
+                <span>Closed ({closedTodos.length})</span>
+                {closedExpanded ? (
+                  <ChevronUp size={16} className="text-[#5b6478]" />
+                ) : (
+                  <ChevronDown size={16} className="text-[#5b6478]" />
+                )}
+              </button>
+
+              {closedExpanded && (
+                <div className="bg-white">
+                  {closedTodos.length === 0 ? (
+                    <div className="px-4 py-4 text-sm text-gray-400 italic">
+                      No closed tasks
+                    </div>
+                  ) : (
+                    closedTodos.map((t, index) => (
+                      <div
+                        key={t._id}
+                        onClick={() => onSelectTodo(t)}
+                        className={`group relative flex cursor-pointer items-start gap-3 px-4 py-3 transition-colors hover:bg-[#f3f5fb] ${index === 0 ? 'bg-[#f3f5fb]' : 'bg-white'} ${index < closedTodos.length - 1 ? 'border-b border-gray-100' : ''}`}
+                      >
+                        <span className={`mt-1 h-5 w-5 shrink-0 rounded-full ${getPriorityDotColor(t.priority)}`} />
+
+                        <div className="min-w-0 flex-1 pr-6">
+                          <div className="text-[13px] leading-5 text-[#4f5d80]">
+                            {getTodoCode(t)}
+                          </div>
+                          <div className="text-[14px] leading-5 font-medium text-[#1f2a44] break-words">
+                            {t.title}
+                          </div>
+                          <div className="mt-1 text-[13px] leading-5 text-[#5b6478]">
+                            Closed
+                          </div>
+                          <div className="text-[13px] leading-5 text-[#5b6478] truncate">
+                            {getAssigneeLabel(t)}
+                          </div>
+                        </div>
+
+                        {renderTodoMenu(t, true)}
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+            </>
         )}
       </div>
     </div>

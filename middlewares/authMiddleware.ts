@@ -5,6 +5,7 @@ const PUBLIC_PATHS = [
   "/register",
   "/forgot-password",
   "/reset-password",
+  "/share/:path*",
 ];
 const LOGIN_PAGE = "/login";
 

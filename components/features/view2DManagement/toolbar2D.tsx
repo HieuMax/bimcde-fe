@@ -319,14 +319,6 @@ export default function DetailToolbar({
         </DropdownMenu>
         <div className="w-px h-6 bg-slate-300 mx-2" />
 
-        <div className="flex items-center gap-1 z-10">
-          <ToolButton icon={<Share size={18} />} />
-          <ToolButton icon={<CircleCheckBig size={18} />} />
-          <ToolButton icon={<View size={18} />} />
-        </div>
-
-        <div className="w-px h-6 bg-slate-300 mx-2" />
-
         {/* ===== CREATE ===== */}
         <div className="flex items-center gap-1 z-10">
           <ToolButton
@@ -343,7 +335,6 @@ export default function DetailToolbar({
           />
         </div>
 
-        <div className="w-px h-6 bg-slate-300 mx-2" />
 
         {/* ===== SHARE ===== */}
         <div className="flex items-center gap-1">
@@ -355,22 +346,9 @@ export default function DetailToolbar({
               onShare?.();
             }}
           />
-          <ToolButton icon={<MoreHorizontal size={18} />} />
         </div>
+        <div className="w-px h-6 bg-slate-300 mx-2" />
       </div>
-
-      {/* ===== FULLSCREEN ===== */}
-      <button
-        type="button"
-        onClick={onToggleFullscreen}
-        className={`
-          w-12 h-10 flex items-center justify-center
-          rounded-lg transition text-gray-700
-          ${isFullscreen ? "bg-blue-100 text-blue-700" : "hover:bg-gray-100"}
-        `}
-      >
-        {isFullscreen ? <Minimize size={20} /> : <Maximize size={18} />}
-      </button>
 
       <div className="flex items-center gap-2">
         <button
@@ -387,6 +365,22 @@ export default function DetailToolbar({
           <Download size={20} />
         </button>
       </div>
+
+      <div className="w-px h-6 bg-slate-300 mx-2" />
+
+      {/* ===== FULLSCREEN ===== */}
+      <button
+        type="button"
+        onClick={onToggleFullscreen}
+        className={`
+          w-12 h-10 flex items-center justify-center
+          rounded-lg transition text-gray-700
+          ${isFullscreen ? "bg-blue-100 text-blue-700" : "hover:bg-gray-100"}
+        `}
+      >
+        {isFullscreen ? <Minimize size={20} /> : <Maximize size={18} />}
+      </button>
+
     </header>
   );
 }
