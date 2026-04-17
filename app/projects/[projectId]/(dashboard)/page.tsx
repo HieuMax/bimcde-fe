@@ -3,6 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { format, formatDistanceToNow } from "date-fns";
 import {
   Building,
   Clock,
@@ -14,28 +15,37 @@ import {
 import {
   DashboardStatsGrid,
   useDashboardStats,
+  useProjectDashboardInfo,
   RecentActivitySection,
   FileTypesChart,
   ProjectStorageBar,
 } from "@/components/features/dashboard";
 
-const projectData = {
-  name: "The Building",
-  description: "Description.",
-  status: "In Progress",
-  lastUpdated: "2 giờ trước",
-  members: [
-    { id: 1, name: "Nam Nguyen", avatar: "NN" },
-    { id: 2, name: "Tuan Le", avatar: "TL" },
-    { id: 3, name: "Sarah J", avatar: "SJ" },
-    { id: 4, name: "Mike D", avatar: "MD" },
-  ],
-};
+const teamMembersPreview = [
+  { id: 1, name: "Nam Nguyen", avatar: "NN" },
+  { id: 2, name: "Tuan Le", avatar: "TL" },
+  { id: 3, name: "Sarah J", avatar: "SJ" },
+  { id: 4, name: "Mike D", avatar: "MD" },
+];
+
+function parseDate(value: string | null): Date | null {
+  if (!value) return null;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
 
 export default function DashboardPage() {
   const params = useParams();
   const projectId = params?.projectId as string | undefined;
   const { stats, loading, error } = useDashboardStats(projectId);
+  const {
+    project,
+    loading: projectLoading,
+    error: projectError,
+  } = useProjectDashboardInfo(projectId);
+
+  const startDate = parseDate(project?.startDate ?? null);
+  const lastModified = parseDate(project?.lastModifiedOn ?? null);
 
   return (
     <div className="min-h-full bg-[#F0F4F6] text-[#0F2332] p-6 md:p-8 space-y-8 animate-in fade-in duration-500">
@@ -46,23 +56,41 @@ export default function DashboardPage() {
             <Building size={16} />
             <span>Project Overview</span>
           </div>
+          {projectError && (
+            <p className="text-sm text-amber-700 mb-2">{projectError}</p>
+          )}
           <h1 className="text-3xl font-bold text-[#0F2332]">
-            {projectData.name}
+            {projectLoading ? (
+              <span className="inline-block h-9 w-56 max-w-full bg-gray-200/80 rounded-md animate-pulse" />
+            ) : (
+              (project?.name?.trim() || "Project")
+            )}
           </h1>
           <p className="text-[#0F2332]/60 mt-1 max-w-2xl text-sm md:text-base">
-            {projectData.description}
+            {projectLoading ? (
+              <span className="inline-block h-4 w-full max-w-xl bg-gray-200/80 rounded animate-pulse mt-1" />
+            ) : project?.description?.trim() ? (
+              project.description
+            ) : (
+              "No description yet. Add one in project settings."
+            )}
           </p>
         </div>
 
         <div className="flex items-center gap-3">
           {/* Status Badge */}
           <div className="px-3 py-1 rounded-full bg-[#1D3F52]/10 text-[#1D3F52] text-xs font-bold uppercase tracking-wider border border-[#1D3F52]/20">
-            {projectData.status}
+            In Progress
           </div>
           {/* Action Button */}
-          <button className="bg-[#1D3F52] text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-[#1D3F52]/90 transition-colors shadow-sm flex items-center gap-2">
+          <Link
+            href={
+              projectId ? `/projects/${projectId}/settings/details` : "#"
+            }
+            className="bg-[#1D3F52] text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-[#1D3F52]/90 transition-colors shadow-sm flex items-center gap-2"
+          >
             <SettingsButtonIcon /> Manage Project
-          </button>
+          </Link>
         </div>
       </div>
 
@@ -81,7 +109,13 @@ export default function DashboardPage() {
                   Start Date
                 </div>
                 <div className="text-sm font-medium text-[#0F2332]">
-                  Oct 24, 2025
+                  {projectLoading ? (
+                    <span className="inline-block h-4 w-28 bg-gray-200/80 rounded animate-pulse" />
+                  ) : startDate ? (
+                    format(startDate, "MMM dd, yyyy")
+                  ) : (
+                    "—"
+                  )}
                 </div>
               </div>
             </div>
@@ -92,7 +126,13 @@ export default function DashboardPage() {
                   Last Updated
                 </div>
                 <div className="text-sm font-medium text-[#0F2332]">
-                  {projectData.lastUpdated}
+                  {projectLoading ? (
+                    <span className="inline-block h-4 w-36 bg-gray-200/80 rounded animate-pulse" />
+                  ) : lastModified ? (
+                    formatDistanceToNow(lastModified, { addSuffix: true })
+                  ) : (
+                    "—"
+                  )}
                 </div>
               </div>
             </div>
@@ -101,7 +141,7 @@ export default function DashboardPage() {
                 Team Members
               </div>
               <div className="flex -space-x-2 overflow-hidden py-1">
-                {projectData.members.map((member) => (
+                {teamMembersPreview.map((member) => (
                   <div
                     key={member.id}
                     className="h-8 w-8 rounded-full ring-2 ring-white bg-[#E0E8EC] text-[#1D3F52] flex items-center justify-center text-xs font-bold shadow-sm"
@@ -172,7 +212,9 @@ export default function DashboardPage() {
 
               {/* Views Card */}
               <Link
-                href={projectId ? `/projects/${projectId}/viewer3d` : "#"}
+                href={
+                  projectId ? `/projects/${projectId}/data/views` : "#"
+                }
                 className="group relative overflow-hidden bg-white p-6 rounded-xl border border-gray-200 shadow-sm hover:border-[#1D3F52]/30 transition-all"
               >
                 <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
@@ -211,9 +253,14 @@ export default function DashboardPage() {
             <p className="text-sm text-white/80 mb-4">
               Check our documentation or contact support if you need assistance.
             </p>
-            <button className="w-full bg-white/10 hover:bg-white/20 border border-white/20 rounded-md py-2 text-sm font-medium transition-colors">
+            <a
+              href="https://github.com/HieuMax/bimcde-fe"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block w-full text-center bg-white/10 hover:bg-white/20 border border-white/20 rounded-md py-2 text-sm font-medium transition-colors"
+            >
               View Documentation
-            </button>
+            </a>
           </div>
         </div>
       </div>

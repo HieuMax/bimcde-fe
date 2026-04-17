@@ -388,6 +388,7 @@ export default function ExplorerClient({ projectId, folderId }: Props) {
               }
               projectId={projectId}
               workflowMode={workflowMode}
+              cdeCapabilities={cdeCapabilities}
             />
           ) : null}
         </aside>

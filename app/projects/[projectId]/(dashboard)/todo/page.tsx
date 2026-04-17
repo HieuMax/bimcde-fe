@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { startOfDay, endOfDay } from "date-fns";
 
@@ -435,16 +435,34 @@ export default function page({
 
   const assigneeData = [...memberData, ...groupData];
 
-  const filteredData = filterTodos();
+  const filteredData = useMemo(
+    () => filterTodos(),
+    [
+      todoList,
+      selectedOwners,
+      selectedUsers,
+      selectedGroups,
+      selectedStatuses,
+      selectedPriorities,
+      date,
+      dateRange,
+      user,
+    ],
+  );
 
-  const handleRowSelectionChange = (rowSelection: Record<string, any>) => {
-    setIsOpenDrawer(false);
+  const handleRowSelectionChange = useCallback(
+    (rowSelection: Record<string, any>) => {
+      setIsOpenDrawer(false);
 
-    if (rowSelection && rowSelection.original) {
-      setRowSelection(rowSelection.original);
-      setIsOpenDrawer(true);
-    }
-  };
+      if (rowSelection && rowSelection.original) {
+        setRowSelection(rowSelection.original);
+        setIsOpenDrawer(true);
+      } else {
+        setRowSelection(null);
+      }
+    },
+    [],
+  );
 
   const onCloseDialog = () => {
     setOpenDialog(false);
@@ -455,6 +473,7 @@ export default function page({
 
   const onCloseDrawer = () => {
     setIsOpenDrawer(false);
+    setRowSelection(null);
     onLoadApi();
   };
   //#endregion
@@ -560,6 +579,7 @@ export default function page({
             columns={columnsTable}
             data={filteredData}
             isDrawer={isOpenDrawer}
+            selectedTodoId={rowSelection?._id ?? null}
             onRowSelectionChange={handleRowSelectionChange}></DataTable>
         </div>
         <AddTodoDialog

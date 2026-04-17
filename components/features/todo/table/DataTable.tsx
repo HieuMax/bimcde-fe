@@ -27,7 +27,9 @@ interface DataTableProps<TData, TValue> {
   columns: ColumnDef<TData, TValue>[];
   data: TData[];
   isDrawer: boolean;
-  onRowSelectionChange: (selection: Record<string, boolean>) => void;
+  onRowSelectionChange: (selection: Record<string, unknown>) => void;
+  /** When the drawer opens from a deep link (?openTodoId=), sync visual row highlight */
+  selectedTodoId?: string | null;
 }
 
 export function DataTable<TData, TValue>({
@@ -35,6 +37,7 @@ export function DataTable<TData, TValue>({
   data,
   isDrawer,
   onRowSelectionChange,
+  selectedTodoId = null,
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
@@ -47,6 +50,8 @@ export function DataTable<TData, TValue>({
   const table = useReactTable({
     data,
     columns,
+    getRowId: (row) => String((row as { _id?: string })._id ?? ""),
+    enableRowSelection: true,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     getCoreRowModel: getCoreRowModel(),
@@ -66,8 +71,12 @@ export function DataTable<TData, TValue>({
     if (!isDrawer) {
       setRowSelection({});
       onRowSelectionChange({});
+      return;
     }
-  }, [isDrawer]);
+    if (selectedTodoId) {
+      setRowSelection({ [selectedTodoId]: true });
+    }
+  }, [isDrawer, selectedTodoId, onRowSelectionChange, data]);
 
   const handleRowClick = (row: any) => {
     const isRowSelected = row.getIsSelected();

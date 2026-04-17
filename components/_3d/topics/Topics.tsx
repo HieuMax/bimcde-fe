@@ -30,16 +30,40 @@ import {
   Pencil,
   Play,
   Trash2,
+  ListTodo,
+  Loader2,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { useQueryClient, useMutation, useQuery } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { TopicItem } from "@/types/topic3d";
+import type { ITodo } from "@/types/todo3d";
 import { topicService } from "@/services/topic3d.service";
+import { todoService } from "@/services/todo3d.service";
 import { explorerService } from "@/services/explorer.service";
 import { useComments } from "@/components/features/explorer/hooks/useComments";
 import CommentList from "@/components/features/explorer/properties/components/comments/CommentList";
 import CommentInput from "@/components/features/explorer/properties/components/comments/CommentInput";
+import { TopicTodoView } from "@/components/features/topics/TopicTodoView";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
+
+function getTodoLinkedTopicItemId(t: ITodo): string | null {
+  const raw = t.topicItemId ?? t.topicId;
+  if (raw == null) return null;
+  if (typeof raw === "object" && raw !== null && "_id" in raw) {
+    return String((raw as { _id?: string })._id);
+  }
+  return String(raw);
+}
 
 type GroupByType = "none" | "status" | "assignee" | "priority";
 type ViewState = "list" | "create" | "references" | "detail" | "edit";
@@ -137,6 +161,14 @@ export function Topics({
   const [folderHistory, setFolderHistory] = useState<string[]>([]);
   const [selectedRefs, setSelectedRefs] = useState<string[]>([]);
 
+  const [addTodosOpen, setAddTodosOpen] = useState(false);
+  const [todoLinkSearch, setTodoLinkSearch] = useState("");
+  const [selectedTodoIds, setSelectedTodoIds] = useState<Set<string>>(
+    () => new Set(),
+  );
+  /** Detail panel: full topic vs todo list (like /topics “See Todo List”). */
+  const [detailSubview, setDetailSubview] = useState<"main" | "todos">("main");
+
   // Query State
   const { data: explorerData, isLoading: isExplorerLoading } = useQuery({
     queryKey: ["explorer", projectId, currentFolderId],
@@ -189,6 +221,75 @@ export function Topics({
     enabled: !!selectedTopic3D?._id && view === "edit",
   });
   const blockingTodoCount = linkedTodoOpen?.count ?? 0;
+
+  const { data: projectTodos = [], isLoading: projectTodosLoading } = useQuery({
+    queryKey: ["todos", projectId],
+    queryFn: () => todoService.getAll(projectId),
+    enabled: !!projectId && addTodosOpen,
+  });
+
+  const linkableTodos = useMemo(() => {
+    if (!selectedTopic3D) return [];
+    const topicId = String(selectedTopic3D._id);
+    const q = todoLinkSearch.trim().toLowerCase();
+    return (projectTodos as ITodo[]).filter((t) => {
+      const linked = getTodoLinkedTopicItemId(t);
+      if (linked === topicId) return false;
+      if (!q) return true;
+      const title = (t.title || "").toLowerCase();
+      const status = String(t.status || "").toLowerCase();
+      return title.includes(q) || status.includes(q);
+    });
+  }, [projectTodos, selectedTopic3D, todoLinkSearch]);
+
+  const linkTodosToTopicMutation = useMutation({
+    mutationFn: async (todoIds: string[]) => {
+      if (!selectedTopic3D) return;
+      const topicItemId = selectedTopic3D._id;
+      await Promise.all(
+        todoIds.map((id) =>
+          todoService.update(id, { topicItemId: topicItemId }),
+        ),
+      );
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["todos", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["topics", projectId] });
+      if (selectedTopic3D?._id) {
+        queryClient.invalidateQueries({
+          queryKey: ["topic-linked-open-todos", selectedTopic3D._id],
+        });
+      }
+      toast.success("Todos linked to this topic");
+      setAddTodosOpen(false);
+      setSelectedTodoIds(new Set());
+    },
+    onError: (err: unknown) => {
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data
+          ?.message ||
+        (err as Error)?.message ||
+        "Failed to link todos";
+      toast.error(msg);
+    },
+  });
+
+  const toggleTodoLinkSelection = (id: string) => {
+    setSelectedTodoIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const topicDisplayById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const top of topics) {
+      m.set(top._id, `${top.topicKey} — ${top.title}`);
+    }
+    return m;
+  }, [topics]);
 
   const normalizeIfcUrl = (url?: string) => {
     if (!url) return "";
@@ -669,6 +770,7 @@ export function Topics({
 
     setSelectedTopic3D(topic);
     setActiveSnapshotIndex(0);
+    setDetailSubview("main");
     setView("detail");
 
     if (topic.viewState) {
@@ -699,6 +801,40 @@ export function Topics({
 
   const renderDetailView = () => {
     if (!selectedTopic3D) return null;
+
+    if (detailSubview === "todos") {
+      return (
+        <div className="flex flex-col flex-1 bg-white h-full relative min-h-0">
+          <div className="flex items-center justify-between p-3 border-b border-slate-200 shrink-0">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setDetailSubview("main")}
+              title="Back to topic"
+              aria-label="Back to topic"
+            >
+              <ArrowLeft className="h-5 w-5 text-slate-600" />
+            </Button>
+            <span className="text-sm font-semibold text-slate-800 truncate px-2">
+              Todo list
+            </span>
+            <div className="w-10 shrink-0" aria-hidden />
+          </div>
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden p-4">
+            <TopicTodoView
+              topic={{
+                id: selectedTopic3D._id,
+                code: selectedTopic3D.topicKey,
+                title: selectedTopic3D.title,
+              }}
+              projectId={projectId}
+              hideAddTodo
+            />
+          </div>
+        </div>
+      );
+    }
+
     const snapshotCount =
       selectedTopic3D.snapshots && selectedTopic3D.snapshots.length > 0
         ? selectedTopic3D.snapshots.length
@@ -749,6 +885,7 @@ export function Topics({
             onClick={() => {
               setView("list");
               setSelectedTopic3D(null);
+              setDetailSubview("main");
             }}
           >
             <ArrowLeft className="h-5 w-5 text-slate-600" />
@@ -759,8 +896,34 @@ export function Topics({
               size="icon"
               className="h-8 w-8"
               onClick={handleEditTopicClick}
+              title="Edit topic"
+              aria-label="Edit topic"
             >
               <Pencil className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              title="See Todo List"
+              aria-label="See Todo List"
+              onClick={() => setDetailSubview("todos")}
+            >
+              <ListTodo className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              title="Link todos to topic"
+              aria-label="Link todos to topic"
+              onClick={() => {
+                setSelectedTodoIds(new Set());
+                setTodoLinkSearch("");
+                setAddTodosOpen(true);
+              }}
+            >
+              <Plus className="h-4 w-4" />
             </Button>
             <Button
               variant="ghost"
@@ -2183,6 +2346,136 @@ export function Topics({
       {view === "create" && renderCreateView()}
       {view === "edit" && renderEditView()}
       {view === "references" && renderReferencesView()}
+
+      <Dialog
+        open={addTodosOpen}
+        onOpenChange={(open) => {
+          setAddTodosOpen(open);
+          if (!open) {
+            setSelectedTodoIds(new Set());
+            setTodoLinkSearch("");
+          }
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Link todos to this topic</DialogTitle>
+            <DialogDescription>
+              Choose one or more project todos to associate with this topic.
+              Todos already linked here are not listed. Todos linked to another
+              topic can be moved here.
+            </DialogDescription>
+          </DialogHeader>
+          <Input
+            placeholder="Search by title or status…"
+            value={todoLinkSearch}
+            onKeyDown={stopViewerHotkeys}
+            onChange={(e) => setTodoLinkSearch(e.target.value)}
+            className="mb-2"
+          />
+          <ScrollArea className="h-[280px] rounded-md border p-2">
+            {projectTodosLoading ? (
+              <div className="flex items-center justify-center py-12 text-slate-500 gap-2 text-sm">
+                <Loader2 className="h-5 w-5 animate-spin shrink-0" />
+                Loading todos…
+              </div>
+            ) : linkableTodos.length === 0 ? (
+              <p className="text-sm text-slate-500 text-center py-8 px-2">
+                No todos available to link. All project todos may already be
+                linked to this topic.
+              </p>
+            ) : (
+              <div className="space-y-2 pr-2">
+                {linkableTodos.map((t) => (
+                  <label
+                    key={t._id}
+                    className="flex items-start gap-3 rounded-md border border-slate-100 p-2 hover:bg-slate-50 cursor-pointer"
+                  >
+                    <Checkbox
+                      checked={selectedTodoIds.has(t._id)}
+                      onCheckedChange={() => toggleTodoLinkSelection(t._id)}
+                      className="mt-0.5"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium text-slate-800 truncate">
+                        {t.title}
+                      </div>
+                      <div className="text-xs text-slate-500 capitalize">
+                        {String(t.status || "").replace(/_/g, " ")}
+                        {(() => {
+                          const linkedId = getTodoLinkedTopicItemId(t);
+                          if (
+                            !linkedId ||
+                            linkedId === String(selectedTopic3D?._id)
+                          ) {
+                            return null;
+                          }
+                          const label =
+                            topicDisplayById.get(linkedId) ??
+                            `Topic ${linkedId.slice(0, 8)}…`;
+                          return (
+                            <span className="text-amber-700 font-normal ml-1">
+                              · Linked: {label}
+                            </span>
+                          );
+                        })()}
+                      </div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            )}
+          </ScrollArea>
+          <div className="flex justify-between gap-2 text-xs text-slate-500 pt-1">
+            <button
+              type="button"
+              className="underline hover:text-slate-800 disabled:opacity-40"
+              disabled={linkableTodos.length === 0}
+              onClick={() =>
+                setSelectedTodoIds(new Set(linkableTodos.map((x) => x._id)))
+              }
+            >
+              Select all
+            </button>
+            <button
+              type="button"
+              className="underline hover:text-slate-800"
+              onClick={() => setSelectedTodoIds(new Set())}
+            >
+              Clear
+            </button>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setAddTodosOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              className="bg-[#005F9E] hover:bg-[#004B7D] text-white"
+              disabled={
+                selectedTodoIds.size === 0 ||
+                linkTodosToTopicMutation.isPending
+              }
+              onClick={() =>
+                linkTodosToTopicMutation.mutate(Array.from(selectedTodoIds))
+              }
+            >
+              {linkTodosToTopicMutation.isPending ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin mr-2 inline" />
+                  Adding…
+                </>
+              ) : (
+                `Add${selectedTodoIds.size ? ` (${selectedTodoIds.size})` : ""}`
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </aside>
   );
 }

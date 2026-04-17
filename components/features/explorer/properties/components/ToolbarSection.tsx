@@ -244,12 +244,14 @@ export default function ToolbarSection({
 
     return (
       <div className="flex items-center justify-between px-4 py-2">
-        {/* 1. Permissions */}
-        <TooltipAction
-          icon={<Key size={18} />}
-          label="Permissions"
-          onClick={onOpenPermissions}
-        />
+        {/* 1. Permissions (NORMAL only — ISO uses group roles / CDE stages; no item dialog) */}
+        {workflowMode !== "ISO_19650" && (
+          <TooltipAction
+            icon={<Key size={18} />}
+            label="Permissions"
+            onClick={onOpenPermissions}
+          />
+        )}
 
         {/* 2. Download */}
         <TooltipAction
@@ -371,11 +373,13 @@ export default function ToolbarSection({
 
         {!isFileBasicPanel && (
           <>
-            <TooltipAction
-              icon={<Key size={18} />}
-              label="Permissions"
-              onClick={onOpenPermissions}
-            />
+            {workflowMode !== "ISO_19650" && (
+              <TooltipAction
+                icon={<Key size={18} />}
+                label="Permissions"
+                onClick={onOpenPermissions}
+              />
+            )}
             <TooltipAction
               icon={<Share2 size={18} />}
               label="Share"

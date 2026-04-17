@@ -114,14 +114,6 @@ export const ActivityFilters: React.FC<ActivityFiltersProps> = ({
             className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`}
           />
         </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="text-gray-500 hover:text-black"
-          title="Export to Excel"
-        >
-          <FileDown className="h-4 w-4" />
-        </Button>
       </div>
     </div>
   );

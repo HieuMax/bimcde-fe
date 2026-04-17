@@ -4,6 +4,11 @@ export { RecentActivitySection } from "./RecentActivitySection";
 export { FileTypesChart } from "./FileTypesChart";
 export { ProjectStorageBar } from "./ProjectStorageBar";
 export { useDashboardStats } from "./hooks/useDashboardStats";
+export { useProjectDashboardInfo } from "./hooks/useProjectDashboardInfo";
+export type {
+  ProjectDashboardInfo,
+  UseProjectDashboardInfoResult,
+} from "./hooks/useProjectDashboardInfo";
 export { useRecentActivities } from "./hooks/useRecentActivities";
 export { useFileTypesStats } from "./hooks/useFileTypesStats";
 export { useProjectStorage } from "./hooks/useProjectStorage";
