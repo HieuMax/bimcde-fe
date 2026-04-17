@@ -239,38 +239,50 @@ export default function DetailsView({
           />
           <Separator className="mx-4 w-auto" />
 
-          {/* Permission Section */}
-          {!hideEditAndPermissions && (
-            <div className="p-4 space-y-4">
-              <div className="flex items-center justify-between">
+          {/* Permission Section — NORMAL: dialog + copy; ISO: read-only copy (no dialog) */}
+          {workflowMode === "NORMAL" && !hideEditAndPermissions && (
+            <>
+              <div className="p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-base font-medium text-foreground">
+                    Permissions
+                  </h3>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 -mr-2"
+                    onClick={() => setPermissionsOpen(true)}
+                    aria-label="Edit permissions"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">
+                    Folder permissions (Drive-style: Editor / Viewer / No access)
+                    are managed in the dialog above.
+                  </p>
+                  <p className="text-sm text-foreground">
+                    Use Full / Read only / No access per user or group.
+                  </p>
+                </div>
+              </div>
+              <Separator />
+            </>
+          )}
+          {workflowMode === "ISO_19650" && !hideEditAndPermissions && (
+            <>
+              <div className="p-4 space-y-2">
                 <h3 className="text-base font-medium text-foreground">
                   Permissions
                 </h3>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 -mr-2"
-                  onClick={() => setPermissionsOpen(true)}
-                  aria-label="Edit permissions"
-                >
-                  <Pencil className="h-4 w-4" />
-                </Button>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground mb-1">
-                  {workflowMode === "NORMAL"
-                    ? "Folder permissions (Drive-style: Editor / Viewer / No access) are managed in the dialog above."
-                    : "ISO 19650 projects use group roles and CDE stages for access."}
-                </p>
-                <p className="text-sm text-foreground">
-                  {workflowMode === "NORMAL"
-                    ? "Use Full / Read only / No access per user or group."
-                    : "See team settings and folder visibility in Data."}
+                <p className="text-sm text-muted-foreground">
+                  ISO 19650 projects use group roles and CDE stages for access.
                 </p>
               </div>
-            </div>
+              <Separator />
+            </>
           )}
-          {!hideEditAndPermissions && <Separator />}
 
           <CommentList
             comments={comments}
@@ -294,15 +306,17 @@ export default function DetailsView({
         isSending={isAdding}
       />
 
-      <ItemPermissionsDialog
-        open={permissionsOpen}
-        onOpenChange={setPermissionsOpen}
-        mode={isFile ? "file" : "folder"}
-        projectId={projectId}
-        itemId={item._id}
-        itemName={item.name}
-        workflowMode={workflowMode}
-      />
+      {workflowMode === "NORMAL" && (
+        <ItemPermissionsDialog
+          open={permissionsOpen}
+          onOpenChange={setPermissionsOpen}
+          mode={isFile ? "file" : "folder"}
+          projectId={projectId}
+          itemId={item._id}
+          itemName={item.name}
+          workflowMode={workflowMode}
+        />
+      )}
 
       {isFile && (
         <ShareFileDialog

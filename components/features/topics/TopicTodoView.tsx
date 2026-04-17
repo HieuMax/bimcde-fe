@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { client } from "@/app/utils/apiClient";
 import AddTodoDialog from "@/components/features/todo/dialog/addTodoDialog";
-import type { Topic } from "./topic-types";
 import { toast } from "sonner";
 
 function todoMatchesTopic(todo: Record<string, unknown>, topicId: string) {
@@ -59,14 +58,18 @@ function formatTodoAssignees(raw: unknown): string {
   return names.length > 0 ? names.join(", ") : "Unassigned";
 }
 
+/** Minimal topic identity (matches dashboard Topic or 3D TopicItem). */
 export interface TopicTodoViewProps {
-  topic: Topic;
+  topic: { id: string; code: string; title: string };
   projectId: string;
+  /** When true (e.g. IFC viewer), hides “Add Todo” and the create dialog. */
+  hideAddTodo?: boolean;
 }
 
 export const TopicTodoView: React.FC<TopicTodoViewProps> = ({
   topic,
   projectId,
+  hideAddTodo = false,
 }) => {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
@@ -184,15 +187,17 @@ export const TopicTodoView: React.FC<TopicTodoViewProps> = ({
           {filtered.length} linked{" "}
           {filtered.length === 1 ? "todo" : "todos"}
         </p>
-        <Button
-          type="button"
-          size="sm"
-          className="bg-[#005F9E] hover:bg-[#004B7D] text-white shrink-0"
-          onClick={() => setAddOpen(true)}
-        >
-          <Plus className="h-4 w-4 mr-1" />
-          Add Todo
-        </Button>
+        {!hideAddTodo && (
+          <Button
+            type="button"
+            size="sm"
+            className="bg-[#005F9E] hover:bg-[#004B7D] text-white shrink-0"
+            onClick={() => setAddOpen(true)}
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            Add Todo
+          </Button>
+        )}
       </div>
 
       {loading ? (
@@ -252,17 +257,19 @@ export const TopicTodoView: React.FC<TopicTodoViewProps> = ({
         </ScrollArea>
       )}
 
-      <AddTodoDialog
-        open={addOpen}
-        onClose={handleCloseAdd}
-        users={assigneeData}
-        priority={priorityData}
-        type={typeData}
-        tag={tagData}
-        projectId={projectId}
-        topicLinkLocked
-        linkedTopicItem={linkedForTopic}
-      />
+      {!hideAddTodo && (
+        <AddTodoDialog
+          open={addOpen}
+          onClose={handleCloseAdd}
+          users={assigneeData}
+          priority={priorityData}
+          type={typeData}
+          tag={tagData}
+          projectId={projectId}
+          topicLinkLocked
+          linkedTopicItem={linkedForTopic}
+        />
+      )}
     </div>
   );
 };

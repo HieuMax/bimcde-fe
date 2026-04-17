@@ -445,9 +445,8 @@ export const ViewList = () => {
         {/* 2. Filter Bar & Count */}
         <div className="px-6 py-3 flex justify-between items-center border-b border-gray-200 bg-gray-50/50">
           <div className="flex gap-1 items-center">
-            <FilterButton label="Owner" />
-
-            <span className="text-gray-300 mx-2">|</span>
+            {/* <FilterButton label="Owner" /> */}
+            {/* <span className="text-gray-300 mx-2">|</span> */}
 
             <UserFilter
               projectId={projectId}

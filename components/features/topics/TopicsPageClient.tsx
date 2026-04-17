@@ -232,7 +232,7 @@ export const TopicsPageClient: React.FC<{ projectId: string }> = ({
           <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-white">
             <div className="flex items-center gap-2">
               <h2 className="text-lg font-medium text-gray-800">Topics</h2>
-              <DropdownMenu>
+              {/* <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
                     variant="ghost"
@@ -255,47 +255,15 @@ export const TopicsPageClient: React.FC<{ projectId: string }> = ({
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuContent>
-              </DropdownMenu>
+              </DropdownMenu> */}
             </div>
 
             <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9"
-                title="Add"
-              >
-                <Plus className="h-4 w-4 text-gray-600" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9"
-                title="Filter"
-              >
-                <ListFilter className="h-4 w-4 text-gray-600" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9"
-                title="Settings"
-              >
-                <SlidersHorizontal className="h-4 w-4 text-gray-600" />
-              </Button>
               <Button
                 className="h-9 px-4 bg-[#0B4F8A] hover:bg-[#094574] text-white"
                 onClick={() => handleCreateNew()}
               >
                 New
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-9 w-9"
-                title="Search"
-              >
-                <Search className="h-4 w-4 text-gray-600" />
               </Button>
             </div>
           </div>

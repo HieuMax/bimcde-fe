@@ -3,7 +3,12 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { IFile, IFolder, CdeWorkflowMode } from "@/types/explorer";
+import {
+  IFile,
+  IFolder,
+  CdeWorkflowMode,
+  CdeCapabilities,
+} from "@/types/explorer";
 import { getIsoMoveRestrictEffectiveGroupId } from "@/lib/explorer/isoMove";
 import {
   Download,
@@ -33,6 +38,7 @@ interface Props {
   onMoveItems: (destinationId: string) => Promise<void>;
   projectId: string;
   workflowMode?: CdeWorkflowMode;
+  cdeCapabilities?: CdeCapabilities;
 }
 
 export default function BulkPropertiesPanel({
@@ -45,10 +51,18 @@ export default function BulkPropertiesPanel({
   onMoveItems,
   projectId,
   workflowMode = "NORMAL",
+  cdeCapabilities,
 }: Props) {
   const [view, setView] = useState<"list" | "move" | "tags">("list");
   const queryClient = useQueryClient();
   const router = useRouter();
+
+  const isIso = workflowMode === "ISO_19650";
+  const showBulkCheckinCheckout =
+    !isIso || !!cdeCapabilities?.isProjectAdmin;
+  const selectionIsAllFiles =
+    selectedItems.length > 0 &&
+    selectedItems.every((item) => "mimeType" in item);
 
   const isoMoveGroup = getIsoMoveRestrictEffectiveGroupId(
     workflowMode,
@@ -171,13 +185,15 @@ export default function BulkPropertiesPanel({
 
       {/* ACTIONS LIST */}
       <div className="p-4 space-y-2 border-b">
-        <Button
-          onClick={handleViewFile}
-          className="bg-slate-800 hover:bg-slate-700 text-white h-9 px-4 text-sm font-medium mr-auto"
-        >
-          <Eye className="mr-2 h-4 w-4" />
-          View
-        </Button>
+        {selectionIsAllFiles && (
+          <Button
+            onClick={handleViewFile}
+            className="bg-slate-800 hover:bg-slate-700 text-white h-9 px-4 text-sm font-medium mr-auto"
+          >
+            <Eye className="mr-2 h-4 w-4" />
+            View
+          </Button>
+        )}
 
         <Button
           variant="ghost"
@@ -215,32 +231,27 @@ export default function BulkPropertiesPanel({
           Delete
         </Button>
 
-        {/* Checkin / Checkout Bulk */}
-        <Button
-          variant="ghost"
-          className="w-full justify-start gap-3 text-orange-600 hover:text-orange-700 hover:bg-orange-50 font-medium"
-          onClick={() => onToggleLock("LOCK")}
-        >
-          <Lock className="h-5 w-5" />
-          Checkin file(s) (Lock)
-        </Button>
+        {showBulkCheckinCheckout && (
+          <>
+            <Button
+              variant="ghost"
+              className="w-full justify-start gap-3 text-orange-600 hover:text-orange-700 hover:bg-orange-50 font-medium"
+              onClick={() => onToggleLock("LOCK")}
+            >
+              <Lock className="h-5 w-5" />
+              Checkin file(s) (Lock)
+            </Button>
 
-        <Button
-          variant="ghost"
-          className="w-full justify-start gap-3 text-green-600 hover:text-green-700 hover:bg-green-50 font-medium"
-          onClick={() => onToggleLock("UNLOCK")}
-        >
-          <Unlock className="h-5 w-5" />
-          Checkout file(s) (Unlock)
-        </Button>
-
-        <Button
-          variant="ghost"
-          className="w-full justify-start gap-3 text-slate-500 hover:bg-slate-100 font-medium"
-        >
-          <span className="text-xl leading-none">+</span>
-          More options
-        </Button>
+            <Button
+              variant="ghost"
+              className="w-full justify-start gap-3 text-green-600 hover:text-green-700 hover:bg-green-50 font-medium"
+              onClick={() => onToggleLock("UNLOCK")}
+            >
+              <Unlock className="h-5 w-5" />
+              Checkout file(s) (Unlock)
+            </Button>
+          </>
+        )}
       </div>
 
       {/* SELECTED ITEMS LIST */}
