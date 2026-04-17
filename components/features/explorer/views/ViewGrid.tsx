@@ -9,6 +9,11 @@ import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { SortConfig } from "./ViewList";
+import {
+  resolveExplorerFileThumbnailSrc,
+  shellFileThumbnailKey,
+  isLikelyRasterImageUrl,
+} from "@/lib/explorer/fileThumbnail";
 
 interface Props {
   folders: IFolder[];
@@ -160,19 +165,30 @@ function DraggableCard({
       >
         {/* PREVIEW AREA */}
         <div className="aspect-[4/3] w-full bg-slate-50 flex items-center justify-center overflow-hidden relative border-b border-slate-100">
-          {(item as IFile).mimeType?.startsWith("image/") ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={(item as IFile).location}
-              alt={item.name}
-              className="w-full h-full object-cover transition-transform group-hover:scale-105"
-            />
-          ) : (
-            <FileIcon
-              mimeType={(item as IFile).mimeType}
-              className="size-16 opacity-80"
-            />
-          )}
+          {(() => {
+            const f = item as IFile;
+            const shellSrc = resolveExplorerFileThumbnailSrc(f);
+            const showRaster =
+              f.mimeType?.startsWith("image/") ||
+              isLikelyRasterImageUrl(shellSrc);
+            if (showRaster && shellSrc !== "/placeholder-image.png") {
+              return (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  key={shellFileThumbnailKey(f)}
+                  src={shellSrc}
+                  alt={item.name}
+                  className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                />
+              );
+            }
+            return (
+              <FileIcon
+                mimeType={f.mimeType}
+                className="size-16 opacity-80"
+              />
+            );
+          })()}
 
           {/* Locked Indicator */}
           {isFileLocked && (

@@ -17,6 +17,8 @@ import { Label } from "@/components/ui/label";
 import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useApi } from "@/app/hooks/useApi";
+import { explorerService } from "@/services/explorer.service";
+import type { IFile } from "@/types/explorer";
 
 // IMPORT RECIPIENT SELECTOR
 import { RecipientSelector, RecipientOption } from "../../release/RecipientSelector";
@@ -26,13 +28,20 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   file: { _id: string; name: string; mimeType?: string } | null;
+  /** Pre-select a fixed version (e.g. opened from version history). */
+  initialPinnedVersion?: number | null;
 }
 
 type ShareType = "SPECIFIC" | "INTERNAL_LINK" | "PUBLIC_LINK";
 type AccessLevel = "VIEW" | "DOWNLOAD";
 
 /* ===================== COMPONENT ===================== */
-export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
+export default function ShareFileDialog({
+  open,
+  onOpenChange,
+  file,
+  initialPinnedVersion,
+}: Props) {
   const params = useParams();
   const projectId = params?.projectId as string;
   const api = useApi();
@@ -45,10 +54,18 @@ export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
   const [expiresAt, setExpiresAt] = useState("");
   const [accessLevel, setAccessLevel] = useState<AccessLevel>("VIEW");
   const [showLatest, setShowLatest] = useState(true);
+  const [pinVersionSelect, setPinVersionSelect] = useState<number | null>(null);
+  const [metaFile, setMetaFile] = useState<IFile | null>(null);
+  const [metaLoading, setMetaLoading] = useState(false);
   const [shareLink, setShareLink] = useState<string | null>(null);
 
   // Check Folder
   const isFolder = file && (!file.mimeType || file.mimeType === "folder");
+
+  const versionOptions =
+    metaFile?.versions && metaFile.versions.length > 0
+      ? [...metaFile.versions].sort((a, b) => Number(b.version) - Number(a.version))
+      : [];
 
   /* --- RESET ON OPEN --- */
   useEffect(() => {
@@ -60,8 +77,47 @@ export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
       setCustomEmails(""); // 👈 Reset email nhập tay
       setNote("");
       setExpiresAt("");
+      const pin =
+        initialPinnedVersion != null &&
+        Number.isFinite(Number(initialPinnedVersion))
+          ? Number(initialPinnedVersion)
+          : null;
+      if (pin != null) {
+        setShowLatest(false);
+        setPinVersionSelect(pin);
+      } else {
+        setShowLatest(true);
+        setPinVersionSelect(null);
+      }
     }
-  }, [open, file]);
+  }, [open, file?._id, initialPinnedVersion]);
+
+  useEffect(() => {
+    if (!open || !file?._id || isFolder) {
+      setMetaFile(null);
+      setMetaLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setMetaLoading(true);
+    explorerService
+      .getFileDetail(file._id)
+      .then((d) => {
+        if (!cancelled) setMetaFile(d as IFile);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setMetaFile(null);
+          toast.error("Could not load file versions for sharing.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setMetaLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [open, file?._id, isFolder]);
 
   const handleClose = () => {
     setShareLink(null);
@@ -101,6 +157,7 @@ export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
         expiresAt: Date | null;
         accessLevel: AccessLevel;
         showLatestVersion: boolean;
+        pinnedVersion?: number;
       }>("/share", {
         fileId: file?._id,
         projectId,
@@ -110,6 +167,13 @@ export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
         expiresAt: expiresAt ? new Date(expiresAt) : null,
         accessLevel,
         showLatestVersion: showLatest,
+        pinnedVersion: showLatest
+          ? undefined
+          : pinVersionSelect != null
+            ? pinVersionSelect
+            : metaFile?.currentVersion != null
+              ? Number(metaFile.currentVersion)
+              : undefined,
       });
       return res;
     },
@@ -136,7 +200,13 @@ export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
   });
 
   // Nút submit hợp lệ khi: có file + không phải folder + (nếu là Specific thì phải chọn người hoặc nhập email)
-  const canSubmit = !!file && !isFolder && (shareType !== "SPECIFIC" || selectedRecipients.length > 0 || customEmails.trim().length > 0);
+  const canSubmit =
+    !!file &&
+    !isFolder &&
+    (shareType !== "SPECIFIC" ||
+      selectedRecipients.length > 0 ||
+      customEmails.trim().length > 0) &&
+    (showLatest || (!metaLoading && !!metaFile));
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -188,7 +258,9 @@ export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
                       <RecipientSelector
                         projectId={projectId}
                         initialOptions={selectedRecipients}
-                        onChange={(ids, options) => setSelectedRecipients(options)}
+                        onChange={(ids, options) =>
+                          setSelectedRecipients(options ?? [])
+                        }
                       />
                   </div>
                 </div>
@@ -250,15 +322,79 @@ export default function ShareFileDialog({ open, onOpenChange, file }: Props) {
               </>
             )}
 
-            {(shareType === "INTERNAL_LINK" || shareType === "PUBLIC_LINK") && (
-              <div className="flex items-center gap-2">
-                <Checkbox
-                  checked={showLatest}
-                  onCheckedChange={c => setShowLatest(c as boolean)}
-                />
-                <Label className="text-sm cursor-pointer">
-                  Show latest version
-                </Label>
+            {!isFolder && (
+              <div className="space-y-2 rounded-md border border-slate-100 bg-slate-50/80 p-3">
+                <Label className="text-xs text-slate-500">Recipients see</Label>
+                <div className="flex items-start gap-2">
+                  <Checkbox
+                    id="share-show-latest"
+                    checked={showLatest}
+                    onCheckedChange={(c) => {
+                      const next = c === true;
+                      setShowLatest(next);
+                      if (
+                        !next &&
+                        metaFile?.currentVersion != null &&
+                        pinVersionSelect == null
+                      ) {
+                        const init =
+                          initialPinnedVersion != null &&
+                          Number.isFinite(Number(initialPinnedVersion))
+                            ? Number(initialPinnedVersion)
+                            : Number(metaFile.currentVersion);
+                        setPinVersionSelect(init);
+                      }
+                    }}
+                  />
+                  <div className="space-y-0.5">
+                    <Label
+                      htmlFor="share-show-latest"
+                      className="text-sm cursor-pointer font-medium leading-snug"
+                    >
+                      Always the latest version
+                    </Label>
+                    <p className="text-xs text-muted-foreground leading-snug">
+                      If unchecked, the link stays on one revision even if you upload
+                      new versions later.
+                    </p>
+                  </div>
+                </div>
+                {!showLatest && versionOptions.length > 0 && (
+                  <div className="space-y-1.5 pt-1">
+                    <Label className="text-xs text-slate-500">Locked revision</Label>
+                    <Select
+                      value={String(
+                        pinVersionSelect ??
+                          versionOptions[0]?.version ??
+                          "",
+                      )}
+                      onValueChange={(v) => setPinVersionSelect(Number(v))}
+                      disabled={metaLoading}
+                    >
+                      <SelectTrigger>
+                        <SelectValue
+                          placeholder={metaLoading ? "Loading…" : "Pick version"}
+                        />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {versionOptions.map((v) => (
+                          <SelectItem key={v.version} value={String(v.version)}>
+                            Version {v.version}
+                            {Number(metaFile?.currentVersion) === Number(v.version)
+                              ? " (current)"
+                              : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                {!showLatest && metaLoading && (
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Loader2 className="h-3 w-3 animate-spin shrink-0" />
+                    Loading revisions…
+                  </p>
+                )}
               </div>
             )}
 

@@ -28,6 +28,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import ShareFileDialog from "../dialogs/ShareFileDialog";
 
 type ViewMode =
   | "details"
@@ -90,7 +91,47 @@ export default function PropertiesPanel({
   const [isoRevokeDialogOpen, setIsoRevokeDialogOpen] = useState(false);
   const [isoRestoreConflictOpen, setIsoRestoreConflictOpen] = useState(false);
   const [isoRestoreBusy, setIsoRestoreBusy] = useState(false);
+  const [historyShareOpen, setHistoryShareOpen] = useState(false);
+  const [historySharePin, setHistorySharePin] = useState<number | undefined>(
+    undefined,
+  );
+  /** Full file record (incl. per-version `location`) — explorer rows are often denormalized. */
+  const [fileDetail, setFileDetail] = useState<IFile | null>(null);
   const queryClient = useQueryClient();
+
+  const isFileItem = !!(item && "mimeType" in item);
+  const fileCurrentVersion = isFileItem
+    ? (item as IFile).currentVersion
+    : undefined;
+
+  React.useEffect(() => {
+    if (!item || !isFileItem) {
+      setFileDetail(null);
+      return;
+    }
+    const f = item as IFile;
+    let cancelled = false;
+    explorerService
+      .getFileDetail(f._id)
+      .then((d) => {
+        const doc = d as IFile;
+        if (!cancelled && doc._id === f._id) setFileDetail(doc);
+      })
+      .catch(() => {
+        if (!cancelled) setFileDetail(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [item, item?._id, isFileItem, fileCurrentVersion]);
+
+  const mergedItem = React.useMemo((): IFile | IFolder | null => {
+    if (!item) return null;
+    if ("mimeType" in item && fileDetail && fileDetail._id === item._id) {
+      return { ...(item as IFile), ...fileDetail };
+    }
+    return item;
+  }, [item, fileDetail]);
 
   const invalidateExplorer = () => {
     queryClient.invalidateQueries({ queryKey: ["explorer", projectId] });
@@ -176,6 +217,8 @@ export default function PropertiesPanel({
       setView("details");
       setPublishModalOpen(false);
       setArchiveConfirmOpen(false);
+      setHistoryShareOpen(false);
+      setHistorySharePin(undefined);
     }
   }, [open]);
 
@@ -195,17 +238,17 @@ export default function PropertiesPanel({
 
   return (
     <div className="w-full h-full flex flex-col bg-white overflow-y-auto">
-      {item ? (
+      {mergedItem ? (
         <>
           {view === "details" && (
             <DetailsView
-              item={item}
+              item={mergedItem}
               onClose={onClose}
               onEdit={() => setView("edit")}
               onOpenHistory={() => setView("history")}
               onDownload={onDownload}
               onOpenMove={() => setView("move")}
-              onDelete={() => onDelete(item._id)}
+              onDelete={() => onDelete(mergedItem._id)}
               onOpenMore={onOpenMore}
               onAddTags={() => setView("tags")}
               onToggleLock={onToggleLock}
@@ -226,9 +269,9 @@ export default function PropertiesPanel({
             />
           )}
 
-          {view === "activity" && item && (
+          {view === "activity" && mergedItem && (
             <ActivitiesView
-              item={item}
+              item={mergedItem}
               projectId={projectId}
               onBack={() => setView("details")}
               onClose={onClose}
@@ -236,12 +279,36 @@ export default function PropertiesPanel({
           )}
 
           {view === "history" && (
-            <HistoryView item={item} onBack={() => setView("details")} />
+            <HistoryView
+              item={mergedItem}
+              projectId={projectId}
+              onBack={() => setView("details")}
+              onShareVersion={
+                mergedItem && "mimeType" in mergedItem
+                  ? (v) => {
+                      setHistorySharePin(v);
+                      setHistoryShareOpen(true);
+                    }
+                  : undefined
+              }
+            />
+          )}
+
+          {mergedItem && "mimeType" in mergedItem && (
+            <ShareFileDialog
+              open={historyShareOpen}
+              onOpenChange={(o) => {
+                setHistoryShareOpen(o);
+                if (!o) setHistorySharePin(undefined);
+              }}
+              file={mergedItem}
+              initialPinnedVersion={historySharePin}
+            />
           )}
 
           {view === "edit" && (
             <EditView
-              item={item}
+              item={mergedItem}
               projectId={projectId}
               onBack={() => setView("details")}
               onClose={onClose}
@@ -249,11 +316,11 @@ export default function PropertiesPanel({
                 await onRename(newName);
               }}
               onSaveTags={async (tagIds) => {
-                const isFile = "mimeType" in item;
+                const isFile = "mimeType" in mergedItem;
                 if (isFile) {
-                  await explorerService.assignTags([item._id], tagIds);
+                  await explorerService.assignTags([mergedItem._id], tagIds);
                 } else {
-                  await explorerService.assignFolderTags([item._id], tagIds);
+                  await explorerService.assignFolderTags([mergedItem._id], tagIds);
                 }
                 queryClient.invalidateQueries({ queryKey: ["explorer"] });
                 queryClient.invalidateQueries({
@@ -263,16 +330,16 @@ export default function PropertiesPanel({
             />
           )}
 
-          {item && "mimeType" in item && (
+          {mergedItem && "mimeType" in mergedItem && (
             <PublishToPublishedModal
               open={publishModalOpen}
               onOpenChange={setPublishModalOpen}
-              fileId={item._id}
+              fileId={mergedItem._id}
               onConfirm={() => setView("promote")}
             />
           )}
 
-          {view === "promote" && "mimeType" in item && (
+          {view === "promote" && "mimeType" in mergedItem && (
             <PromoteDestinationView
               projectId={projectId}
               onBack={() => setView("details")}
@@ -358,10 +425,10 @@ export default function PropertiesPanel({
             </AlertDialogContent>
           </AlertDialog>
 
-          {view === "archiveMove" && item && (
+          {view === "archiveMove" && mergedItem && (
             <ArchiveMoveDestinationView
               projectId={projectId}
-              sourceItemIds={[item._id]}
+              sourceItemIds={[mergedItem._id]}
               onBack={() => setView("details")}
               onClose={onClose}
               onConfirm={async (destinationFolderId) => {
@@ -376,17 +443,17 @@ export default function PropertiesPanel({
               onBack={() => setView("details")}
               onClose={onClose}
               onMove={onMoveItem}
-              sourceItemIds={[item._id]}
+              sourceItemIds={[mergedItem._id]}
               projectId={projectId}
               workflowMode={workflowMode}
               restrictMoveToEffectiveGroupId={
-                "effectiveGroupId" in item
-                  ? item.effectiveGroupId ?? null
+                "effectiveGroupId" in mergedItem
+                  ? mergedItem.effectiveGroupId ?? null
                   : null
               }
               parentCdeRootStage={
-                "parentCdeRootStage" in item
-                  ? item.parentCdeRootStage ?? null
+                "parentCdeRootStage" in mergedItem
+                  ? mergedItem.parentCdeRootStage ?? null
                   : null
               }
             />
@@ -394,9 +461,9 @@ export default function PropertiesPanel({
 
           {view === "tags" && (
             <TagsView
-              fileIds={"mimeType" in item ? [item._id] : []}
-              folderIds={!("mimeType" in item) ? [item._id] : []}
-              initialTags={(item as IFile | IFolder).tags}
+              fileIds={"mimeType" in mergedItem ? [mergedItem._id] : []}
+              folderIds={!("mimeType" in mergedItem) ? [mergedItem._id] : []}
+              initialTags={(mergedItem as IFile | IFolder).tags}
               onBack={() => setView("details")}
               onClose={onClose}
               onSuccess={() => {

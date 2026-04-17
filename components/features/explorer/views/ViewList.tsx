@@ -16,6 +16,11 @@ import { format } from "date-fns";
 import { filesize } from "filesize";
 import FileIcon from "./FileIcon";
 import { useRouter, useParams } from "next/navigation";
+import {
+  resolveExplorerFileThumbnailSrc,
+  shellFileThumbnailKey,
+  isLikelyRasterImageUrl,
+} from "@/lib/explorer/fileThumbnail";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 
 export type SortConfig = {
@@ -212,10 +217,30 @@ function DraggableRow({
                 }`}
               />
             ) : (
-              <FileIcon
-                mimeType={(item as IFile).mimeType}
-                className="size-8 md:size-10"
-              />
+              (() => {
+                const f = item as IFile;
+                const shellSrc = resolveExplorerFileThumbnailSrc(f);
+                const showRaster =
+                  f.mimeType?.startsWith("image/") ||
+                  isLikelyRasterImageUrl(shellSrc);
+                if (showRaster && shellSrc !== "/placeholder-image.png") {
+                  return (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      key={shellFileThumbnailKey(f)}
+                      src={shellSrc}
+                      alt=""
+                      className="size-8 md:size-10 rounded object-cover border border-slate-200"
+                    />
+                  );
+                }
+                return (
+                  <FileIcon
+                    mimeType={f.mimeType}
+                    className="size-8 md:size-10"
+                  />
+                );
+              })()
             )}
           </div>
           {folderBlocked && !isSelected && (

@@ -38,6 +38,8 @@ type LeftPanelBodyProps = {
   onEditView?: (view: View2DItem) => void;
 
   onOpenVersion?: (version: any) => void;
+  /** Highlights the revision currently shown in the main viewer (if any). */
+  activeViewerVersion?: number | null;
   onDownloadVersion?: (version: any) => void;
   onCloseHistory?: () => void;
   onFileUpdated?: (file: IFile) => void;
@@ -57,6 +59,7 @@ export default function LeftPanelBody(props: LeftPanelBodyProps) {
     onDeleteTodo,
     onEditView,
     onOpenVersion,
+    activeViewerVersion,
     onDownloadVersion,
     onCloseHistory,
   } = props;
@@ -76,12 +79,15 @@ export default function LeftPanelBody(props: LeftPanelBodyProps) {
             file={data.file}
             view={data.view ?? null}
             onUpdateSuccess={props.onFileUpdated}
+            onOpenVersionInViewer={onOpenVersion}
+            activeViewerVersion={activeViewerVersion}
           />
         )}
 
         {activeTab === "history" && (
           <VersionHistoryPanel
             file={data.file}
+            activeViewerVersion={activeViewerVersion}
             onClose={() => onCloseHistory?.()}
             onOpenVersion={onOpenVersion}
             onDownloadVersion={

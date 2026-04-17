@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { explorerService } from "@/services/explorer.service";
 import { IFile } from "@/types/explorer";
 import {
   Pencil,
@@ -16,15 +17,22 @@ import CommentInput from "../../explorer/properties/components/comments/CommentI
 
 // Nhúng Hook useTags và Service API
 import { useTags } from "@/components/features/explorer/hooks/useTags";
-import { explorerService } from "@/services/explorer.service";
 import { View2DItem } from "@/types/view2d";
-// import VersionHistoryPanel from "../VersionHistoryPanel";
 import VersionHistoryPanel from "./VersionHistoryPanel";
 
 type Props = {
   file: IFile | null;
   view?: View2DItem | null;
   onUpdateSuccess?: (updatedFile: IFile) => void;
+  /** When set, "Open" in version history loads this revision in the main 2D viewer. */
+  onOpenVersionInViewer?: (version: {
+    version: number | string;
+    location?: string;
+    fileName?: string;
+    mimeType?: string;
+    size?: number;
+  }) => void;
+  activeViewerVersion?: number | null;
 };
 
 function formatFileSize(bytes?: number): string {
@@ -78,7 +86,12 @@ function getNearestFolder(location?: string): { folderName: string; folderId: st
   };
 }
 
-export default function FileDetailTab({ file, onUpdateSuccess }: Props) {
+export default function FileDetailTab({
+  file,
+  onUpdateSuccess,
+  onOpenVersionInViewer,
+  activeViewerVersion,
+}: Props) {
   const router = useRouter();
 
   const [mode, setMode] = useState<"view" | "edit">("view");
@@ -152,11 +165,25 @@ export default function FileDetailTab({ file, onUpdateSuccess }: Props) {
     setShowVersionHistory(true);
   };
 
-  const handleOpenVersion = (version: any) => {
-    // Close history panel
+  const handleOpenVersion = (version: {
+    version: number | string;
+    location?: string;
+    fileName?: string;
+  }) => {
     setShowVersionHistory(false);
-    
-    console.log("Opening version:", version);
+
+    if (!file?._id || !version?.version) return;
+
+    if (onOpenVersionInViewer) {
+      onOpenVersionInViewer(version);
+      return;
+    }
+
+    void explorerService.openFileVersion(
+      file._id,
+      Number(version.version),
+      version.location || file.fileUrl,
+    );
   };
 
 
@@ -371,11 +398,17 @@ export default function FileDetailTab({ file, onUpdateSuccess }: Props) {
         <div className="absolute inset-0 z-50 bg-white rounded-lg shadow-lg border">
           <VersionHistoryPanel
             file={file}
+            activeViewerVersion={activeViewerVersion}
             onClose={() => setShowVersionHistory(false)}
             onOpenVersion={handleOpenVersion}
             onDownloadVersion={(version) => {
-              // Handle download if needed
-              console.log("Downloading version:", version);
+              if (!file?._id || !version?.version) return;
+
+              void explorerService.downloadFileVersion(
+                file._id,
+                Number(version.version),
+                version.fileName || file.name,
+              );
             }}
           />
         </div>
