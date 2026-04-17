@@ -5,12 +5,13 @@ import {
   TagIcon
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import { useApi } from '@/app/hooks/useApi';
 
 import { useComments } from '@/components/features/explorer/hooks/useComments';
 import CommentList from '@/components/features/explorer/properties/components/comments/CommentList';
 import CommentInput from '@/components/features/explorer/properties/components/comments/CommentInput';
 import { todo2DService } from '@/services/todo2d.service';
-import { RecipientSelector } from '@/components/features/release/RecipientSelector';
+import { RecipientSelector, RecipientOption } from '@/components/features/release/RecipientSelector';
 import { useTags } from '@/components/features/explorer/hooks/useTags';
 
 const formatDateForInput = (dateString?: string) => {
@@ -47,7 +48,7 @@ export default function TodoDetailPanel({
     priority: 'Normal',
     status: 'Open',
     completion: 0,
-    assignee: '',
+    assignees: [] as string[], // Changed to array of IDs
     tags: [] as string[]
   });
 
@@ -68,9 +69,42 @@ export default function TodoDetailPanel({
   } = useComments(todo?._id || todo?.id || "", "todo" as any);
 
   const { tags: availableTags, isLoading: isTagsLoading } = useTags(projectId);
+  const api = useApi();
+  const [projectMembers, setProjectMembers] = useState<any[]>([]);
+  const [membersLoading, setMembersLoading] = useState(false);
+
+  // Fetch project members for name mapping
+  useEffect(() => {
+    if (!projectId) return;
+    
+    const fetchMembers = async () => {
+      try {
+        setMembersLoading(true);
+        const response = await api.get(`/projects/${projectId}/members`);
+        setProjectMembers(response.result || []);
+      } catch (error) {
+        console.error('Failed to fetch members:', error);
+      } finally {
+        setMembersLoading(false);
+      }
+    };
+    
+    fetchMembers();
+  }, [projectId]);
+
+  // Helper: Get member name from ID
+  const getMemberName = (userId: string | any) => {
+    if (!userId) return 'Unknown';
+    const id = typeof userId === 'string' ? userId : userId._id;
+    const member = projectMembers.find(m => m.userId === id);
+    return member?.fullName || member?.name || 'Unknown';
+  };
 
   useEffect(() => {
     if (todo) {
+      // Extract assignees as array of IDs safely
+      const assigneesArray = Array.isArray(todo.assignees) ? todo.assignees : 
+                            (todo.assignee ? [todo.assignee] : []);
       setEditForm({
         title: todo.title || '',
         description: todo.description || '',
@@ -79,7 +113,7 @@ export default function TodoDetailPanel({
         priority: todo.priority || 'Normal',
         status: todo.status || 'New',
         completion: todo.completion || 0,
-        assignee: todo.assignee || '',
+        assignees: assigneesArray.map(a => typeof a === 'string' ? a : a._id),
         tags: todo.tags?.map((t: any) => typeof t === 'string' ? t : t._id) || []
       });
       setIsEditing(initialEditMode);
@@ -118,7 +152,9 @@ export default function TodoDetailPanel({
         priority: editForm.priority,
         status: editForm.status,
         completion: Number(editForm.completion),
-        assignee: editForm.assignee.trim(),
+        // Support both assignees (array) and assignee (string) for backward compatibility
+        assignees: editForm.assignees,
+        assignee: editForm.assignees[0] || undefined,
         tags: editForm.tags
       };
 
@@ -135,6 +171,8 @@ export default function TodoDetailPanel({
 
   const handleCancelEdit = () => {
     setIsEditing(false);
+    const assigneesArray = Array.isArray(todo.assignees) ? todo.assignees : 
+                          (todo.assignee ? [todo.assignee] : []);
     setEditForm({
       title: todo.title || '',
       description: todo.description || '',
@@ -143,7 +181,7 @@ export default function TodoDetailPanel({
       priority: todo.priority || 'Normal',
       status: todo.status || 'New',
       completion: todo.completion || 0,
-      assignee: todo.assignee || '',
+      assignees: assigneesArray.map(a => typeof a === 'string' ? a : a._id),
       tags: todo.tags?.map((t: any) => typeof t === 'string' ? t : t._id) || []
     });
   };
@@ -271,23 +309,22 @@ export default function TodoDetailPanel({
           {/* ===== ASSIGNEE (RecipientSelector) ===== */}
           <div>
             <label className="block mb-1 text-sm text-gray-500">
-              Assigned To
+              Assigned To ({editForm.assignees.length})
             </label>
             <RecipientSelector
               projectId={projectId}
-              onChange={(selectedIds, selectedOptions) => {
+              initialOptions={editForm.assignees.map(id => ({
+                id,
+                label: getMemberName(id),
+                type: 'USER' as const,
+              }))}
+              onChange={(selectedIds) => {
                 setEditForm({
                   ...editForm,
-                  assignee: selectedOptions.length > 0 ? selectedOptions[0].label : "",
+                  assignees: selectedIds,
                 });
               }}
             />
-            {/* Hiển thị người cũ nếu chưa chọn ai mới (Tùy chọn) */}
-            {editForm.assignee && (
-              <div className="mt-1 text-xs text-gray-400">
-                Current: {editForm.assignee}
-              </div>
-            )}
           </div>
 
           <div>
@@ -458,8 +495,31 @@ export default function TodoDetailPanel({
             </div>
 
             <div>
-              <div className="text-[13px] text-gray-500 mb-0.5">Assigned To</div>
-              <div className="text-sm text-gray-800">{todo.assignee || '--'}</div>
+              <div className="text-[13px] text-gray-500 mb-0.5">Assigned To ({(() => {
+                const assigneesArray = Array.isArray(todo.assignees) ? todo.assignees : 
+                                      (todo.assignee ? [todo.assignee] : []);
+                return assigneesArray.length;
+              })()})</div>
+              <div className="text-sm text-gray-800">
+                {(() => {
+                  const assigneesArray = Array.isArray(todo.assignees) ? todo.assignees : 
+                                        (todo.assignee ? [todo.assignee] : []);
+                  if (assigneesArray.length === 0) {
+                    return '--';
+                  }
+                  return assigneesArray.map((user: any, index: number) => {
+                    const name = getMemberName(user);
+                    return (
+                      <span
+                        key={index}
+                        className="inline-block bg-gray-100 rounded px-1.5 py-0.5 text-xs mr-1"
+                      >
+                        {name}
+                      </span>
+                    );
+                  });
+                })()}
+              </div>
             </div>
 
             <div>

@@ -71,11 +71,12 @@ export default function ViewDetailPanel({
   const [isEditing, setIsEditing] = useState(false);
   const [isUpdatingSnapshot, setIsUpdatingSnapshot] = useState(false);
 
-  // State lưu string danh sách IDs cách nhau bằng dấu phẩy
+  // State lưu mảng IDs để chọn share
   const [editForm, setEditForm] = useState({
     name: "",
     description: "",
-    sharedWith: "",
+    sharedWithIds: [] as string[], // Changed to array of IDs
+    sharedWithOptions: [] as any[], // NEW: Store full user objects with email/fullName
     tags: [] as string[],
   });
 
@@ -109,13 +110,24 @@ export default function ViewDetailPanel({
   useEffect(() => {
     if (view) {
       const usersArray = extractUsersArray(view.sharedWith);
+      const sharedWithIds = usersArray
+        .map((u: any) => (typeof u === "string" ? u : u.userId))
+        .filter(Boolean);
+      
+      // Also extract full user options for later use
+      const sharedWithOptions = usersArray.map((u: any) => ({
+        id: typeof u === "string" ? u : u.userId,
+        label: typeof u === "string" ? u : u.fullName || u.label || 'Unknown',
+        fullName: typeof u === "string" ? u : u.fullName,
+        email: typeof u === "string" ? undefined : u.email,
+        type: typeof u === "string" ? 'USER' : u.type || 'USER',
+      })).filter((u: any) => u.id);
+      
       setEditForm({
         name: view.name || "",
         description: view.description || "",
-        // 🌟 FIX: Lấy mảng an toàn rồi mới map và join
-        sharedWith: usersArray
-          .map((u: any) => (typeof u === "string" ? u : u._id))
-          .join(","),
+        sharedWithIds: sharedWithIds,
+        sharedWithOptions: sharedWithOptions,
         tags:
           view.tags?.map((t: any) => (typeof t === "string" ? t : t._id)) || [],
       });
@@ -139,22 +151,22 @@ export default function ViewDetailPanel({
 
     setLoading(true);
     try {
-      // 🌟 FIX: Tách chuỗi "id1,id2" thành mảng ["id1", "id2"]
-      const usersArray = editForm.sharedWith
-        ? editForm.sharedWith
-            .split(",")
-            .map((s) => s.trim())
-            .filter(Boolean)
-        : [];
+      // Use sharedWithOptions which already has email, fullName from RecipientSelector
+      const sharedUserObjects = editForm.sharedWithOptions.map((option: any) => ({
+        id: option.id,
+        label: option.label || option.fullName || 'Unknown',
+        fullName: option.fullName || option.label,
+        email: option.email,
+        type: option.type || 'USER',
+      }));
 
       const payload = {
         name: editForm.name.trim(),
         description: editForm.description.trim(),
         sharedWith: {
           isPublic: false,
-          users: usersArray,
+          users: sharedUserObjects,
         },
-        // tags: editForm.tags, // Tạm đóng nếu Backend chưa map tag
       };
 
       const updated = await view2DService.updateView(view._id, payload);
@@ -172,12 +184,23 @@ export default function ViewDetailPanel({
   const handleCancelEdit = () => {
     setIsEditing(false);
     const usersArray = extractUsersArray(view?.sharedWith);
+    const sharedWithIds = usersArray
+      .map((u: any) => (typeof u === "string" ? u : u.userId))
+      .filter(Boolean);
+    
+    const sharedWithOptions = usersArray.map((u: any) => ({
+      id: typeof u === "string" ? u : u.userId,
+      label: typeof u === "string" ? u : u.fullName || u.label || 'Unknown',
+      fullName: typeof u === "string" ? u : u.fullName,
+      email: typeof u === "string" ? undefined : u.email,
+      type: typeof u === "string" ? 'USER' : u.type || 'USER',
+    })).filter((u: any) => u.id);
+    
     setEditForm({
       name: view?.name || "",
       description: view?.description || "",
-      sharedWith: usersArray
-        .map((u: any) => (typeof u === "string" ? u : u._id))
-        .join(","),
+      sharedWithIds: sharedWithIds,
+      sharedWithOptions: sharedWithOptions,
       tags:
         view?.tags?.map((t: any) => (typeof t === "string" ? t : t._id)) || [],
     });
@@ -290,12 +313,34 @@ export default function ViewDetailPanel({
             <label className="block text-sm text-gray-500 mb-1">
               Share with
             </label>
-            <RecipientSelector
-              projectId={projectId}
-              onChange={(selectedIds) => {
-                setEditForm({ ...editForm, sharedWith: selectedIds.join(",") });
-              }}
-            />
+            {(() => {
+              // Cache usersArray để tránh tính toán nhiều lần
+              const usersArray = extractUsersArray(view.sharedWith);
+              const initialOptions = editForm.sharedWithIds.map(id => {
+                const user = usersArray.find((u: any) => (typeof u === 'string' ? u : u.userId) === id);
+                const label = user 
+                  ? (typeof user === 'string' ? user : user.fullName || user.name || 'Unknown')
+                  : 'Unknown';
+                return {
+                  id,
+                  label,
+                  type: 'USER' as const,
+                };
+              });
+              return (
+                <RecipientSelector
+                  projectId={projectId}
+                  initialOptions={initialOptions}
+                  onChange={(selectedIds, selectedOptions) => {
+                    setEditForm({ 
+                      ...editForm, 
+                      sharedWithIds: selectedIds,
+                      sharedWithOptions: selectedOptions || []
+                    });
+                  }}
+                />
+              );
+            })()}
           </div>
 
           <div>

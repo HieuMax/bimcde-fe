@@ -5,6 +5,11 @@ import { X, MoreVertical, FileText, Download, FolderOpen } from "lucide-react";
 import type { IFile } from "@/types/explorer";
 import { buildFileHistoryRows } from "@/lib/explorer/fileVersionHistory";
 import {
+  isLikelyRasterImageUrl,
+  resolveVersionRowThumbnailSrc,
+} from "@/lib/explorer/fileThumbnail";
+import { explorerService } from "@/services/explorer.service";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -17,6 +22,8 @@ interface VersionHistoryPanelProps {
   onClose: () => void;
   onOpenVersion?: (version: any) => void;
   onDownloadVersion?: (version: any) => void;
+  /** Highlights the revision currently rendered in the main viewer (when parent tracks preview). */
+  activeViewerVersion?: number | null;
 }
 
 export default function VersionHistoryPanel({
@@ -25,14 +32,19 @@ export default function VersionHistoryPanel({
   onClose,
   onOpenVersion,
   onDownloadVersion,
+  activeViewerVersion,
 }: VersionHistoryPanelProps) {
   if (!file) return null;
 
-  const currentVer = Number(file.currentVersion) || 1;
-  let versions: any[] = buildFileHistoryRows(file as IFile);
+  const serverCurrentVer = Number(file.currentVersion) || 1;
+  const viewerActiveVer =
+    activeViewerVersion != null && activeViewerVersion !== undefined
+      ? Number(activeViewerVersion)
+      : serverCurrentVer;
+  const versions: any[] = buildFileHistoryRows(file as IFile);
 
   if (versions.length === 0) {
-    for (let i = currentVer; i >= 1; i--) {
+    for (let i = serverCurrentVer; i >= 1; i--) {
       const existingVer =
         file.versions?.find((v: any) => v.version === i) ||
         file.versionHistory?.find((v: any) => v.version === i);
@@ -68,11 +80,32 @@ export default function VersionHistoryPanel({
     });
   };
 
-  const renderThumbnail = (ver: any, isCurrent: boolean) => {
-    const imageUrl = isCurrent ? (currentThumbnail || file.previewSrc) : (ver.previewSrc || ver.thumbnail);
+  const renderThumbnail = (ver: any) => {
+    const rowThumb = resolveVersionRowThumbnailSrc({
+      location: ver.location,
+      previewSrc: ver.previewSrc,
+      thumbnail: ver.thumbnail,
+      mimeType: ver.mimeType,
+      fileName: ver.fileName || ver.name,
+    });
 
-    if (imageUrl && (imageUrl.startsWith("data:image") || imageUrl.match(/\.(jpeg|jpg|gif|png|webp)$/i))) {
-      return <img src={imageUrl} alt="thumbnail" className="w-full h-full object-cover" />;
+    const imageUrl =
+      rowThumb ||
+      (currentThumbnail && Number(ver.version) === serverCurrentVer
+        ? currentThumbnail
+        : null);
+
+    if (
+      imageUrl &&
+      (imageUrl.startsWith("data:image") || isLikelyRasterImageUrl(imageUrl))
+    ) {
+      return (
+        <img
+          src={imageUrl}
+          alt=""
+          className="w-full h-full object-cover"
+        />
+      );
     }
 
     const fallbackUrl = (ver.location || file.fileUrl || "").toLowerCase();
@@ -98,6 +131,36 @@ export default function VersionHistoryPanel({
     return <FileText className="text-slate-400" size={20} />;
   };
 
+  const handleOpenVersion = async (ver: any) => {
+    if (onOpenVersion) {
+      onOpenVersion(ver);
+      return;
+    }
+
+    if (!file?._id || !ver?.version) return;
+
+    await explorerService.openFileVersion(
+      file._id,
+      Number(ver.version),
+      ver.location || file.fileUrl,
+    );
+  };
+
+  const handleDownloadVersion = async (ver: any) => {
+    if (onDownloadVersion) {
+      onDownloadVersion(ver);
+      return;
+    }
+
+    if (!file?._id || !ver?.version) return;
+
+    await explorerService.downloadFileVersion(
+      file._id,
+      Number(ver.version),
+      ver.fileName || ver.name || file.name,
+    );
+  };
+
   return (
     <div className="w-full h-full bg-white flex flex-col">
       {/* HEADER */}
@@ -120,8 +183,8 @@ export default function VersionHistoryPanel({
         ) : (
           <div className="flex flex-col">
             {versions.map((ver: any, index: number) => {
-              // Phiên bản có số version bằng currentVer là bản hiện tại
-              const isCurrent = ver.version === currentVer;
+              const isViewerActive = Number(ver.version) === viewerActiveVer;
+              const isServerTip = Number(ver.version) === serverCurrentVer;
 
               const displayFileName = ver.fileName || ver.name || file.name;
 
@@ -133,11 +196,11 @@ export default function VersionHistoryPanel({
                 <div
                   key={ver.version || index}
                   className={`flex gap-3 p-3 border-b border-gray-100 transition-colors ${
-                    isCurrent ? "bg-[#eef4f9]" : "hover:bg-gray-50"
+                    isViewerActive ? "bg-[#eef4f9]" : "hover:bg-gray-50"
                   }`}
                 >
-                  <div className="w-14 h-10 bg-slate-50 border border-gray-200 shadow-sm flex-shrink-0 flex items-center justify-center overflow-hidden rounded-sm">
-                    {renderThumbnail(ver, isCurrent)}
+                    <div className="w-14 h-10 bg-slate-50 border border-gray-200 shadow-sm flex-shrink-0 flex items-center justify-center overflow-hidden rounded-sm">
+                    {renderThumbnail(ver)}
                   </div>
 
                   {/* Info Area */}
@@ -158,6 +221,16 @@ export default function VersionHistoryPanel({
                     </div>
                     <div className="text-xs text-gray-600 mt-0.5 truncate">
                       {authorName}
+                      {isServerTip && (
+                        <span className="ml-2 text-[11px] font-normal text-blue-600">
+                          (latest)
+                        </span>
+                      )}
+                      {isViewerActive && !isServerTip && (
+                        <span className="ml-2 text-[11px] font-normal text-sky-700">
+                          (viewing)
+                        </span>
+                      )}
                     </div>
                     <div className="text-xs text-gray-500 mt-0.5">
                       {formatDate(ver.createdAt || ver.date)}
@@ -175,14 +248,14 @@ export default function VersionHistoryPanel({
                       <DropdownMenuContent align="end" className="w-48 shadow-lg">
                         <DropdownMenuItem
                           className="cursor-pointer py-2"
-                          onClick={() => onOpenVersion?.(ver)}
+                          onClick={() => void handleOpenVersion(ver)}
                         >
                           <FolderOpen className="w-4 h-4 mr-2 text-gray-500" />
                           Open
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           className="cursor-pointer py-2 text-[#005a9e]"
-                          onClick={() => onDownloadVersion?.(ver)}
+                          onClick={() => void handleDownloadVersion(ver)}
                         >
                           <Download className="w-4 h-4 mr-2 text-[#005a9e]" />
                           Download original

@@ -233,11 +233,12 @@ export const explorerService = {
   downloadItem: async (
     id: string,
     type: "file" | "folder",
-    fileName: string
+    fileName: string,
+    version?: number,
   ) => {
     try {
       const blob = await api.get(`/files/download`, {
-        params: { id, type },
+        params: { id, type, ...(version ? { version } : {}) },
         responseType: "blob",
       });
 
@@ -260,6 +261,37 @@ export const explorerService = {
       console.error("Download failed", error);
       throw error;
     }
+  },
+
+  buildVersionDownloadUrl: (fileId: string, version: number) => {
+    const encodedId = encodeURIComponent(fileId);
+    const encodedVersion = encodeURIComponent(String(version));
+    return `/api/files/download?id=${encodedId}&type=file&version=${encodedVersion}`;
+  },
+
+  openFileVersion: async (
+    fileId: string,
+    version: number,
+    fallbackUrl?: string,
+  ) => {
+    const directUrl = (fallbackUrl || "").trim().replace(/ /g, "%20");
+    const targetUrl =
+      directUrl || explorerService.buildVersionDownloadUrl(fileId, version);
+
+    window.open(targetUrl, "_blank", "noopener,noreferrer");
+  },
+
+  downloadFileVersion: async (
+    fileId: string,
+    version: number,
+    fileName: string,
+  ) => {
+    return explorerService.downloadItem(
+      fileId,
+      "file",
+      fileName,
+      version,
+    );
   },
 
   moveItem: async (

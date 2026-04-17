@@ -2,27 +2,51 @@
 
 import Image from "next/image";
 import { useEffect, useState } from "react";
-import { ArrowLeft, Folder, Download, Loader2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import {
+  ArrowLeft,
+  Folder,
+  Download,
+  FolderOpen,
+  Loader2,
+  Share2,
+} from "lucide-react";
 import { format } from "date-fns";
 import { filesize } from "filesize";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 
-import { IFile, IFolder, IFolderVersion } from "@/types/explorer";
+import { IFile, IFolder } from "@/types/explorer";
 import { explorerService } from "@/services/explorer.service";
 import {
   buildFileHistoryRows,
   getAllFolderVersionsSortedNewestFirst,
 } from "@/lib/explorer/fileVersionHistory";
+import {
+  resolveVersionRowThumbnailSrc,
+  type VersionThumbRow,
+} from "@/lib/explorer/fileThumbnail";
+import { ALLOWED_FILE_EXTENSIONS } from "@/lib/explorer/uploadConstraints";
 
 interface Props {
   item: IFile | IFolder;
+  /** Project scope — required to open a revision in the project 2D/3D viewer. */
+  projectId: string;
   onBack: () => void;
+  /** When set, each file revision row can open Share pre-locked to that version. */
+  onShareVersion?: (version: number) => void;
 }
 
-export default function HistoryView({ item, onBack }: Props) {
+export default function HistoryView({
+  item,
+  projectId,
+  onBack,
+  onShareVersion,
+}: Props) {
+  const router = useRouter();
   const isFile = "mimeType" in item;
   const [resolvedFile, setResolvedFile] = useState<IFile | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
@@ -70,6 +94,69 @@ export default function HistoryView({ item, onBack }: Props) {
     ? getAllFolderVersionsSortedNewestFirst(item as IFolder)
     : [];
 
+  const handleOpenFileVersion = (ver: (typeof fileHistoryRows)[number]) => {
+    if (!fileForList?._id || !projectId) {
+      toast.error("Missing project context to open the viewer.");
+      return;
+    }
+
+    const fileExt = fileForList.name.split(".").pop()?.toLowerCase();
+    if (!fileExt) return;
+
+    const IFC_SET = new Set(["ifc"]);
+    const DOC_SET = new Set<string>(
+      ALLOWED_FILE_EXTENSIONS.filter((e) => e !== "ifc"),
+    );
+
+    if (IFC_SET.has(fileExt)) {
+      const url = ver.location || fileForList.location;
+      if (!url) {
+        toast.error("No URL for this version.");
+        return;
+      }
+      let locationUrl = url;
+      try {
+        const decoded = decodeURIComponent(url);
+        if (/^https?:\/\//i.test(decoded)) {
+          locationUrl = decoded;
+        }
+      } catch {
+        /* keep original */
+      }
+      router.push(
+        `/projects/${projectId}/viewer3d?urls=${encodeURIComponent(JSON.stringify([locationUrl]))}`,
+      );
+      return;
+    }
+
+    if (DOC_SET.has(fileExt)) {
+      const v = Number(ver.version);
+      router.push(
+        `/projects/${projectId}/viewer/${fileForList._id}?viewVersion=${encodeURIComponent(String(v))}`,
+      );
+      return;
+    }
+
+    toast.error("This file type cannot be opened in the project viewer.");
+  };
+
+  const handleDownloadFileVersion = async (
+    ver: (typeof fileHistoryRows)[number],
+  ) => {
+    if (!fileForList?._id) return;
+
+    try {
+      await explorerService.downloadFileVersion(
+        fileForList._id,
+        Number(ver.version),
+        ver.fileName || fileForList.name,
+      );
+    } catch (error) {
+      console.error("Download version failed:", error);
+      toast.error("Could not download this version");
+    }
+  };
+
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between p-4 border-b border-border h-[70px] shrink-0">
@@ -116,7 +203,11 @@ export default function HistoryView({ item, onBack }: Props) {
                     <div className="w-10 h-10 relative overflow-hidden shrink-0 bg-slate-100 rounded-full flex items-center justify-center border">
                       <Image
                         src={
-                          (item as IFile).thumbnail || "/placeholder-image.png"
+                          resolveVersionRowThumbnailSrc(
+                            ver as VersionThumbRow,
+                          ) ||
+                          ver.location ||
+                          "/placeholder-image.png"
                         }
                         alt={item.name}
                         fill
@@ -154,22 +245,47 @@ export default function HistoryView({ item, onBack }: Props) {
                         )}
                       </p>
                       <p className="text-muted-foreground/70 text-xs mt-0.5">
-                        {format(new Date(versionDate), "MMM dd, yyyy HH:mm")}
+                        {format(
+                          new Date(versionDate ?? ver.createdAt ?? Date.now()),
+                          "MMM dd, yyyy HH:mm",
+                        )}
                         {` • ${filesize(ver.size ?? 0)}`}
                       </p>
                     </div>
 
-                    {ver.location && (
+                    <div className="flex shrink-0 items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => window.open(ver.location, "_blank")}
+                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                        onClick={() => handleOpenFileVersion(ver)}
+                        title="Open this version"
+                      >
+                        <FolderOpen className="h-4 w-4" />
+                      </Button>
+
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                        onClick={() => void handleDownloadFileVersion(ver)}
                         title="Download this version"
                       >
                         <Download className="h-4 w-4" />
                       </Button>
-                    )}
+
+                      {onShareVersion && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                          onClick={() => onShareVersion(Number(ver.version))}
+                          title="Share this revision"
+                        >
+                          <Share2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
                   {index < fileHistoryRows.length - 1 && <Separator />}
                 </div>

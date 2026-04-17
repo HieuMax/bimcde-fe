@@ -1053,12 +1053,12 @@ export function Topics({
                 {selectedTopic3D.references?.length || 0}
               </span>
             </button>
-            {/* <button
+            <button
               className={`flex-1 flex justify-center py-3 text-sm transition-colors ${activeDetailTab === "models" ? "text-[#005a9e] border-b-2 border-[#005a9e] font-semibold" : "text-slate-500 hover:text-slate-700"}`}
               onClick={() => setActiveDetailTab("models")}
             >
               <Box className="w-4 h-4" />
-            </button> */}
+            </button>
           </div>
 
           {/* Tab Nội dung (Views) */}
@@ -1099,22 +1099,7 @@ export function Topics({
                             ? "border-[#005a9e]"
                             : "border-transparent hover:border-slate-300"
                         }`}
-                        // onClick={() => {
-                        //   setActiveSnapshotIndex(index);
-                        //   if (onRestoreView && snap.viewState) {
-                        //     setTimeout(() => {
-                        //       // onRestoreView(snap.viewState, snap.items || []);
-                        //       onRestoreView(
-                        //         snap.viewState,
-                        //         (snap.items || []).map((group: any) => ({
-                        //           fileUrl: group.fileUrl,
-                        //           modelID: group.modelId,
-                        //           expressId: group.expressId?.map((id: any) => Number(id)) || []
-                        //         }))
-                        //       );
-                        //     }, 200);
-                        //   }
-                        // }}
+
                       onClick={() => {
                         setActiveSnapshotIndex(index);
                         if (snap.viewState) {
@@ -1328,132 +1313,15 @@ export function Topics({
 
               return (
                 <div className="p-4">
-                  {/* SECTION 1: MARKER */}
-                  <div className="mb-6">
-                    {/* Tiêu đề & Nút 3 chấm (Chỉ hiện khi đã có Marker) */}
-                    <div className="flex items-center justify-between mb-2">
-                      <h3 className="text-[13px] font-semibold text-slate-700">
-                        Marker
-                      </h3>
+                  
 
-                      {selectedTopic3D.viewState?.marker && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <button className="text-slate-400 hover:text-slate-700 outline-none">
-                              <MoreVertical className="w-4 h-4" />
-                            </button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end" className="w-40">
-                            <DropdownMenuItem
-                              className="text-red-600 focus:text-red-600 focus:bg-red-50 cursor-pointer"
-                              onClick={() => {
-                                // Logic Xóa Marker
-                                const updatedViewState = {
-                                  ...selectedTopic3D.viewState,
-                                };
-                                delete updatedViewState.marker;
-
-                                editInfoMutation.mutate({
-                                  id: selectedTopic3D._id,
-                                  payload: { viewState: updatedViewState },
-                                });
-                                restoreTopicView(
-                                  updatedViewState,
-                                  selectedTopic3D.items,
-                                  selectedTopic3D.viewState?.selection,
-                                );
-                              }}
-                            >
-                              Remove marker
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
-                    </div>
-
-                    {/* NỘI DUNG MARKER (TÙY TRẠNG THÁI) */}
-                    {selectedTopic3D.viewState?.marker ? (
-                      // Trạng thái 1: ĐÃ CÓ MARKER (Hiện tọa độ XYZ)
-                      <div className="flex items-center gap-3 text-sm text-slate-600 mt-2">
-                        <div className="w-5 h-5 rounded-full bg-red-600 flex items-center justify-center text-white font-bold text-[11px] shadow-sm">
-                          !
-                        </div>
-                        <span className="text-[13px]">
-                          | X{" "}
-                          {selectedTopic3D.viewState.marker.x?.toFixed(0) || 0}{" "}
-                          mm | Y{" "}
-                          {selectedTopic3D.viewState.marker.y?.toFixed(0) || 0}{" "}
-                          mm | Z{" "}
-                          {selectedTopic3D.viewState.marker.z?.toFixed(0) || 0}{" "}
-                          mm
-                        </span>
-                      </div>
-                    ) : (
-                      // Trạng thái 2 & 3: CHƯA CÓ MARKER (Hiện Text và Nút Add/Cancel)
-                      <div className="flex flex-col gap-2 mt-1">
-                        <p className="text-[13px] text-slate-600 leading-relaxed mb-1">
-                          Link this topic to a specific location in the model by
-                          adding a marker.
-                        </p>
-
-                        {isAddingMarker ? (
-                          <Button
-                            variant="secondary"
-                            className="w-full bg-[#c2c5c9] hover:bg-[#b0b3b8] text-slate-800 font-medium h-9"
-                            onClick={() => {
-                              setIsAddingMarker(false);
-                              if (onAddMarkerCancel) onAddMarkerCancel(); // 👈 Báo cho Viewer hủy đợi click
-                            }}
-                          >
-                            Cancel
-                          </Button>
-                        ) : (
-                          <Button
-                            variant="secondary"
-                            className="w-full bg-[#e2e3e5] hover:bg-[#d1d2d4] text-slate-700 font-normal h-9"
-                            onClick={() => {
-                              setIsAddingMarker(true);
-
-                              // 👈 GỌI HÀM NÀY ĐỂ BÁO IFCVIEWER BẬT CHẾ ĐỘ ĐỢI CLICK
-                              if (onAddMarkerStart) {
-                                onAddMarkerStart((point) => {
-                                  // Hàm này sẽ tự động chạy khi bạn click vào mô hình 3D
-                                  editInfoMutation.mutate(
-                                    {
-                                      id: selectedTopic3D._id,
-                                      payload: {
-                                        viewState: {
-                                          ...selectedTopic3D.viewState,
-                                          marker: point,
-                                        },
-                                      },
-                                    },
-                                    {
-                                      onSuccess: () => setIsAddingMarker(false),
-                                    },
-                                  );
-                                });
-                              }
-                            }}
-                            disabled={editInfoMutation.isPending}
-                          >
-                            {editInfoMutation.isPending
-                              ? "Adding..."
-                              : "Add a marker"}
-                          </Button>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* SECTION 2: LINKED MODEL OBJECTS */}
+                  {/* LINKED MODEL OBJECTS */}
                   <div>
                     <div className="flex items-center justify-between mb-3">
                       <h3 className="text-[13px] font-semibold text-slate-700">
                         Linked model objects ({linkedCount})
                       </h3>
 
-                      {/* HIỆN MENU UNLINK ALL NẾU CÓ ITEM ĐƯỢC LINK */}
                       {linkedCount > 0 ? (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -1495,7 +1363,6 @@ export function Topics({
                     </div>
 
                     <div className="flex flex-col gap-2">
-                      {/* Nút 1: View model objects (Tự động bôi sáng các vật thể đã lưu) */}
                       <Button
                         variant="secondary"
                         className="w-full bg-[#e2e3e5] hover:bg-[#d1d2d4] text-slate-700 font-normal h-9"
@@ -1521,26 +1388,21 @@ export function Topics({
                             if (capture3DState) {
                               const { viewState } = await capture3DState();
 
-                              // 1. Lấy danh sách cũ đã lưu và danh sách mới vừa chọn
                               const oldSelection =
                                 selectedTopic3D.viewState?.selection || [];
                               const newSelection = viewState.selection || [];
 
-                              // 2. GỘP CHUNG VÀ LỌC TRÙNG LẶP (Deduplicate)
                               const mergedMap = new Map();
                               [...oldSelection, ...newSelection].forEach(
                                 (sel: any) => {
-                                  // Tạo key duy nhất cho mỗi vật thể
                                   const key = `${sel.modelID}-${sel.expressID}`;
                                   mergedMap.set(key, sel);
                                 },
                               );
-                              // Đây là mảng selection cuối cùng (đã cộng dồn)
                               const finalSelection = Array.from(
                                 mergedMap.values(),
                               );
 
-                              // 3. GOM NHÓM THEO FILE ĐỂ ĐÚNG CHUẨN SCHEMA DB
                               const groupedItems: any[] = [];
                               finalSelection.forEach((sel: any) => {
                                 let group = groupedItems.find(
@@ -1554,7 +1416,6 @@ export function Topics({
                                   };
                                   groupedItems.push(group);
                                 }
-                                // Thêm expressId vào mảng nếu chưa có
                                 if (
                                   sel.expressID !== undefined &&
                                   !group.expressId.includes(
@@ -1565,7 +1426,6 @@ export function Topics({
                                 }
                               });
 
-                              // 4. LƯU LÊN DATABASE
                               editInfoMutation.mutate({
                                 id: selectedTopic3D._id,
                                 payload: {
