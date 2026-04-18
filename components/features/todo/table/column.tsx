@@ -46,11 +46,16 @@ export const columnsTable: ColumnDef<any>[] = [
     header: "Assignee",
     cell: ({ row }) => (
       <div className="flex items-center gap-1 text-ellipsis">
-        {row?.original?.assignees?.map((assignee: any, index: any) => (
-          <div className="" key={index}>
-            {assignee.name || assignee.label},
-          </div>
-        ))}
+        {(() => {
+          const list = row?.original?.assignees || [];
+          if (!list || list.length === 0) return <div>Unassigned</div>;
+          const namesArr = list
+            .map((assignee: any) => assignee?.name || assignee?.label || "")
+            .filter((n: string) => n && n.trim().length > 0);
+          const max = 2;
+          const display = namesArr.length > max ? `${namesArr.slice(0, max).join(", ")}, ...` : namesArr.join(", ");
+          return <div className="truncate">{display}</div>;
+        })()}
       </div>
     ),
   },
@@ -62,13 +67,13 @@ export const columnsTable: ColumnDef<any>[] = [
       <div className="">
         {row?.original?.createdAt
           ? new Date(row.original.createdAt).toLocaleString("en-US", {
-              month: "short",
-              day: "2-digit",
-              year: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-              hour12: true,
-            })
+            month: "short",
+            day: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true,
+          })
           : ""}
       </div>
     ),
@@ -81,13 +86,13 @@ export const columnsTable: ColumnDef<any>[] = [
       <div className="">
         {row?.original?.updatedAt
           ? new Date(row.original.updatedAt).toLocaleString("en-US", {
-              month: "short",
-              day: "2-digit",
-              year: "numeric",
-              hour: "2-digit",
-              minute: "2-digit",
-              hour12: true,
-            })
+            month: "short",
+            day: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true,
+          })
           : ""}
       </div>
     ),

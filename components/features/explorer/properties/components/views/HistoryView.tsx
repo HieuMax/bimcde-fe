@@ -175,7 +175,7 @@ export default function HistoryView({
         </div>
       </div>
 
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-h-0">
         <div className="flex flex-col">
           {isFile && loadingDetail && (
             <div className="flex items-center justify-center gap-2 py-3 text-muted-foreground text-xs border-b border-border/60">

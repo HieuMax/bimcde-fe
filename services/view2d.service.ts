@@ -19,6 +19,11 @@ export const view2DService = {
     return data as View2DItem[];
   },
 
+  getViewById: async (viewId: string) => {
+    const data = await api.get(`${BASE_URL}/${viewId}`);
+    return data as View2DItem;
+  },
+
   /**
    * GIỮ NGUYÊN createView
    */

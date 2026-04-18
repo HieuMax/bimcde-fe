@@ -22,6 +22,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { format } from "date-fns";
+import { useAuth } from "@/app/context/authContext";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -84,6 +85,11 @@ export const ViewPropertiesPanel: React.FC<ViewPropertiesPanelProps> = ({
   const prevViewIdRef = useRef<string | null>(null);
 
   const { tags: projectTags, isLoading: tagsLoading } = useTags(projectId);
+
+  const { user } = useAuth();
+  const canDeleteGlobal = user?.role === "ADMIN";
+  const ownerId = typeof view.createdBy === "string" ? view.createdBy : (view.createdBy as any)?._id;
+  const canDeleteForView = canDeleteGlobal || ownerId === user?._id;
 
   useEffect(() => {
     if (editIntent) {
@@ -301,8 +307,11 @@ export const ViewPropertiesPanel: React.FC<ViewPropertiesPanelProps> = ({
                 </Button>
                 <Button
                   variant="ghost"
-                  className="flex flex-col items-center gap-1 h-auto py-2 px-3 hover:bg-red-50 hover:text-red-600"
-                  onClick={() => onDelete(view)}
+                  className={`flex flex-col items-center gap-1 h-auto py-2 px-3 ${canDeleteForView ? "hover:bg-red-50 hover:text-red-600" : "opacity-50 cursor-not-allowed text-gray-400"
+                    }`}
+                  onClick={() => canDeleteForView && onDelete(view)}
+                  disabled={!canDeleteForView}
+                  title={canDeleteForView ? "Delete" : "Only admins or the owner can delete"}
                 >
                   <Trash2 className="h-5 w-5" />
                   <span className="text-[10px] uppercase font-semibold">

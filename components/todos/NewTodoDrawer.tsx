@@ -113,7 +113,7 @@ export function NewTodoDrawer({
   const [topicTypes, setTopicTypes] = useState<IType[]>([]);
   const [topicStatuses, setTopicStatuses] = useState<any[]>([]);
 
-  
+
 
   const { get } = useApi();
   // Initial state helper
@@ -274,7 +274,9 @@ export function NewTodoDrawer({
     }
   }, [open, projectId]);
 
-  // Fetch assignee options when opening
+  // Fetch assignee options when opening. Include formData/currentMode in deps
+  // so we use the latest form state and can ensure assignees are cleared when
+  // creating a new todo.
   useEffect(() => {
     if (open) {
       const fetchAssigneeOptions = async () => {
@@ -309,6 +311,12 @@ export function NewTodoDrawer({
 
           setAvailableAssigneeOptions(nextOptions);
 
+          // If we're creating a new todo, force an empty selection.
+          if (currentMode === "create" || mode === "create") {
+            setSelectedAssigneeOptions([]);
+            return;
+          }
+
           // Set selected options based on latest formData (user edits) first,
           // fallback to todoToEdit value for initial load.
           const currentAssignees =
@@ -325,9 +333,9 @@ export function NewTodoDrawer({
         }
       };
 
-      fetchAssigneeOptions();
+      void fetchAssigneeOptions();
     }
-  }, [open, projectId, todoToEdit]);
+  }, [open, projectId, todoToEdit, formData.assignees, currentMode, mode]);
 
   useEffect(() => {
     if (!open) return
@@ -355,6 +363,22 @@ export function NewTodoDrawer({
         error?.response?.data?.message ||
         error.message ||
         "Failed to create todo";
+      toast.error(msg);
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => todoService.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["todos", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["topic-linked-open-todos"] });
+      toast.success("Todo deleted successfully");
+      handleCloseDrawer();
+      setFormData(defaultState);
+    },
+    onError: (error: AxiosError<{ message?: string }>) => {
+      const msg =
+        error?.response?.data?.message || error.message || "Failed to delete todo";
       toast.error(msg);
     },
   });
@@ -396,7 +420,9 @@ export function NewTodoDrawer({
       priority: formData.priority,
       completion: formData.completion,
       status: formData.status,
-      assignees: formData.assignees.length > 0 ? formData.assignees : undefined,
+      // When editing an existing todo, always include the assignees field
+      // so that clearing all assignees (empty array) is persisted by the API.
+      assignees: todoToEdit ? formData.assignees : formData.assignees.length > 0 ? formData.assignees : undefined,
       type: formData.type,
       tags: formData.tags.length > 0 ? formData.tags : undefined,
       projectId,
@@ -546,7 +572,7 @@ export function NewTodoDrawer({
           zIndex: 50,
         }}>
         <SheetHeader className="border-b px-6 py-4 flex items-center">
-          <div className="flex items-center gap-2 justify-start w-full">
+          <div className="flex items-center gap-2 w-full">
             {currentMode === "edit" && (
               <Button
                 variant="ghost"
@@ -555,6 +581,7 @@ export function NewTodoDrawer({
                 <MoveLeft className="h-4 w-4" />
               </Button>
             )}
+
             <SheetTitle className="text-lg font-semibold">
               {currentMode === "create"
                 ? "New ToDo"
@@ -562,14 +589,31 @@ export function NewTodoDrawer({
                   ? "Edit ToDo"
                   : "View ToDo"}
             </SheetTitle>
-            {currentMode === "view" && todoToEdit?.status != "Closed" && (
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setCurrentMode("edit")}>
-                <Pencil className="h-4 w-4" />
-              </Button>
-            )}
+
+            <div className="flex items-center gap-3 ml-3">
+              {currentMode === "view" && todoToEdit?.status != "Closed" && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setCurrentMode("edit")}>
+                  <Pencil className="h-4 w-4" />
+                </Button>
+              )}
+
+              {currentMode === "edit" && todoToEdit?._id && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="text-destructive"
+                  onClick={() => {
+                    if (!todoToEdit?._id) return;
+                    if (!confirm("Are you sure you want to delete this todo?")) return;
+                    deleteMutation.mutate(todoToEdit._id);
+                  }}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              )}
+            </div>
           </div>
         </SheetHeader>
 
@@ -798,7 +842,7 @@ export function NewTodoDrawer({
             {currentMode === "view" ? (
               <ViewField
                 label="Assignees"
-                value={selectedAssigneeOptions.map((o) => o.name).join(", ")}
+                value={formatAssigneesShort(selectedAssigneeOptions)}
               />
             ) : (
               <div className="space-y-2">
@@ -1143,6 +1187,16 @@ const PriorityDot = ({ priority }: { priority: IPriority | null }) => {
       style={{ backgroundColor: priority.color }}
     />
   );
+};
+
+// Short-format assignees list (first two names, then '...')
+const formatAssigneesShort = (list: IAssigneeTodo[] | undefined | null, max = 2) => {
+  if (!Array.isArray(list) || list.length === 0) return "Unassigned";
+  const names = list
+    .map((a) => a?.name || a?.label || "")
+    .filter((n) => n && n.trim().length > 0);
+  if (names.length === 0) return "Unassigned";
+  return names.length > max ? `${names.slice(0, max).join(", ")}, ...` : names.join(", ");
 };
 
 interface FieldProps {

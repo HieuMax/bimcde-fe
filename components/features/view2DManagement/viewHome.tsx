@@ -958,17 +958,49 @@ export default function DetailView2D({
   // Load File Detail
   useEffect(() => {
     async function load() {
-      const targetId = fileId ?? params.viewId;
-      if (!targetId) return;
-
-      if (!isShareMode) {
-        if (loadedFileIdRef.current === targetId) return;
-        loadedFileIdRef.current = targetId as string;
-      }
-
       try {
         setLoading(true);
         setError(null);
+
+        // Determine what ID to load
+        let fileIdToLoad = fileId;
+        let viewIdToLoad = params.viewId;
+        let viewToAutoLoad: View2DItem | null = null;
+
+        // When opening a view directly (mode="view", no explicit fileId, but viewId in params)
+        // Load the view first to get the associated fileId
+        if (mode === "view" && !fileId && params.viewId) {
+          try {
+            const viewData = await view2DService.getViewById(params.viewId);
+            if (viewData) {
+              viewToAutoLoad = viewData;
+              // Get the file ID from the view
+              const associatedFileId =
+                typeof viewData.fileId === "string"
+                  ? viewData.fileId
+                  : (viewData.fileId as any)?._id;
+              fileIdToLoad = associatedFileId;
+              viewIdToLoad = undefined;
+            } else {
+              // If no view found, assume the route param is actually a fileId
+              fileIdToLoad = params.viewId;
+              viewIdToLoad = undefined;
+            }
+          } catch (err) {
+            // If fetching view by id fails, treat params.viewId as a fileId fallback
+            console.debug("getViewById failed, falling back to treat param as fileId:", err);
+            fileIdToLoad = params.viewId;
+            viewIdToLoad = undefined;
+          }
+        }
+
+        const targetId = fileIdToLoad ?? viewIdToLoad;
+        if (!targetId) return;
+
+        if (!isShareMode) {
+          if (loadedFileIdRef.current === targetId) return;
+          loadedFileIdRef.current = targetId as string;
+        }
 
         const raw: IFile = activeShareToken
           ? await explorerService.getFileDetailPublic(
@@ -1068,7 +1100,26 @@ export default function DetailView2D({
         }
 
         setPages(derivedPages);
-        if (!selectedView) {
+        
+        // If we loaded a view automatically earlier (when no fileId prop), apply its position
+        if (viewToAutoLoad) {
+          setSelectedView(viewToAutoLoad);
+          applyViewPosition(viewToAutoLoad, derivedPages, file);
+        } else if (params.viewId) {
+          // If route contains a viewId (e.g., opened from Views list), try to load and apply it
+          try {
+            const viewDataFetched = await view2DService.getViewById(params.viewId);
+            if (viewDataFetched) {
+              setSelectedView(viewDataFetched);
+              applyViewPosition(viewDataFetched, derivedPages, file);
+            } else if (!selectedView) {
+              setPageIndex(1);
+            }
+          } catch (err) {
+            console.warn("Could not auto-load view from params.viewId:", err);
+            if (!selectedView) setPageIndex(1);
+          }
+        } else if (!selectedView) {
           setPageIndex(1);
         }
       } catch (e) {
@@ -1079,7 +1130,7 @@ export default function DetailView2D({
       }
     }
     load();
-  }, [fileId, params.viewId, activeShareToken, isShareMode]);
+  }, [fileId, params.viewId, activeShareToken, isShareMode, mode, onLoaded]);
 
   useEffect(() => {
     consumedViewVersionQueryKey.current = null;

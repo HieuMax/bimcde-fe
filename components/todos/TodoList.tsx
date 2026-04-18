@@ -268,13 +268,12 @@ export function ToDo({
       onClick={() => handleView(todo)}>
       <div className="flex items-start gap-3">
         <div
-          className={`w-3 h-3 rounded-full mt-0.5 flex-shrink-0 ${
-            todo.priority?.name === "high"
+          className={`w-3 h-3 rounded-full mt-0.5 flex-shrink-0 ${todo.priority?.name === "high"
               ? "bg-destructive"
               : todo.priority?.name === "low"
                 ? "bg-gray-400"
                 : "bg-blue-500"
-          }`}
+            }`}
         />
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
@@ -345,14 +344,7 @@ export function ToDo({
                     Close
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuItem
-                  className="text-destructive"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDelete(todo._id);
-                  }}>
-                  Delete
-                </DropdownMenuItem>
+                {/* Delete moved to detail drawer */}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

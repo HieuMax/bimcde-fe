@@ -111,22 +111,22 @@ export default function ToolbarSection({
   const folderPanelAccess =
     folderItem != null
       ? getFolderIsoPanelAccess(
-          workflowMode,
-          cdeCapabilities,
-          folderItem,
-          currentUserId,
-        )
+        workflowMode,
+        cdeCapabilities,
+        folderItem,
+        currentUserId,
+      )
       : "full";
   const isFolderBasicPanel = !isFile && folderPanelAccess === "basic";
 
   const filePanelAccess =
     isFile && fileItem != null
       ? getFileIsoPanelAccess(
-          workflowMode,
-          cdeCapabilities,
-          fileItem,
-          currentUserId,
-        )
+        workflowMode,
+        cdeCapabilities,
+        fileItem,
+        currentUserId,
+      )
       : "full";
   const isFileBasicPanel = isFile && filePanelAccess === "basic";
   const isIsoAdmin = workflowMode === "ISO_19650" && !!cdeCapabilities?.isProjectAdmin;
@@ -136,6 +136,9 @@ export default function ToolbarSection({
   const isGroupHomeFolder = !isFile && folderItem?.isGroupHomeFolder === true;
   const isIsoAdminRestrictedFolder =
     !isFile && isIsoAdmin && (isRootFolder || isGroupHomeFolder);
+
+  const canManagePermissionsFolder = workflowMode === "NORMAL" ? !!cdeCapabilities?.isProjectAdmin : !isIsoAdminRestrictedFolder;
+  const canManagePermissionsFile = workflowMode === "NORMAL" ? !!cdeCapabilities?.isProjectAdmin : !isFileBasicPanel;
 
   const parentStage = isFile
     ? fileItem?.parentCdeRootStage
@@ -408,32 +411,32 @@ export default function ToolbarSection({
               <span>Download</span>
             </DropdownMenuItem>
 
-        {!isFileBasicPanel && (
-          <>
-            <DropdownMenuItem onClick={onOpenMove} className="cursor-pointer">
-              <FolderInput className="mr-2 h-4 w-4 text-slate-500" />
-              <span>Move to...</span>
-            </DropdownMenuItem>
-            {showIsoRevoke && onIsoRevoke && (
-              <DropdownMenuItem
-                onClick={onIsoRevoke}
-                className="text-amber-800 focus:text-amber-900 focus:bg-amber-50 cursor-pointer"
-              >
-                <Ban className="mr-2 h-4 w-4" />
-                <span>Revoke</span>
-              </DropdownMenuItem>
+            {!isFileBasicPanel && (
+              <>
+                <DropdownMenuItem onClick={onOpenMove} className="cursor-pointer">
+                  <FolderInput className="mr-2 h-4 w-4 text-slate-500" />
+                  <span>Move to...</span>
+                </DropdownMenuItem>
+                {showIsoRevoke && onIsoRevoke && (
+                  <DropdownMenuItem
+                    onClick={onIsoRevoke}
+                    className="text-amber-800 focus:text-amber-900 focus:bg-amber-50 cursor-pointer"
+                  >
+                    <Ban className="mr-2 h-4 w-4" />
+                    <span>Revoke</span>
+                  </DropdownMenuItem>
+                )}
+                {!hideDeleteForIsoRevoke && (
+                  <DropdownMenuItem
+                    onClick={onDelete}
+                    className="text-red-600 focus:text-red-600 focus:bg-red-50 cursor-pointer"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    <span>Delete</span>
+                  </DropdownMenuItem>
+                )}
+              </>
             )}
-            {!hideDeleteForIsoRevoke && (
-              <DropdownMenuItem
-                onClick={onDelete}
-                className="text-red-600 focus:text-red-600 focus:bg-red-50 cursor-pointer"
-              >
-                <Trash2 className="mr-2 h-4 w-4" />
-                <span>Delete</span>
-              </DropdownMenuItem>
-            )}
-          </>
-        )}
 
             <DropdownMenuSeparator />
 

@@ -84,6 +84,7 @@ export default function AddTodoDialog({
   const [moreDetails, setMoreDetails] = useState(false);
   const [selectedUsers, setSelectedUsers] = useState<any[]>([]);
   const [selectedTags, setSelectedTags] = useState<any[]>([]);
+  const [instanceKey, setInstanceKey] = useState(0);
   const [description, setDescription] = useState("");
   const [prioritySelected, setPrioritySelected] = useState({});
   const [dueDate, setDueDate] = useState<Date | undefined>(undefined);
@@ -101,6 +102,28 @@ export default function AddTodoDialog({
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset form field when `open` becomes true
     setSelectedTopicLink(linkedTopicItem ?? null);
   }, [open, linkedTopicItem?.id, linkedTopicItem?.code, linkedTopicItem?.title]); // eslint-disable-line react-hooks/exhaustive-deps -- stable fields only; object identity may change each parent render
+
+  // Reset the form when the dialog opens for creating a new todo
+  useEffect(() => {
+    if (!open) return;
+    setTitle("");
+    setShowError(false);
+    setMoreDetails(false);
+    setSelectedUsers([]);
+    setSelectedTags([]);
+    setDescription("");
+    setPrioritySelected({});
+    setDueDate(undefined);
+    setTypeId(null);
+    setCreateAnother(false);
+    // selectedTopicLink is set by the other effect above
+  }, [open]);
+
+  // Force remount of internal stateful controls (e.g. MultiSelect) when dialog opens
+  useEffect(() => {
+    if (!open) return;
+    setInstanceKey((k) => k + 1);
+  }, [open]);
   const onToggleDetails = () => {
     setMoreDetails(!moreDetails);
   };
@@ -132,17 +155,17 @@ export default function AddTodoDialog({
 
     const priorityUpdate = selectedPriority
       ? {
-          priorityId: selectedPriority._id,
-          name: selectedPriority.name,
-          color: selectedPriority.color,
-        }
+        priorityId: selectedPriority._id,
+        name: selectedPriority.name,
+        color: selectedPriority.color,
+      }
       : null;
 
     const typeUpdate = selectedType
       ? {
-          typeId: selectedType._id,
-          name: selectedType.name,
-        }
+        typeId: selectedType._id,
+        name: selectedType.name,
+      }
       : null;
 
     const userCreateBy = {
@@ -292,6 +315,7 @@ export default function AddTodoDialog({
           <div className="space-y-1">
             <Label>Assignee</Label>
             <MultiSelect
+              key={`users-ms-${instanceKey}`}
               values={selectedUsers}
               onValuesChange={setSelectedUsers}>
               <MultiSelectTrigger className=" w-full min-h-11 h-fit">
@@ -300,7 +324,7 @@ export default function AddTodoDialog({
                   placeholder="Please enter users, groups"
                 />
               </MultiSelectTrigger>
-              <MultiSelectContent className="">
+                <MultiSelectContent className="">
                 {users.length > 0 ? (
                   <MultiSelectGroup>
                     <ScrollArea className="h-44">
@@ -320,7 +344,7 @@ export default function AddTodoDialog({
                 ) : (
                   <p>No users available in this project</p>
                 )}
-              </MultiSelectContent>
+                </MultiSelectContent>
             </MultiSelect>
           </div>
 
@@ -403,6 +427,7 @@ export default function AddTodoDialog({
               <div className="space-y-1">
                 <Label>Tags</Label>
                 <MultiSelect
+                  key={`tags-ms-${instanceKey}`}
                   values={selectedTags}
                   onValuesChange={setSelectedTags}>
                   <MultiSelectTrigger className=" w-full min-h-11 h-fit">

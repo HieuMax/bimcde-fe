@@ -300,7 +300,16 @@ export default function page({
                 (assignee: any) => assignee.assigneeId === currentUserId,
               );
             case "Created by me":
-              return todo.createdBy?.userId === currentUserId;
+              // createdBy can be a string id or a populated object; handle both
+              const createdById = (() => {
+                if (!todo.createdBy) return "";
+                if (typeof todo.createdBy === "string") return todo.createdBy;
+                // try common populated shapes
+                return (
+                  todo.createdBy._id || todo.createdBy.userId || todo.createdBy.id || ""
+                );
+              })();
+              return String(createdById) === String(currentUserId);
             case "Unassigned":
               return !todo.assignees || todo.assignees.length === 0;
 
@@ -503,7 +512,7 @@ export default function page({
   };
   //#endregion
 
-  const handleExcel = (type: String) => {};
+  const handleExcel = (type: String) => { };
   return (
     <div className="flex relative w-full h-full gap-3">
       <div className="   h-full w-full overflow-y-hidden">
@@ -523,7 +532,7 @@ export default function page({
         {/* BODY */}
         <div className="  border-t h-[calc(100%-40px)] w-full">
           {/* FILTER */}
-          <div className="px-6 py-4 flex flex-wrap gap-2">
+          <div className="px-6 py-4 flex gap-2 overflow-x-auto whitespace-nowrap min-h-[56px]">
             <DropDownCheckBox
               title="Owner"
               options={optionsOwner}
@@ -583,6 +592,7 @@ export default function page({
             onRowSelectionChange={handleRowSelectionChange}></DataTable>
         </div>
         <AddTodoDialog
+          key={openDialog ? "dialog-open" : "dialog-closed"}
           open={openDialog}
           users={assigneeData}
           priority={priorityData}
