@@ -91,6 +91,16 @@ export class ThreeScene {
   }
 
   onKeyDown = (event) => {
+    // If the user is typing in a form control, don't interfere.
+    try {
+      const t = event.target;
+      const tag = t && t.tagName ? String(t.tagName).toUpperCase() : "";
+      const isEditable = tag === "INPUT" || tag === "TEXTAREA" || (t && t.isContentEditable);
+      if (isEditable) return;
+    } catch (err) {
+      // ignore
+    }
+
     if (event.code === 'Space') event.preventDefault();
 
     if (this.keys.hasOwnProperty(event.code)) {
@@ -99,6 +109,15 @@ export class ThreeScene {
   }
 
   onKeyUp = (event) => {
+    try {
+      const t = event.target;
+      const tag = t && t.tagName ? String(t.tagName).toUpperCase() : "";
+      const isEditable = tag === "INPUT" || tag === "TEXTAREA" || (t && t.isContentEditable);
+      if (isEditable) return;
+    } catch (err) {
+      // ignore
+    }
+
     if (this.keys.hasOwnProperty(event.code)) {
       this.keys[event.code] = false;
     }

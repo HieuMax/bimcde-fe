@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter, useSearchParams, usePathname } from "next/navigation";
 import { viewService } from "@/services/view.service";
 import { viewService3D } from "@/services/view3d.service";
+import { view2DService } from "@/services/view2d.service";
 import { IView } from "@/types/view";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,13 +33,13 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { useAuth } from "@/app/context/authContext";
 import { UserFilter } from "../activity/UserFilter";
 import { GroupFilter } from "../activity/GroupFilter";
 import { DateFilter } from "../activity/DateFilter";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ViewPropertiesPanel } from "./properties/ViewPropertiesPanel";
 import { ViewBulkPanel } from "./properties/ViewBulkPanel";
-import { view2DService } from "@/services/view2d.service";
 
 // Mock Filter Button component cho giống giao diện
 const FilterButton = ({ label }: { label: string }) => (
@@ -155,6 +156,9 @@ export const ViewList = () => {
     }
   }, [projectId, activeTab, selectedUserIds, selectedGroupIds, dateRange]);
 
+  const { user } = useAuth();
+  const canDeleteGlobal = user?.role === "ADMIN";
+
   useEffect(() => {
     if (projectId) {
       fetchViews();
@@ -184,7 +188,7 @@ export const ViewList = () => {
           router.replace(`${pathname}?${params.toString()}`);
           return;
         }
-      } catch {}
+      } catch { }
 
       try {
         const v2d = await viewService.getViewById(openViewId);
@@ -194,7 +198,7 @@ export const ViewList = () => {
           params.set("type", "2D");
           router.replace(`${pathname}?${params.toString()}`);
         }
-      } catch {}
+      } catch { }
     })();
   }, [searchParams, views, loading, router, pathname]);
 
@@ -305,12 +309,12 @@ export const ViewList = () => {
         prev.map((v) =>
           v._id === view._id
             ? {
-                ...v,
-                name: res.title,
-                description: res.description ?? "",
-                tags: Array.isArray(res.tags) ? res.tags : [],
-                updatedAt: res.updatedAt,
-              }
+              ...v,
+              name: res.title,
+              description: res.description ?? "",
+              tags: Array.isArray(res.tags) ? res.tags : [],
+              updatedAt: res.updatedAt,
+            }
             : v,
         ),
       );
@@ -328,12 +332,12 @@ export const ViewList = () => {
       prev.map((v) =>
         v._id === view._id
           ? {
-              ...v,
-              name: res.name,
-              description: res.description ?? "",
-              tags: res.tags ?? [],
-              updatedAt: res.updatedAt,
-            }
+            ...v,
+            name: res.name,
+            description: res.description ?? "",
+            tags: res.tags ?? [],
+            updatedAt: res.updatedAt,
+          }
           : v,
       ),
     );
@@ -397,7 +401,12 @@ export const ViewList = () => {
         newUrlsParams,
       )}`;
     } else {
-      router.push(`/projects/${projectId}/viewer/${view._id}`);
+      const fileId = view?.fileId?._id || (view as any).fileId as string;
+      // Navigate using the view id as the route param and include fileId as query
+      // so the viewer page has both viewId (route) and fileId (query) available.
+      router.push(
+        `/projects/${projectId}/viewer/${encodeURIComponent(view._id)}?fileId=${encodeURIComponent(String(fileId))}`,
+      );
     }
   };
 
@@ -411,9 +420,8 @@ export const ViewList = () => {
     <div className="flex min-h-[93.9vh] relative overflow-hidden bg-white">
       {/* MAIN CONTENT */}
       <div
-        className={`flex flex-col h-full flex-1 transition-all duration-300 ${
-          isPanelOpen ? "mr-0 sm:mr-80" : "mr-0"
-        }`}
+        className={`flex flex-col h-full flex-1 transition-all duration-300 ${isPanelOpen ? "mr-0 sm:mr-80" : "mr-0"
+          }`}
       >
         {/* 1. Header & Tabs */}
         <div className="px-6 pt-6 pb-0 border-b border-gray-200">
@@ -522,6 +530,11 @@ export const ViewList = () => {
               <TableBody>
                 {views.map((view) => {
                   const isSelected = selectedIds.has(view._id);
+                  const ownerId =
+                    typeof view.createdBy === "string"
+                      ? view.createdBy
+                      : (view.createdBy as any)?._id;
+                  const canDeleteForView = canDeleteGlobal || ownerId === user?._id;
                   // 🌟 Lấy ảnh từ thumbnailUrl hoặc previewSrc
                   const imageUrl =
                     view.thumbnailUrl || (view as any).previewSrc;
@@ -606,8 +619,22 @@ export const ViewList = () => {
                               <Box className="mr-2 h-4 w-4" /> Open in Viewer
                             </DropdownMenuItem>
                             <DropdownMenuItem
-                              onClick={() => handleDelete(view)}
-                              className="text-red-600 focus:text-red-600 focus:bg-red-50"
+                              onClick={(e) => {
+                                if (!canDeleteForView) {
+                                  e.preventDefault();
+                                  return;
+                                }
+                                handleDelete(view);
+                              }}
+                              className={`${canDeleteForView
+                                ? "text-red-600 focus:text-red-600 focus:bg-red-50"
+                                : "opacity-50 cursor-not-allowed text-gray-400"
+                                }`}
+                              title={
+                                canDeleteForView
+                                  ? "Delete"
+                                  : "Only admins or the owner can delete"
+                              }
                             >
                               <Trash2 className="mr-2 h-4 w-4" /> Delete
                             </DropdownMenuItem>
@@ -629,11 +656,10 @@ export const ViewList = () => {
             bg-white shadow-lg border-l z-20 flex flex-col
             fixed inset-0 w-full h-full
             transition-opacity duration-200
-            ${
-              isPanelOpen
-                ? "opacity-100 visible pointer-events-auto"
-                : "opacity-0 invisible pointer-events-none"
-            }
+            ${isPanelOpen
+            ? "opacity-100 visible pointer-events-auto"
+            : "opacity-0 invisible pointer-events-none"
+          }
             sm:absolute sm:inset-auto sm:top-0 sm:right-0 sm:bottom-0 sm:w-[320px] 
             sm:opacity-100 sm:visible sm:pointer-events-auto
             sm:transition-transform sm:duration-300

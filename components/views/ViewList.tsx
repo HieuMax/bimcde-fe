@@ -245,11 +245,18 @@ export function ViewList({
                             {/* Thumbnail Image */}
                             <div
                                 className="aspect-video w-full bg-slate-100 cursor-pointer relative overflow-hidden"
-                                onClick={() => onRestoreView(view)}
+                                onClick={() => onRestoreView && onRestoreView(view.viewState, (view as any).items || [])}
                             >
+                                {/* Prefer explicit thumbnail from viewState, fall back to previewSrc */}
                                 {view.viewState?.thumbnail ? (
                                     <img
                                         src={view.viewState.thumbnail}
+                                        alt={view.title}
+                                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                                    />
+                                ) : (view as any).previewSrc ? (
+                                    <img
+                                        src={(view as any).previewSrc}
                                         alt={view.title}
                                         className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                                     />

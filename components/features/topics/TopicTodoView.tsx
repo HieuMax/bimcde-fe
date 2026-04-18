@@ -55,7 +55,9 @@ function formatTodoAssignees(raw: unknown): string {
       return obj.name ?? obj.label ?? obj.assigneeId ?? "";
     })
     .filter((x) => x.trim().length > 0);
-  return names.length > 0 ? names.join(", ") : "Unassigned";
+  if (names.length === 0) return "Unassigned";
+  const max = 2;
+  return names.length > max ? `${names.slice(0, max).join(", ")}, ...` : names.join(", ");
 }
 
 /** Minimal topic identity (matches dashboard Topic or 3D TopicItem). */

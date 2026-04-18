@@ -29,4 +29,30 @@ client.interceptors.request.use((config) => {
   return config;
 });
 
-// Response interceptor will be added in authContext
+// Global response interceptor: show server error messages as toasts (client-side only).
+// Auth-specific 401 handling is still done in `authContext`.
+try {
+  // Only attach in environments where `window` exists (avoid SSR).
+  if (typeof window !== "undefined") {
+    // Lazy import toast to avoid SSR import issues
+    const { toast } = require("sonner");
+    client.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        const status = error?.response?.status;
+        const msg = error?.response?.data?.message || error?.message;
+        // Skip 401 here because authContext handles refresh/retry
+        if (status !== 401 && msg) {
+          try {
+            toast.error(msg);
+          } catch (e) {
+            // swallow toast errors
+          }
+        }
+        return Promise.reject(error);
+      },
+    );
+  }
+} catch (e) {
+  // Fail silently if toast or interceptor setup isn't available
+}

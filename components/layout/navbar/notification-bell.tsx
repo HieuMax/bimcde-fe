@@ -43,10 +43,38 @@ export function BellComponent() {
 
     // 🟢 NEW
     onNotificationNew((newNotification) => {
+      // Normalize incoming notification from socket so UI doesn't break
+      const normalized: INotification = {
+        _id:
+          newNotification._id ??
+          newNotification.id ??
+          `temp_${Date.now()}_${Math.random().toString(36).slice(2)}`,
+        userId: newNotification.userId ?? user._id ?? "",
+        title: newNotification.title ?? "Notification",
+        content: newNotification.content ?? "",
+        isRead: typeof newNotification.isRead === "boolean" ? newNotification.isRead : false,
+        url: newNotification.url,
+        createdAt:
+          typeof newNotification.createdAt === "string"
+            ? newNotification.createdAt
+            : newNotification.createdAt
+              ? new Date(newNotification.createdAt).toISOString()
+              : new Date().toISOString(),
+        updatedAt:
+          typeof newNotification.updatedAt === "string"
+            ? newNotification.updatedAt
+            : newNotification.updatedAt
+              ? new Date(newNotification.updatedAt).toISOString()
+              : new Date().toISOString(),
+      };
+
       queryClient.setQueryData(
         ["notifications", user._id],
-        (old: INotification[] = []) => [newNotification, ...old],
+        (old: INotification[] = []) => [normalized, ...old],
       );
+
+      // refetch from server to get canonical IDs and data so actions work immediately
+      void queryClient.invalidateQueries(["notifications", user._id]);
     });
 
     // 🟡 READ
@@ -80,13 +108,14 @@ export function BellComponent() {
     // });
 
     return () => {
-      offNotificationEvents(); // ✅ đúng
+      offNotificationEvents();
     };
   }, [user?._id, queryClient]);
 
   // 🟡 ACTIONS
 
   const handleMarkAsRead = async (id: string) => {
+    if (!id || id.startsWith("temp_")) return;
     await NotificationService.readNotification(id);
   };
 
@@ -99,6 +128,7 @@ export function BellComponent() {
   };
 
   const handleDeleteNotification = async (id: string) => {
+    if (!id || id.startsWith("temp_")) return;
     await NotificationService.deleteNotification(id);
   };
 
@@ -125,14 +155,14 @@ export function BellComponent() {
 
       <PopoverContent align="end" className="w-80 p-0">
         <div className="flex items-center justify-between border-b border-border px-4 py-3">
-          <h3 className="font-semibold">Thông báo</h3>
+          <h3 className="font-semibold">Notifications</h3>
           {unreadCount > 0 && (
             <Button
               variant="ghost"
               size="sm"
               onClick={handleMarkAllAsRead}
               className="text-xs">
-              Đánh dấu tất cả
+              Mark all as read
             </Button>
           )}
         </div>
@@ -140,15 +170,14 @@ export function BellComponent() {
         <div className="max-h-96 overflow-y-auto">
           {notifications.length === 0 ? (
             <div className="flex items-center justify-center px-4 py-8 text-sm text-muted-foreground">
-              Không có thông báo
+              No notifications
             </div>
           ) : (
-            notifications?.map((notification) => (
+            notifications?.map((notification, idx) => (
               <div
-                key={notification._id ?? notification.createdAt}
-                className={`border-b border-border px-4 py-3 transition-colors hover:bg-muted ${
-                  !notification.isRead ? "bg-blue-50 dark:bg-blue-950/30" : ""
-                }`}>
+                key={notification._id ?? notification.createdAt ?? idx}
+                className={`border-b border-border px-4 py-3 transition-colors hover:bg-muted ${!notification.isRead ? "bg-blue-50 dark:bg-blue-950/30" : ""
+                  }`}>
                 <div className="flex items-start justify-between gap-3">
                   <div
                     className="flex-1 cursor-pointer"
@@ -172,7 +201,7 @@ export function BellComponent() {
                     variant="ghost"
                     size="sm"
                     onClick={(e) => {
-                      e.stopPropagation(); // 🔥 QUAN TRỌNG
+                      e.stopPropagation();
                       handleDeleteNotification(notification._id);
                     }}
                     className="h-6 w-6 p-0">

@@ -210,7 +210,7 @@ export default function ExplorerClient({ projectId, folderId }: Props) {
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex min-h-screen relative overflow-hidden">
+      <div className="flex h-full relative overflow-hidden">
         {/* LEFT MAIN CONTENT */}
         <div
           className={`flex flex-col h-full flex-1 transition-all duration-300 ${

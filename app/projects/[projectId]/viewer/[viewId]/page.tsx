@@ -17,6 +17,8 @@ export default function Page() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  const fileIdFromQuery = searchParams?.get("fileId") ?? undefined;
+
   // Lấy token từ URL (do file redirect phía trên bắn sang)
   const shareToken = searchParams?.get("shareToken") ?? undefined;
 
@@ -143,7 +145,7 @@ export default function Page() {
       <div className="flex-1 relative overflow-hidden">
         <DetailView2D
           mode="view"
-          fileId={params.viewId}
+          fileId={fileIdFromQuery}
           activeTool={activeTool}
           activeColor={activeColor}
           showAnnotation={showAnnotation}

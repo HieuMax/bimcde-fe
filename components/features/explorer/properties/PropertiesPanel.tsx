@@ -237,7 +237,7 @@ export default function PropertiesPanel({
   }, [openActivityTick]);
 
   return (
-    <div className="w-full h-full flex flex-col bg-white overflow-y-auto">
+    <div className="w-full h-full flex flex-col bg-white overflow-hidden">
       {mergedItem ? (
         <>
           {view === "details" && (
@@ -286,9 +286,9 @@ export default function PropertiesPanel({
               onShareVersion={
                 mergedItem && "mimeType" in mergedItem
                   ? (v) => {
-                      setHistorySharePin(v);
-                      setHistoryShareOpen(true);
-                    }
+                    setHistorySharePin(v);
+                    setHistoryShareOpen(true);
+                  }
                   : undefined
               }
             />

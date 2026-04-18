@@ -104,22 +104,22 @@ export default function DetailsView({
   const folderPanelAccess =
     folderItem != null
       ? getFolderIsoPanelAccess(
-          workflowMode,
-          cdeCapabilities,
-          folderItem,
-          currentUserId,
-        )
+        workflowMode,
+        cdeCapabilities,
+        folderItem,
+        currentUserId,
+      )
       : "full";
   const isFolderBasicPanel = !isFile && folderPanelAccess === "basic";
 
   const filePanelAccess =
     isFile && fileItem != null
       ? getFileIsoPanelAccess(
-          workflowMode,
-          cdeCapabilities,
-          fileItem,
-          currentUserId,
-        )
+        workflowMode,
+        cdeCapabilities,
+        fileItem,
+        currentUserId,
+      )
       : "full";
   const isFileBasicPanel = isFile && filePanelAccess === "basic";
   const isIsoAdmin = workflowMode === "ISO_19650" && !!cdeCapabilities?.isProjectAdmin;
@@ -129,6 +129,9 @@ export default function DetailsView({
     !isFile && isIsoAdmin && (isRootFolder || isGroupHomeFolder);
   const hideEditAndPermissions =
     isFileBasicPanel || isFolderBasicPanel || isIsoAdminRestrictedFolder;
+
+  const canManagePermissions =
+    workflowMode === "NORMAL" ? !!cdeCapabilities?.isProjectAdmin : !hideEditAndPermissions;
 
   const handleViewFile = () => {
     if (isFile) {
@@ -171,13 +174,13 @@ export default function DetailsView({
           </h2>
           {"mimeType" in item &&
             isCurrentVersionSubmittedForReview(item as IFile) && (
-            <Badge
-              variant="secondary"
-              className="mt-1 bg-amber-100 text-amber-800 border border-amber-200"
-            >
-              Submitted for review
-            </Badge>
-          )}
+              <Badge
+                variant="secondary"
+                className="mt-1 bg-amber-100 text-amber-800 border border-amber-200"
+              >
+                Submitted for review
+              </Badge>
+            )}
         </div>
         <div className="flex items-center gap-1 -mr-2">
           {!hideEditAndPermissions && (
@@ -202,7 +205,7 @@ export default function DetailsView({
       </div>
 
       {/* SCROLLABLE CONTENT */}
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 min-h-0">
         <div className="flex flex-col pb-6">
           <ThumbnailSection item={item} />
           <Separator />
