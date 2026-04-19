@@ -335,7 +335,7 @@ export function NewTodoDrawer({
 
       void fetchAssigneeOptions();
     }
-  }, [open, projectId, todoToEdit, formData.assignees, currentMode, mode]);
+  }, [open, projectId, todoToEdit, currentMode, mode]);
 
   useEffect(() => {
     if (!open) return
@@ -377,6 +377,11 @@ export function NewTodoDrawer({
       setFormData(defaultState);
     },
     onError: (error: AxiosError<{ message?: string }>) => {
+      if (error?.response?.status === 403) {
+        toast.error("Failed! You don't have permission to delete this todo");
+        return;
+      }
+
       const msg =
         error?.response?.data?.message || error.message || "Failed to delete todo";
       toast.error(msg);
@@ -393,6 +398,12 @@ export function NewTodoDrawer({
       setFormData(defaultState)
     },
     onError: (error: AxiosError<{ message?: string }>) => {
+      console.log("test")
+      if (error?.response?.status === 403) {
+        toast.error("Failed! You don't have permission to update this todo.");
+        return;
+      }
+
       const msg =
         error?.response?.data?.message ||
         error.message ||
@@ -600,7 +611,7 @@ export function NewTodoDrawer({
                 </Button>
               )}
 
-              {currentMode === "edit" && todoToEdit?._id && (
+              {currentMode === "edit" && todoToEdit?._id && todoToEdit.createdBy === user?._id && (
                 <Button
                   variant="ghost"
                   size="icon"

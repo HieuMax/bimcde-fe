@@ -21,14 +21,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { 
-  Loader2, 
-  Package, 
-  MoreVertical, 
-  FilterX, 
-  Send, 
-  Download, 
-  Trash2 
+import {
+  Loader2,
+  Package,
+  MoreVertical,
+  FilterX,
+  Send,
+  Download,
+  Trash2
 } from "lucide-react";
 import { ReleaseStatusBadge } from "./ReleaseStatusBadge";
 import { toast } from "sonner";
@@ -208,16 +208,15 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
     <div className="flex min-h-[93.9vh] relative overflow-hidden bg-white">
       {/* MAIN CONTENT */}
       <div
-        className={`flex flex-col h-full flex-1 transition-all duration-300 ${
-          isPanelOpen ? "mr-0 sm:mr-80" : "mr-0"
-        }`}
+        className={`flex flex-col h-full flex-1 transition-all duration-300 ${isPanelOpen ? "mr-0 sm:mr-80" : "mr-0"
+          }`}
       >
         {/* Header Title & New Button */}
         <div className="px-6 py-4 flex justify-between items-center border-b border-gray-200">
           <h1 className="text-xl font-normal text-gray-800">Releases</h1>
           <Button
             onClick={onCreateRelease}
-            className="bg-[#005F9E] hover:bg-[#004B7D] text-white rounded-sm font-medium px-6"
+            className="bg-[#406D87] hover:bg-[#345a70] px-6 py-4 rounded text-base font-medium flex items-center transition-colors disabled:opacity-50 outline-none ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
           >
             New
           </Button>
@@ -270,19 +269,19 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
           {(recipientIds.length > 0 ||
             statusFilter !== "ALL" ||
             dueFilter.start) && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="ml-auto text-gray-500 hover:text-red-600"
-              onClick={() => {
-                setStatusFilter("ALL");
-                setRecipientIds([]);
-                setDueFilter({});
-              }}
-            >
-              <FilterX className="h-4 w-4 mr-1" /> Clear
-            </Button>
-          )}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="ml-auto text-gray-500 hover:text-red-600"
+                onClick={() => {
+                  setStatusFilter("ALL");
+                  setRecipientIds([]);
+                  setDueFilter({});
+                }}
+              >
+                <FilterX className="h-4 w-4 mr-1" /> Clear
+              </Button>
+            )}
         </div>
 
         {/* Table Content */}
@@ -353,11 +352,10 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
                   return (
                     <TableRow
                       key={release._id}
-                      className={`group cursor-pointer border-b border-gray-100 h-14 ${
-                        isSelected
+                      className={`group cursor-pointer border-b border-gray-100 h-14 ${isSelected
                           ? "bg-blue-50 hover:bg-blue-100"
                           : "hover:bg-gray-50"
-                      }`}
+                        }`}
                       onClick={() => handleRowClick(release._id)}
                     >
                       <TableCell onClick={(e) => e.stopPropagation()}>
@@ -481,11 +479,10 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
             bg-white shadow-lg border-l z-20 flex flex-col
             fixed inset-0 w-full h-full
             transition-opacity duration-200
-            ${
-              isPanelOpen
-                ? "opacity-100 visible pointer-events-auto"
-                : "opacity-0 invisible pointer-events-none"
-            }
+            ${isPanelOpen
+            ? "opacity-100 visible pointer-events-auto"
+            : "opacity-0 invisible pointer-events-none"
+          }
             sm:absolute sm:inset-auto sm:top-0 sm:right-0 sm:bottom-0 sm:w-[320px] 
             sm:opacity-100 sm:visible sm:pointer-events-auto
             sm:transition-transform sm:duration-300

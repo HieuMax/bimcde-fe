@@ -3,8 +3,8 @@
 import { useState, useMemo } from "react";
 import { IFile, IFolder } from "@/types/explorer";
 
-function isBlockedFolder(item: IFile | IFolder): boolean {
-  return "totalSize" in item && (item as IFolder).cdeAccessible === false;
+function isBlockedItem(item: IFile | IFolder): boolean {
+  return (item as any).cdeAccessible === false;
 }
 
 export function useExplorerSelection(
@@ -36,7 +36,7 @@ export function useExplorerSelection(
   // --- HANDLERS ---
   // 1. Single Select
   const handleRowClickSelect = (item: IFile | IFolder) => {
-    if (isBlockedFolder(item)) return;
+    if (isBlockedItem(item)) return;
 
     const isCurrentlySelectedSingle =
       selectedItems.length === 1 && selectedItems[0]._id === item._id;
@@ -50,7 +50,7 @@ export function useExplorerSelection(
 
   // 2. Multi Select (Checkbox)
   const handleCheckboxSelect = (item: IFile | IFolder) => {
-    if (isBlockedFolder(item)) return;
+    if (isBlockedItem(item)) return;
     setSelectedItems((prev) => {
       const exists = prev.find((i) => i._id === item._id);
       return exists ? prev.filter((i) => i._id !== item._id) : [...prev, item];
@@ -59,7 +59,7 @@ export function useExplorerSelection(
 
   // 3. Shift + Click
   const handleSetSelectedItems = (items: (IFile | IFolder)[]) => {
-    setSelectedItems(items.filter((i) => !isBlockedFolder(i)));
+    setSelectedItems(items.filter((i) => !isBlockedItem(i)));
   };
 
   const handleDeselectItem = (id: string) => {

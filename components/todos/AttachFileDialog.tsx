@@ -16,9 +16,11 @@ interface Props {
     projectId: string;
     userId: string;
     onAttach: (files: { name: string; url: string; mimeType: string; size: number; fileId?: string }[]) => void;
+    // BỔ SUNG PROP NÀY:
+    hideUpload?: boolean;
 }
 
-export function AttachFileDialog({ open, onOpenChange, projectId, userId, onAttach }: Props) {
+export function AttachFileDialog({ open, onOpenChange, projectId, userId, onAttach, hideUpload = false }: Props) {
     const [activeTab, setActiveTab] = useState("project");
     const [uploading, setUploading] = useState(false);
 
@@ -82,47 +84,54 @@ export function AttachFileDialog({ open, onOpenChange, projectId, userId, onAtta
                 </DialogHeader>
 
                 <Tabs defaultValue="project" value={activeTab} onValueChange={setActiveTab} className="w-full">
-                    <div className="px-6 pt-2">
-                        <TabsList className="w-full grid grid-cols-2">
-                            <TabsTrigger value="project">From Project</TabsTrigger>
-                            <TabsTrigger value="local">Upload from Device</TabsTrigger>
-                        </TabsList>
-                    </div>
+
+                    {/* CHỈ HIỂN THỊ TAB LIST NẾU KHÔNG BỊ ẨN */}
+                    {!hideUpload && (
+                        <div className="px-6 pt-2">
+                            <TabsList className="w-full grid grid-cols-2">
+                                <TabsTrigger value="project">From Project</TabsTrigger>
+                                <TabsTrigger value="local">Upload from Device</TabsTrigger>
+                            </TabsList>
+                        </div>
+                    )}
 
                     {/* TAB 1: FROM PROJECT */}
-                    <TabsContent value="project" className="m-0 border-t mt-2">
+                    {/* Bỏ margin-top và border nếu không có TabList ở trên */}
+                    <TabsContent value="project" className={`m-0 ${!hideUpload ? 'border-t mt-2' : ''}`}>
                         <MiniFileExplorer projectId={projectId} onConfirm={handleProjectSelect} />
                     </TabsContent>
 
-                    {/* TAB 2: LOCAL UPLOAD */}
-                    <TabsContent value="local" className="m-0 border-t mt-2 p-6 min-h-[300px]">
-                        <div
-                            {...getRootProps()}
-                            className={`
-                                border-2 border-dashed rounded-lg h-64 w-full flex flex-col items-center justify-center 
-                                transition-colors cursor-pointer
-                                ${isDragActive ? "bg-blue-50 border-blue-400" : "bg-slate-50 border-slate-300 hover:bg-slate-100"}
-                            `}
-                        >
-                            <input {...getInputProps()} />
-                            {uploading ? (
-                                <div className="flex flex-col items-center gap-2">
-                                    <Loader2 className="w-10 h-10 animate-spin text-blue-500" />
-                                    <p className="text-sm text-slate-500">Uploading...</p>
-                                </div>
-                            ) : (
-                                <div className="flex flex-col items-center gap-3 text-slate-500">
-                                    <div className="p-3 bg-white rounded-full shadow-sm">
-                                        <Upload className="w-6 h-6" />
+                    {/* TAB 2: LOCAL UPLOAD (Chỉ render khi hideUpload = false) */}
+                    {!hideUpload && (
+                        <TabsContent value="local" className="m-0 border-t mt-2 p-6 min-h-[300px]">
+                            <div
+                                {...getRootProps()}
+                                className={`
+                                    border-2 border-dashed rounded-lg h-64 w-full flex flex-col items-center justify-center 
+                                    transition-colors cursor-pointer
+                                    ${isDragActive ? "bg-blue-50 border-blue-400" : "bg-slate-50 border-slate-300 hover:bg-slate-100"}
+                                `}
+                            >
+                                <input {...getInputProps()} />
+                                {uploading ? (
+                                    <div className="flex flex-col items-center gap-2">
+                                        <Loader2 className="w-10 h-10 animate-spin text-blue-500" />
+                                        <p className="text-sm text-slate-500">Uploading...</p>
                                     </div>
-                                    <div className="text-center">
-                                        <p className="text-sm font-medium text-slate-700">Click to upload or drag and drop</p>
-                                        <p className="text-xs">SVG, PNG, JPG, PDF, IFC...</p>
+                                ) : (
+                                    <div className="flex flex-col items-center gap-3 text-slate-500">
+                                        <div className="p-3 bg-white rounded-full shadow-sm">
+                                            <Upload className="w-6 h-6" />
+                                        </div>
+                                        <div className="text-center">
+                                            <p className="text-sm font-medium text-slate-700">Click to upload or drag and drop</p>
+                                            <p className="text-xs">SVG, PNG, JPG, PDF, IFC...</p>
+                                        </div>
                                     </div>
-                                </div>
-                            )}
-                        </div>
-                    </TabsContent>
+                                )}
+                            </div>
+                        </TabsContent>
+                    )}
                 </Tabs>
             </DialogContent>
         </Dialog>

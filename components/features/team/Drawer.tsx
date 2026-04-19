@@ -75,7 +75,10 @@ export default function TeamDrawer({
 
   const getAllGroupByUserId = async () => {
     try {
-      const userIdPost = { userId: data.userId };
+      const userIdPost = {
+        userId: data.userId,
+        projectId: data.projectId
+      };
       const response = await post(`/team/getAllGroupByUserId`, userIdPost);
       if (response.success) {
         const listGroup = response.result;
@@ -209,16 +212,16 @@ export default function TeamDrawer({
                         <div className=" overflow-hidden text-ellipsis whitespace-nowrap">
                           {data.lastAccessed
                             ? new Date(data.lastAccessed).toLocaleString(
-                                "en-US",
-                                {
-                                  month: "short",
-                                  day: "2-digit",
-                                  year: "numeric",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                  hour12: true,
-                                },
-                              )
+                              "en-US",
+                              {
+                                month: "short",
+                                day: "2-digit",
+                                year: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                                hour12: true,
+                              },
+                            )
                             : ""}
                         </div>
                       ) : (
