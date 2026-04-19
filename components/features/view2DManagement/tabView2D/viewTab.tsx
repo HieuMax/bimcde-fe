@@ -76,9 +76,12 @@ export default function ViewsTab({
       filterType === "mine" ? creatorName === currentUser : true;
 
     const viewName = v.name || "";
-    const matchesSearch = viewName
-      .toLowerCase()
-      .includes(searchQuery.toLowerCase());
+    const fileLabel =
+      v.fileId && typeof v.fileId === "object" && "name" in v.fileId
+        ? String((v.fileId as { name?: string }).name || "")
+        : "";
+    const haystack = `${viewName} ${fileLabel}`.toLowerCase();
+    const matchesSearch = haystack.includes(searchQuery.toLowerCase());
 
     return matchesFilter && matchesSearch;
   });
@@ -179,6 +182,14 @@ export default function ViewsTab({
                         </span>
                       )}
                     </div>
+
+                    {v.fileId &&
+                      typeof v.fileId === "object" &&
+                      (v.fileId as { name?: string }).name && (
+                        <div className="text-[10px] text-sky-700/90 truncate mt-0.5 font-medium">
+                          {(v.fileId as { name: string }).name}
+                        </div>
+                      )}
 
                     <div className="flex items-center gap-1 text-[10px] text-gray-500 mt-0.5">
                       {sourceFileName && (

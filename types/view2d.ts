@@ -120,8 +120,10 @@ export interface ViewState {
     projection: "ORTHO" | "PERSPECTIVE";
     zoom: number;
   };
-  markupData?: View2DMarkup | string; 
-  
+  markupData?: View2DMarkup | string;
+  /** Revision của file khi lưu view (cùng fileId, khác version URL) */
+  fileVersion?: number;
+
   hiddenElements?: string[];
   selectedElements?: string[];
   coloredElements?: { color: string; elementIds: string[] }[];

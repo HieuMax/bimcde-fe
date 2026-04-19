@@ -35,7 +35,6 @@ export const columnsTable: ColumnDef<any>[] = [
     header: "Title",
     cell: ({ row }) => (
       <div className="capitalize">
-        {/* Hiển thị tên */}
         <span className="font-semibold">{row.getValue("title")}</span>
       </div>
     ),

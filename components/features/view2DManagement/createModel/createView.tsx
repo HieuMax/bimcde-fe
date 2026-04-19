@@ -3,7 +3,10 @@
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 
-import  {RecipientSelector, RecipientOption } from "@/components/features/release/RecipientSelector"; 
+import {
+  RecipientSelector,
+  RecipientOption,
+} from "@/components/features/release/RecipientSelector";
 
 /** Khớp backend `sharedWithUsers` → map user/group với id, label, email, type */
 export type SharedWithUserPayload = {

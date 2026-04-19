@@ -1,7 +1,7 @@
 "use client";
 
 import { Document, Page, pdfjs } from "react-pdf";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   ZoomIn,
   ZoomOut,
@@ -66,9 +66,7 @@ export default function PdfViewerClient({
     currentPageIndexRef.current = currentPageIndex;
   }, [currentPageIndex]);
 
-  /** Tránh scrollIntoView khi pageIndex vừa đến từ cuộn PDF (không dùng boolean — ổn định với Strict Mode). */
   const lastObserverPageRef = useRef<number | null>(null);
-  /** Bỏ qua observer trong lúc scrollIntoView (smooth) để trang cũ không “thắng” tỉ lệ giao và reset page. */
   const suppressObserverUntilRef = useRef(0);
   const visibilityMapRef = useRef(new Map<number, number>());
   const rafFlushIdRef = useRef<number | null>(null);
@@ -146,7 +144,6 @@ export default function PdfViewerClient({
     return () => ro.disconnect();
   }, []);
 
-  /* ===== SCROLL TO ACTIVE PAGE (Prev/Next / sidebar / URL — không chạy khi vừa báo từ cuộn PDF) ===== */
   useEffect(() => {
     if (lastObserverPageRef.current === currentPageIndex) {
       lastObserverPageRef.current = null;
@@ -158,13 +155,12 @@ export default function PdfViewerClient({
       suppressObserverUntilRef.current = Date.now() + 500;
       el?.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
-  }, [currentPageIndex]);
+  }, [currentPageIndex, numPages]);
 
   return (
     <div className="w-full h-full relative bg-[#6b6a73]">
       <div
         ref={containerRef}
-        // Thêm CSS con trỏ chuột dựa theo công cụ vẽ
         className={`absolute inset-0 overflow-y-auto p-2 ${activeTool !== "cursor" && activeTool !== "hand" ? "cursor-crosshair" : ""}`}
       >
         <Document
@@ -197,7 +193,6 @@ export default function PdfViewerClient({
                   }}
                 />
 
-                {/* Nơi render Annotation Overlay sau này của bạn có thể đặt ở đây (absolute inset-0) */}
               </div>
             );
           })}

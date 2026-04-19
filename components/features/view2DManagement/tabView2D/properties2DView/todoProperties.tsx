@@ -128,13 +128,44 @@ export default function TodoDetailPanel({
 
   const priorityColor = (priority?: string) => {
     switch (priority) {
-      case 'Urgent': return 'bg-red-500';
-      case 'High': return 'bg-orange-500';
-      case 'Normal': return 'bg-[#005a9e]'; // Màu xanh khớp với ảnh
-      case 'Low': return 'bg-gray-400';
-      default: return 'bg-[#005a9e]';
+      case 'Critical':
+        return 'bg-red-500';
+      case 'High':
+        return 'bg-orange-500';
+      case 'Normal':
+        return 'bg-[#005a9e]';
+      case 'Low':
+        return 'bg-gray-400';
+      default:
+        return 'bg-[#005a9e]';
     }
   };
+
+  const isClosed = String(todo.status || '').toLowerCase() === 'closed';
+
+  const todoCodeDisplay = todo.code?.trim() || '—';
+
+  const assigneeIdsForDisplay = (() => {
+    if (Array.isArray(todo.assignees) && todo.assignees.length > 0) {
+      return todo.assignees.map((a: any) =>
+        typeof a === 'string' ? a : a?._id,
+      ).filter(Boolean);
+    }
+    if (todo.assignee) {
+      const id =
+        typeof todo.assignee === 'string' ? todo.assignee : todo.assignee?._id;
+      return id ? [id] : [];
+    }
+    return [];
+  })();
+
+  const assigneeDisplayText =
+    assigneeIdsForDisplay.length === 0
+      ? 'Unassigned'
+      : assigneeIdsForDisplay
+          .map((id) => getMemberName(id))
+          .filter(Boolean)
+          .join(', ');
 
   const handleSaveDetails = async () => {
     if (!editForm.title.trim()) {
@@ -267,10 +298,10 @@ export default function TodoDetailPanel({
               className="w-full border border-gray-300 rounded-sm px-3 py-2 text-sm text-gray-800 bg-white focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
               disabled={loading}
             >
-              <option value="Critical">Critical</option>
-              <option value="High">High</option>
-              <option value="Normal">Normal</option>
               <option value="Low">Low</option>
+              <option value="Normal">Normal</option>
+              <option value="High">High</option>
+              <option value="Critical">Critical</option>
             </select>
           </div>
 
@@ -313,7 +344,7 @@ export default function TodoDetailPanel({
             </label>
             <RecipientSelector
               projectId={projectId}
-              initialOptions={editForm.assignees.map(id => ({
+              initialOptions={editForm.assignees.map((id) => ({
                 id,
                 label: getMemberName(id),
                 type: 'USER' as const,
@@ -425,15 +456,42 @@ export default function TodoDetailPanel({
   // GIAO DIỆN XEM CHI TIẾT (KHỚP VỚI ẢNH BẠN ĐƯA)
   // ==========================================
   return (
-    <aside className="w-80 h-full bg-white border-l border-gray-200 flex flex-col shadow-2xl animate-in slide-in-from-right duration-300">
+    <aside
+      className={`w-80 h-full border-l flex flex-col shadow-2xl animate-in slide-in-from-right duration-300 ${
+        isClosed
+          ? 'bg-amber-50/90 border-amber-400/90 border-l-[5px]'
+          : 'bg-white border-gray-200'
+      }`}
+    >
       {/* ===== HEADER ===== */}
-      <div className="p-4 border-b border-gray-200 flex items-start justify-between bg-white sticky top-0 z-30">
+      <div
+        className={`p-4 border-b flex items-start justify-between sticky top-0 z-30 ${
+          isClosed
+            ? 'border-amber-200/80 bg-amber-100/50'
+            : 'border-gray-200 bg-white'
+        }`}
+      >
         <div className="flex-1 pr-4">
-          <div className="text-[13px] font-semibold text-gray-500 uppercase tracking-wide mb-1">
-            {todo.code || 'THEB-16'}
+          <div className="flex flex-wrap items-center gap-2 mb-1">
+            <span
+              className={`text-[13px] font-semibold uppercase tracking-wide ${
+                isClosed ? 'text-amber-900' : 'text-gray-500'
+              }`}
+            >
+              {todoCodeDisplay}
+            </span>
+            {isClosed && (
+              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-900 bg-amber-200/90 px-2 py-0.5 rounded border border-amber-300/80">
+                Closed
+              </span>
+            )}
           </div>
-          <div className="font-semibold text-lg text-gray-800 leading-tight">
-            {todo.title || '10deg'}
+          <div
+            className={`font-semibold text-lg leading-tight ${
+              isClosed ? 'text-amber-950' : 'text-gray-800'
+            }`}
+          >
+            {todo.title || '—'}
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -454,13 +512,23 @@ export default function TodoDetailPanel({
       <div className="flex-1 overflow-y-auto custom-scrollbar">
         {/* ===== DETAILS ===== */}
         <div className="p-4 space-y-4">
-          <h3 className="text-[15px] font-semibold text-gray-800 mb-2">Details</h3>
+          <h3
+            className={`text-[15px] font-semibold mb-2 ${
+              isClosed ? 'text-amber-950' : 'text-gray-800'
+            }`}
+          >
+            Details
+          </h3>
 
           <div className="space-y-4">
             <div>
               <div className="text-[13px] text-gray-500 mb-0.5">Description</div>
-              <div className="text-sm text-gray-800 whitespace-pre-wrap">
-                {todo.description || '--'}
+              <div
+                className={`text-sm whitespace-pre-wrap ${
+                  isClosed ? 'text-amber-950/95' : 'text-gray-800'
+                }`}
+              >
+                {todo.description?.trim() ? todo.description : '—'}
               </div>
             </div>
 
@@ -511,7 +579,13 @@ export default function TodoDetailPanel({
 
             <div>
               <div className="text-[13px] text-gray-500 mb-0.5">Status</div>
-              <div className="text-sm text-gray-800">{todo.status || 'New'}</div>
+              <div
+                className={`text-sm font-medium ${
+                  isClosed ? 'text-amber-900' : 'text-gray-800'
+                }`}
+              >
+                {todo.status || '—'}
+              </div>
             </div>
 
             <div>
@@ -520,30 +594,17 @@ export default function TodoDetailPanel({
             </div>
 
             <div>
-              <div className="text-[13px] text-gray-500 mb-0.5">Assigned To ({(() => {
-                const assigneesArray = Array.isArray(todo.assignees) ? todo.assignees : 
-                                      (todo.assignee ? [todo.assignee] : []);
-                return assigneesArray.length;
-              })()})</div>
-              <div className="text-sm text-gray-800">
-                {(() => {
-                  const assigneesArray = Array.isArray(todo.assignees) ? todo.assignees : 
-                                        (todo.assignee ? [todo.assignee] : []);
-                  if (assigneesArray.length === 0) {
-                    return '--';
-                  }
-                  return assigneesArray.map((user: any, index: number) => {
-                    const name = getMemberName(user);
-                    return (
-                      <span
-                        key={index}
-                        className="inline-block bg-gray-100 rounded px-1.5 py-0.5 text-xs mr-1"
-                      >
-                        {name}
-                      </span>
-                    );
-                  });
-                })()}
+              <div className="text-[13px] text-gray-500 mb-0.5">Assigned to</div>
+              <div
+                className={`text-sm ${
+                  assigneeIdsForDisplay.length === 0
+                    ? 'italic text-gray-500'
+                    : isClosed
+                      ? 'text-amber-950 font-medium'
+                      : 'text-gray-800'
+                }`}
+              >
+                {assigneeDisplayText}
               </div>
             </div>
 

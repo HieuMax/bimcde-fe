@@ -220,17 +220,28 @@ export interface TodoItem {
   title: string;
   description?: string;
   status?: "New" | "Open" | "In Progress" | "Done" | "On Hold" | "Closed";
-  priority?: "Low" | "Normal" | "High" | "Urgent";
+  priority?: "Low" | "Normal" | "High" | "Critical";
   type?: string;
   dueDate?: string;
   completion?: number;
   assignee?: string;
+  assignees?: string[];
   tags?: string[];
   viewId?: string;
   createdAt?: string;
+  updatedAt?: string;
   createdBy?: string;
-  fileId?: string;
+  userId?: string;
+  /** Chuỗi id hoặc object sau populate (name) khi GET theo project */
+  fileId?: string | { _id?: string; name?: string };
   projectId?: string;
+  attachments?: {
+    name: string;
+    url: string;
+    mimeType?: string;
+    size?: number;
+    fileId?: string;
+  }[];
 }
 
 export type ExplorerItem = IFile | IFolder;

@@ -50,6 +50,7 @@ import {
   canMutateReleaseDraft,
   type ProjectReleaseContext,
 } from "./releaseProjectContext";
+import { GroupFilter } from "../activity/GroupFilter";
 
 interface ReleaseListProps {
   projectId: string;
@@ -74,6 +75,7 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
   // --- FILTER STATE ---
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [createdByUserIds, setCreatedByUserIds] = useState<string[]>([]);
+  const [groupIds, setGroupIds] = useState<string[]>([]);
   const [dueFilter, setDueFilter] = useState<{ start?: Date; end?: Date }>({}); // Due Date Filter
   const [dateFilterResetKey, setDateFilterResetKey] = useState(0);
 
@@ -84,6 +86,7 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
         projectId,
         status: statusFilter,
         userIds: createdByUserIds,
+        groupIds,
         dueStartDate: dueFilter.start?.toISOString(),
         dueEndDate: dueFilter.end?.toISOString(),
       });
@@ -94,7 +97,7 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [projectId, statusFilter, createdByUserIds, dueFilter]);
+  }, [projectId, statusFilter, createdByUserIds, groupIds, dueFilter]);
 
   useEffect(() => {
     fetchReleases();
@@ -102,6 +105,10 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
 
   const handleCreatedByFilterChange = (userIds: string[]) => {
     setCreatedByUserIds(userIds);
+  };
+
+  const handleGroupFilterChange = (ids: string[]) => {
+    setGroupIds(ids);
   };
 
   // Handler thay đổi Date Filter
@@ -294,7 +301,6 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
                 className="ml-auto text-gray-500 hover:text-red-600"
                 onClick={() => {
                   setStatusFilter("ALL");
-                  setRecipientIds([]);
                   setGroupIds([]);
                   setCreatedByUserIds([]);
                   setDueFilter({});

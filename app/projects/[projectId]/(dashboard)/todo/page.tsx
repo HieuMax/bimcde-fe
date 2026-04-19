@@ -19,6 +19,87 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { ITodo } from "@/types/todo3d";
+import { TodoItem } from "@/types/explorer";
+
+/** Gộp todo 3D (BCF) và todo 2D (PDF) trên cùng bảng */
+export type DashboardTodoRow = ITodo & {
+  __source?: "todo3d" | "todo2d";
+  __todo2d?: TodoItem;
+  /** Dùng cho bộ lọc Date modified khi BE không trả modifiedOn */
+  modifiedOn?: string;
+};
+
+// function normalizeTodo2dRow(
+//   t: TodoItem,
+//   members: { userId?: string; _id?: string; fullName?: string; name?: string }[],
+// ): DashboardTodoRow {
+//   const rawIds: string[] = Array.isArray(t.assignees)
+//     ? (t.assignees as string[]).filter(Boolean)
+//     : t.assignee
+//       ? [typeof t.assignee === "string" ? t.assignee : (t.assignee as { _id?: string })?._id].filter(
+//           Boolean,
+//         ) as string[]
+//       : [];
+
+//   const assignees: IAssigneeTodo[] = rawIds.map((id) => {
+//     const m = members.find(
+//       (u) => String(u.userId || u._id || "") === String(id),
+//     );
+//     return {
+//       assigneeId: id,
+//       name: m?.fullName || m?.name || id,
+//       type: "user",
+//     };
+//   });
+
+//   const fileIdRaw = t.fileId;
+//   const fileIdStr =
+//     fileIdRaw && typeof fileIdRaw === "object"
+//       ? String((fileIdRaw as { _id?: string })._id || "")
+//       : typeof fileIdRaw === "string"
+//         ? fileIdRaw
+//         : "";
+
+//   const userIdRaw = t.userId;
+//   const userIdStr = userIdRaw ? String(userIdRaw) : "";
+//   const createdByName =
+//     typeof t.createdBy === "string" ? t.createdBy : "";
+
+//   const priName = t.priority || "Normal";
+//   const priority: IPriority = {
+//     priorityId: "",
+//     name: priName,
+//     color: TODO2D_PRIORITY_COLORS[priName] || "#94a3b8",
+//   };
+
+//   const updated = t.updatedAt || "";
+//   const created = t.createdAt || "";
+
+//   return {
+//     _id: t._id,
+//     title: t.title || "",
+//     description: t.description,
+//     status: mapTodo2dStatusToSlug(t.status),
+//     priority,
+//     completion: t.completion ?? 0,
+//     assignees,
+//     type: null,
+//     tags: null,
+//     dueDate: t.dueDate,
+//     projectId: t.projectId || "",
+//     topicId: null,
+//     topicItemId: null,
+//     createdBy: {
+//       _id: userIdStr,
+//       fullName: createdByName || undefined,
+//     },
+//     createdAt: created,
+//     updatedAt: updated,
+//     modifiedOn: updated || created,
+//     __source: "todo2d",
+//     __todo2d: { ...t, fileId: fileIdStr || t.fileId },
+//   };
+// }
 
 const optionsOwner = [
   { name: "Assigned to me", checked: false },
@@ -103,7 +184,7 @@ function normalizeTodo2dRow(t: any, memberData: any[]) {
   };
 }
 
-export default function page({
+export default function Page({
   params,
 }: {
   params: Promise<{ projectId: string }>;
@@ -125,7 +206,7 @@ export default function page({
   const [statusData, setStatusData] = useState([]);
   const [tagData, setTagData] = useState([]);
 
-  const [todoList, setTodoList] = useState([]);
+  const [todoList, setTodoList] = useState<DashboardTodoRow[]>([]);
   const [todo2dList, setTodo2dList] = useState<any[]>([]);
 
   const [isOpenDrawer, setIsOpenDrawer] = useState(false);
@@ -136,7 +217,9 @@ export default function page({
   const [topicLinkOptions, setTopicLinkOptions] = useState<TopicLinkOption[]>(
     [],
   );
-  const [rowSelection, setRowSelection] = useState<ITodo | null>(null);
+  const [rowSelection, setRowSelection] = useState<DashboardTodoRow | null>(
+    null,
+  );
   // Filter states
   const [selectedOwners, setSelectedOwners] = useState<string[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
@@ -256,15 +339,20 @@ export default function page({
     try {
       const projectId = (await params).projectId;
 
-      const response3d = await get(`/todo`, { params: { projectId } });
-      const response2d = await get(`/todos2d/project/${projectId}`);
-
-      const todos3d = response3d || [];
-      const todos2d = response2d || [];
-
-      const combinedTodos = [...todos3d, ...todos2d];
-
-      setTodoList(combinedTodos as never[]);
+      /** Chỉ todo 3D — todo 2D nằm ở `getAllTodo2d` + `mergedTodoRows` để tránh trùng dòng */
+      const response = await get(`/todo`, { params: { projectId } });
+      if (Array.isArray(response)) {
+        const rows = response.map((r: ITodo) => ({
+          ...r,
+          __source: "todo3d" as const,
+          modifiedOn:
+            (r as DashboardTodoRow).modifiedOn ?? r.updatedAt ?? r.createdAt,
+        }));
+        setTodoList(rows as DashboardTodoRow[]);
+      } else {
+        setTodoList([]);
+        console.error("Failed to fetch todos:", response);
+      }
     } catch (err) {
       console.error("Error fetching todos :", err);
     }
@@ -299,7 +387,7 @@ export default function page({
     getAllTags();
     getAllTodo();
     getAllTodo2d();
-    getPermissions()
+    getPermissions();
   }, []);
 
   useEffect(() => {
@@ -408,8 +496,6 @@ export default function page({
 
   const filterTodos = (source: any[]) => {
     let filtered = [...source];
-  const filterTodos = () => {
-    let filtered = [...todoList];
     const currentUserId = getCurrentUserId();
 
     if (permissions?.isTodosRestricted && userRole !== "admin") {
@@ -431,8 +517,7 @@ export default function page({
     // Filter by Owner
     if (selectedOwners.length > 0) {
       const currentUserId = getCurrentUserId();
-      console.log(currentUserId);
-      filtered = filtered.filter((todo: any) => {
+      filtered = filtered.filter((todo: DashboardTodoRow) => {
         // Check if todo matches any of the selected owner filters (OR logic)
         return selectedOwners.some((ownerFilter) => {
           switch (ownerFilter) {
@@ -445,10 +530,12 @@ export default function page({
               const createdById = (() => {
                 if (!todo.createdBy) return "";
                 if (typeof todo.createdBy === "string") return todo.createdBy;
-                // try common populated shapes
-                return (
-                  todo.createdBy._id || todo.createdBy.userId || todo.createdBy.id || ""
-                );
+                const o = todo.createdBy as {
+                  _id?: string;
+                  userId?: string;
+                  id?: string;
+                };
+                return o._id || o.userId || o.id || "";
               })();
               return String(createdById) === String(currentUserId);
             case "Unassigned":
@@ -463,7 +550,7 @@ export default function page({
 
     // Filter by Users
     if (selectedUsers.length > 0) {
-      filtered = filtered.filter((todo: any) => {
+      filtered = filtered.filter((todo: DashboardTodoRow) => {
         return todo.assignees?.some((assignee: any) => {
           // Filter by user type and name
           const assigneeName =
@@ -476,7 +563,7 @@ export default function page({
 
     // Filter by Groups
     if (selectedGroups.length > 0) {
-      filtered = filtered.filter((todo: any) => {
+      filtered = filtered.filter((todo: DashboardTodoRow) => {
         return todo.assignees?.some((assignee: any) => {
           // Filter by group type and name
           const assigneeName =
@@ -498,18 +585,24 @@ export default function page({
         )
         .filter(Boolean);
 
-      filtered = filtered.filter((todo: any) => {
-        // Get status value from todo (could be direct value or from status object)
-        const todoStatusValue =
-          todo.status?.value || todo.status || todo.statusName || "";
+      filtered = filtered.filter((todo: DashboardTodoRow) => {
+        const s = todo.status as unknown;
+        let todoStatusValue = "";
+        if (s == null) todoStatusValue = (todo as { statusName?: string }).statusName || "";
+        else if (typeof s === "string") todoStatusValue = s;
+        else if (typeof s === "object" && s !== null && "value" in s)
+          todoStatusValue = String((s as { value?: string }).value ?? "");
         return selectedStatusValues.includes(todoStatusValue);
       });
     }
 
     // Filter by Priority
     if (selectedPriorities.length > 0) {
-      filtered = filtered.filter((todo: any) => {
-        const todoPriority = todo.priority?.name || todo.priorityName || "";
+      filtered = filtered.filter((todo: DashboardTodoRow) => {
+        const todoPriority =
+          todo.priority?.name ||
+          (todo as { priorityName?: string }).priorityName ||
+          "";
         return selectedPriorities.includes(todoPriority);
       });
     }
@@ -542,6 +635,8 @@ export default function page({
       selectedPriorities,
       dateModifiedRange,
       user,
+      permissions,
+      userRole,
     ],
   );
 
@@ -550,7 +645,8 @@ export default function page({
       setIsOpenDrawer(false);
 
       if (rowSelection && rowSelection.original) {
-        setRowSelection(rowSelection.original);
+        const original = rowSelection.original as DashboardTodoRow;
+        setRowSelection(original);
         setIsOpenDrawer(true);
       } else {
         setRowSelection(null);

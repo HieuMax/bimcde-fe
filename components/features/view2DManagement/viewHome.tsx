@@ -1095,7 +1095,7 @@ export default function DetailView2D({
     load();
   }, [fileId, params.viewId, activeShareToken, isShareMode, mode, onLoaded]);
 
-  // Load View & Todo — all 2D views for the project; todos still scoped to the active file when known
+  // Load View & Todo — all 2D views + all 2D todos in the project (mọi file)
   useEffect(() => {
     const fetchMetadata = async () => {
       if (!currentProjectId) return;
@@ -1105,22 +1105,17 @@ export default function DetailView2D({
           await view2DService.getViewsByProject(currentProjectId);
         if (Array.isArray(viewsData)) setViews(viewsData);
 
-        const targetFileForTodos =
-          selectedFile?._id || file?._id || fileId || params.viewId;
-        if (targetFileForTodos) {
-          const todosData =
-            await todo2DService.getTodosByFile(targetFileForTodos);
-          if (Array.isArray(todosData)) setTodos(todosData);
-          else if ((todosData as any).data) setTodos((todosData as any).data);
-        } else {
-          setTodos([]);
-        }
+        const todosData =
+          await todo2DService.getTodosByProject(currentProjectId);
+        if (Array.isArray(todosData)) setTodos(todosData);
+        else if ((todosData as any)?.data)
+          setTodos((todosData as any).data);
       } catch (error) {
         console.error("Lỗi tải metadata (view/todo):", error);
       }
     };
     fetchMetadata();
-  }, [currentProjectId, fileId, params.viewId, selectedFile?._id, file?._id]);
+  }, [currentProjectId]);
 
   const handleWordLoadSuccess = (totalPages: number) => {
     if (!selectedFile) return;
@@ -1259,6 +1254,7 @@ export default function DetailView2D({
                 pageIndex,
                 views: views as any,
                 todos,
+                projectId: currentProjectId || undefined,
               }}
               onSelectPage={(item) => {
                 setPageIndex(item.pageNumber ?? item.index);

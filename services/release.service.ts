@@ -13,6 +13,7 @@ export const releaseService = {
     projectId: string;
     status?: string;
     userIds?: string[];
+    groupIds?: string[];
     dueStartDate?: string;
     dueEndDate?: string;
   }) => {
@@ -22,6 +23,8 @@ export const releaseService = {
       queryParams.status = params.status;
     if (params.userIds && params.userIds.length > 0)
       queryParams.userIds = params.userIds.join(",");
+    if (params.groupIds && params.groupIds.length > 0)
+      queryParams.groupIds = params.groupIds.join(",");
     if (params.dueStartDate) queryParams.dueStartDate = params.dueStartDate;
     if (params.dueEndDate) queryParams.dueEndDate = params.dueEndDate;
 

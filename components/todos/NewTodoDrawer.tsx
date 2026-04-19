@@ -564,7 +564,6 @@ export function NewTodoDrawer({
       setFormData(defaultState)
     },
     onError: (error: AxiosError<{ message?: string }>) => {
-      console.log("test")
       if (error?.response?.status === 403) {
         toast.error("Failed! You don't have permission to update this todo.");
         return;

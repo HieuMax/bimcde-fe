@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { type FormEvent, useEffect, useState } from "react";
 import { format } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import {
@@ -125,10 +125,9 @@ export default function AddTodoDialog({
       setShowError(true);
       return;
     }
-
     const selectedTagObjects = tag.filter((t) => selectedTags.includes(t._id));
 
-    const selectedPriority = priority.find((p) => prioritySelected === p._id);
+    const selectedPriority = priority.find((p) => p._id === prioritySelected);
     const selectedType = type.find((p) => typeId === p._id);
 
     const assignessUpdate = assigneeSelections.map((a) => ({
@@ -214,6 +213,13 @@ export default function AddTodoDialog({
     }
   };
 
+  const fieldInputClass =
+    "h-9 border-gray-300 focus-visible:ring-1 focus-visible:ring-[#005F9E]";
+  const fieldSelectTriggerClass =
+    "h-9 w-full border-gray-300 font-normal focus-visible:ring-1 focus-visible:ring-[#005F9E]";
+  const multiSelectTriggerClass =
+    "h-auto min-h-9 w-full border-gray-300 font-normal focus-visible:ring-1 focus-visible:ring-[#005F9E]";
+
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
       <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden rounded-md bg-white p-0 sm:max-w-[500px]">
@@ -229,7 +235,7 @@ export default function AddTodoDialog({
               Link to a Topic
             </Label>
             {topicLinkLocked && linkedTopicItem?.id ? (
-              <div className="rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-slate-800">
+              <div className="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-slate-800">
                 <span className="font-medium">{linkedTopicItem.code}</span>
                 {linkedTopicItem.title ? (
                   <span className="text-slate-700">
@@ -239,7 +245,7 @@ export default function AddTodoDialog({
                 ) : null}
               </div>
             ) : topicLinkLocked ? (
-              <p className="text-sm text-muted-foreground">No topic linked.</p>
+              <p className="text-sm text-gray-500">No topic linked.</p>
             ) : (
               <Select
                 value={selectedTopicLink?.id ?? NONE_TOPIC_VALUE}
@@ -379,6 +385,13 @@ export default function AddTodoDialog({
                         {dueDate ? format(dueDate, "MM/dd/yyyy") : (
                           <span>mm/dd/yyyy</span>
                         )}
+                      
+                        {dueDate ? (
+                          format(dueDate, "MM/dd/yyyy")
+                        ) : (
+                          <span>mm/dd/yyyy</span>
+                        )}
+                        <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto p-0" align="start">
