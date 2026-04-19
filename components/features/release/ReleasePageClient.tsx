@@ -19,7 +19,7 @@ export const ReleasePageClient: React.FC<ReleasePageClientProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full bg-white relative">
+    <div className="relative flex h-full min-h-0 w-full flex-col">
       <ReleaseList
         key={refreshKey}
         projectId={projectId}

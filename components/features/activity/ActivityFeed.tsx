@@ -86,8 +86,14 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({ projectId }) => {
   return (
     // Thay đổi style container: bỏ border radius bo tròn quá mức, dùng nền trắng chuẩn
     <div className="flex flex-col h-full bg-white rounded-md shadow-sm border border-gray-200">
-      <div className="px-4 py-3 border-b border-gray-100 flex justify-between items-center bg-white rounded-t-md">
+      <div className="flex shrink-0 items-center justify-between rounded-t-md border-b border-gray-100 bg-white px-4 py-2.5">
         <h2 className="text-lg font-medium text-gray-800">Activity</h2>
+        <span
+          aria-hidden
+          className="pointer-events-none inline-flex shrink-0 select-none items-center justify-center rounded px-6 py-2 text-base font-medium opacity-0"
+        >
+          New
+        </span>
       </div>
 
       <ActivityFilters

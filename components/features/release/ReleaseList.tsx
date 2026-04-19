@@ -44,6 +44,8 @@ import {
   SelectTrigger,
 } from "@/components/ui/select";
 import { GroupFilter } from "../activity/GroupFilter";
+import { activityFilterTriggerClassName } from "@/components/features/activity/activity-filter-ui";
+import { cn } from "@/lib/utils";
 
 interface ReleaseListProps {
   projectId: string;
@@ -205,15 +207,14 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
   };
 
   return (
-    <div className="flex min-h-[93.9vh] relative overflow-hidden bg-white">
+    <div className="relative flex h-full min-h-0 w-full flex-row overflow-hidden rounded-md border border-gray-200 bg-white shadow-sm">
       {/* MAIN CONTENT */}
       <div
         className={`flex flex-col h-full flex-1 transition-all duration-300 ${isPanelOpen ? "mr-0 sm:mr-80" : "mr-0"
           }`}
       >
-        {/* Header Title & New Button */}
-        <div className="px-6 py-4 flex justify-between items-center border-b border-gray-200">
-          <h1 className="text-xl font-normal text-gray-800">Releases</h1>
+        <div className="flex shrink-0 items-center justify-between rounded-t-md border-b border-gray-100 bg-white px-4 py-3">
+          <h2 className="text-lg font-medium text-gray-800">Releases</h2>
           <Button
             onClick={onCreateRelease}
             className="bg-[#406D87] hover:bg-[#345a70] px-6 py-4 rounded text-base font-medium flex items-center transition-colors disabled:opacity-50 outline-none ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
@@ -222,50 +223,47 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
           </Button>
         </div>
 
-        {/* --- FILTER BAR --- */}
-        <div className="px-6 py-2 flex items-center gap-2 border-b border-gray-200 bg-gray-50/50 min-h-[48px]">
-          {/* 1. Users Filter */}
-          <UserFilter
-            projectId={projectId}
-            selectedUserIds={recipientIds}
-            onChange={handleUserFilterChange}
-          />
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-gray-100 bg-white px-4 py-3">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
+            <UserFilter
+              projectId={projectId}
+              selectedUserIds={recipientIds}
+              onChange={handleUserFilterChange}
+            />
 
-          <span className="text-gray-300">|</span>
+            <span className="text-gray-300">|</span>
 
-          {/* 2. Status Filter */}
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger className="border-0 shadow-none focus:ring-0 w-auto gap-2 font-medium text-sm text-gray-600 hover:text-black px-2 h-8">
-              <span>Status</span>
-              {statusFilter !== "ALL" && (
-                <span className="ml-1 h-1.5 w-1.5 rounded-full bg-[#005F9E]" />
-              )}
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">All Status</SelectItem>
-              <SelectItem value="DRAFT">Draft</SelectItem>
-              <SelectItem value="SENT">Sent</SelectItem>
-            </SelectContent>
-          </Select>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger
+                className={cn(
+                  "w-auto min-w-0 justify-start",
+                  activityFilterTriggerClassName(statusFilter !== "ALL"),
+                )}
+              >
+                <span>Status</span>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All Status</SelectItem>
+                <SelectItem value="DRAFT">Draft</SelectItem>
+                <SelectItem value="SENT">Sent</SelectItem>
+              </SelectContent>
+            </Select>
 
-          <span className="text-gray-300">|</span>
+            <span className="text-gray-300">|</span>
 
-          {/* 2. [NEW] Group Filter */}
-          <GroupFilter
-            projectId={projectId}
-            selectedGroupIds={groupIds}
-            onChange={handleGroupFilterChange}
-          />
+            <GroupFilter
+              projectId={projectId}
+              selectedGroupIds={groupIds}
+              onChange={handleGroupFilterChange}
+            />
 
-          {/* 3. Due Date Filter */}
-          {/* Dùng DateFilter, truyền label "Due date" và ẩn Custom Date */}
-          <DateFilter
-            label="Due date"
-            hideCustom={true}
-            onFilterChange={handleDueDateChange}
-          />
+            <DateFilter
+              label="Due date"
+              hideCustom={true}
+              onFilterChange={handleDueDateChange}
+            />
+          </div>
 
-          {/* Clear Button */}
           {(recipientIds.length > 0 ||
             statusFilter !== "ALL" ||
             dueFilter.start) && (
@@ -284,9 +282,8 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
             )}
         </div>
 
-        {/* Table Content */}
         <div
-          className="flex-1 overflow-auto px-6 py-4"
+          className="min-h-0 flex-1 overflow-auto px-4 py-4"
           onClick={() => handleClearSelection()}
         >
           {loading ? (

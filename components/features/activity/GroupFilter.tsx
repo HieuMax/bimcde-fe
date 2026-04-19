@@ -11,6 +11,12 @@ import { Search, RefreshCw, ChevronDown } from "lucide-react";
 import { format } from "date-fns";
 import { useApi } from "@/app/hooks/useApi";
 import { cn } from "@/lib/utils";
+import {
+  activityFilterChevronDownClassName,
+  activityFilterCountBadgeClassName,
+  activityFilterPopoverContentClassName,
+  activityFilterTriggerClassName,
+} from "./activity-filter-ui";
 
 interface Group {
   _id: string;
@@ -35,10 +41,6 @@ export const GroupFilter: React.FC<GroupFilterProps> = ({
   const [search, setSearch] = useState("");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [isOpen, setIsOpen] = useState(false);
-
-  // Trigger style giống các filter khác
-  const triggerStyle =
-    "border-0 shadow-none focus:ring-0 w-auto gap-2 font-medium text-sm text-gray-600 hover:text-black px-2 h-8 data-[state=open]:bg-gray-100 rounded-md transition-colors flex items-center";
 
   const fetchGroups = async () => {
     setLoading(true);
@@ -85,23 +87,20 @@ export const GroupFilter: React.FC<GroupFilterProps> = ({
       <PopoverTrigger asChild>
         <Button
           variant="ghost"
-          className={cn(
-            triggerStyle,
-            isActive && "text-[#005F9E] font-semibold",
-          )}
+          className={activityFilterTriggerClassName(isActive)}
         >
           <span>Groups</span>
-          {selectedGroupIds.length > 0 && (
-            <span className="ml-1 bg-[#E6F4FF] text-[#005F9E] text-[10px] px-1.5 h-4 flex items-center justify-center rounded-full font-bold min-w-[1.25rem]">
+          {isActive && (
+            <span className={activityFilterCountBadgeClassName}>
               {selectedGroupIds.length}
             </span>
           )}
-          <ChevronDown className="h-3 w-3 ml-1 opacity-50" />
+          <ChevronDown className={activityFilterChevronDownClassName} />
         </Button>
       </PopoverTrigger>
 
       <PopoverContent
-        className="w-[300px] p-0 bg-white shadow-lg border border-gray-200"
+        className={activityFilterPopoverContentClassName}
         align="start"
       >
         {/* Header: Search */}
