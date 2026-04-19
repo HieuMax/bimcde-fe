@@ -41,14 +41,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ViewPropertiesPanel } from "./properties/ViewPropertiesPanel";
 import { ViewBulkPanel } from "./properties/ViewBulkPanel";
 
-// Mock Filter Button component cho giống giao diện
-const FilterButton = ({ label }: { label: string }) => (
-  <div className="flex items-center gap-1 cursor-pointer hover:bg-gray-100 px-2 py-1 rounded text-sm font-medium text-gray-700">
-    {label}
-    <span className="text-[10px]">▼</span>
-  </div>
-);
-
 export const ViewList = () => {
   const params = useParams();
   const projectId = params.projectId as string;
@@ -417,32 +409,40 @@ export const ViewList = () => {
   const singleView = selectedCount === 1 ? selectedViews[0] : null;
 
   return (
-    <div className="flex min-h-[93.9vh] relative overflow-hidden bg-white">
-      {/* MAIN CONTENT */}
-      <div
-        className={`flex flex-col h-full flex-1 transition-all duration-300 ${isPanelOpen ? "mr-0 sm:mr-80" : "mr-0"
+    <div className="flex h-full min-h-0 w-full flex-col bg-[#F5F6F7]">
+      <div className="flex min-h-0 flex-1 flex-row">
+        <div
+          className={`relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border border-gray-200 bg-white shadow-sm transition-all duration-300 ${
+            isPanelOpen ? "mr-0 sm:mr-80" : "mr-0"
           }`}
-      >
-        {/* 1. Header & Tabs */}
-        <div className="px-6 pt-6 pb-0 border-b border-gray-200">
-          <h2 className="text-xl font-normal text-gray-800 mb-4">Views</h2>
+        >
+        <div className="flex shrink-0 items-center justify-between rounded-t-md border-b border-gray-100 bg-white px-4 py-2.5">
+          <h2 className="text-lg font-medium text-gray-800">Views</h2>
+          <span
+            aria-hidden
+            className="pointer-events-none inline-flex shrink-0 select-none items-center justify-center rounded px-6 py-2 text-base font-medium opacity-0"
+          >
+            New
+          </span>
+        </div>
 
+        <div className="shrink-0 border-b border-gray-100 bg-white px-4 pb-2 pt-1">
           <Tabs
             defaultValue="3D"
             value={activeTab}
             onValueChange={(val) => handleTabChange(val as "3D" | "2D")}
             className="w-full"
           >
-            <TabsList className="bg-transparent p-0 h-auto space-x-6">
+            <TabsList className="h-auto space-x-6 bg-transparent p-0">
               <TabsTrigger
                 value="3D"
-                className="rounded-none border-b-2 border-transparent px-0 py-2 data-[state=active]:border-[#005F9E] data-[state=active]:text-[#005F9E] data-[state=active]:shadow-none text-gray-500 font-medium"
+                className="rounded-none border-b-2 border-transparent px-0 py-2 font-medium text-gray-500 data-[state=active]:border-[#005F9E] data-[state=active]:text-[#005F9E] data-[state=active]:shadow-none"
               >
                 3D Views
               </TabsTrigger>
               <TabsTrigger
                 value="2D"
-                className="rounded-none border-b-2 border-transparent px-0 py-2 data-[state=active]:border-[#005F9E] data-[state=active]:text-[#005F9E] data-[state=active]:shadow-none text-gray-500 font-medium"
+                className="rounded-none border-b-2 border-transparent px-0 py-2 font-medium text-gray-500 data-[state=active]:border-[#005F9E] data-[state=active]:text-[#005F9E] data-[state=active]:shadow-none"
               >
                 2D Views
               </TabsTrigger>
@@ -450,20 +450,15 @@ export const ViewList = () => {
           </Tabs>
         </div>
 
-        {/* 2. Filter Bar & Count */}
-        <div className="px-6 py-3 flex justify-between items-center border-b border-gray-200 bg-gray-50/50">
-          <div className="flex gap-1 items-center">
-            <FilterButton label="Owner" />
-
-            <span className="text-gray-300 mx-2">|</span>
-
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-gray-100 bg-white px-4 py-3">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
             <UserFilter
               projectId={projectId}
               selectedUserIds={selectedUserIds}
               onChange={setSelectedUserIds}
             />
 
-            <span className="text-gray-300 mx-2">|</span>
+            <span className="text-gray-300">|</span>
 
             <GroupFilter
               projectId={projectId}
@@ -471,7 +466,7 @@ export const ViewList = () => {
               onChange={setSelectedGroupIds}
             />
 
-            <span className="text-gray-300 mx-2">|</span>
+            <span className="text-gray-300">|</span>
 
             <DateFilter
               onFilterChange={(range) =>
@@ -482,14 +477,13 @@ export const ViewList = () => {
               }
             />
           </div>
-          <div className="text-xs text-gray-500 font-medium">
+          <div className="flex shrink-0 items-center gap-1 text-xs font-medium text-gray-500">
             {views.length} of {views.length}
           </div>
         </div>
 
-        {/* 3. Table Content */}
         <div
-          className="flex-1 overflow-auto px-6 py-4"
+          className="min-h-0 flex-1 overflow-auto px-4 py-4"
           onClick={() => handleClearSelection()}
         >
           {loading ? (
@@ -649,7 +643,7 @@ export const ViewList = () => {
             </Table>
           )}
         </div>
-      </div>
+        </div>
 
       {/* RIGHT PANEL (PROPERTIES) */}
       <aside
@@ -687,6 +681,7 @@ export const ViewList = () => {
           />
         ) : null}
       </aside>
+      </div>
     </div>
   );
 };

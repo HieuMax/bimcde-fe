@@ -10,7 +10,10 @@ import AddTodoDialog from "@/components/features/todo/dialog/addTodoDialog";
 import type { TopicLinkOption } from "@/components/features/todo/dialog/addTodoDialog";
 import { topicsService } from "@/services/topics.service";
 import DropDownCheckBox from "@/components/features/todo/dropdown/dropdownCheckBox";
-import DropdownDatePicker from "@/components/features/todo/dropdown/dropdownDatePciker";
+import {
+  DateModifiedFilterPopover,
+  MultiCheckboxFilterPopover,
+} from "@/components/features/topics/filters/TopicsFilters";
 import { columnsTable } from "@/components/features/todo/table/column";
 import { DataTable } from "@/components/features/todo/table/DataTable";
 import { NewTodoDrawer } from "@/components/todos/NewTodoDrawer";
@@ -513,97 +516,160 @@ export default function page({
   };
   //#endregion
 
+  const handleExcel = (type: String) => { };
+
+  const statusFilterOptions = useMemo(
+    () =>
+      status.map((s) => ({
+        value: s.value as string,
+        label: s.name,
+      })),
+    [],
+  );
+
+  const priorityFilterOptions = useMemo(() => {
+    return (priorityData as { name?: string; color?: string }[])
+      .map((p) => ({
+        value: p.name ?? "",
+        label: p.name ?? "",
+        color: p.color,
+      }))
+      .filter((o) => o.value);
+  }, [priorityData]);
+
+  const selectedStatusValuesForUi = useMemo(
+    () =>
+      selectedStatuses
+        .map(
+          (statusObj) =>
+            statusObj.value ||
+            statusObj.name.toLowerCase().replace(/\s+/g, "_"),
+        )
+        .filter(Boolean) as string[],
+    [selectedStatuses],
+  );
+
+  const handleStatusFilterChange = (nextValues: string[]) => {
+    setSelectedStatuses(
+      nextValues.map((v) => {
+        const row = status.find((s) => s.value === v);
+        return {
+          name: row?.name ?? v,
+          value: row?.value ?? v,
+        };
+      }),
+    );
+  };
+
   return (
-    <div className="flex relative w-full h-full gap-3">
-      <div className="   h-full w-full overflow-y-hidden">
-        {/* HEADER */}
-        <div className="flex items-center justify-between px-4 py-4">
-          <h1 className="text-xl font-normal text-gray-800">Todo</h1>
-
-          <Button
-            onClick={() => {
-              setLinkedTopicForNewTodo(null);
-              setOpenDialog(true);
-            }}
-            className="bg-[#406D87] hover:bg-[#345a70] px-6 py-4 rounded text-base font-medium flex items-center transition-colors disabled:opacity-50 outline-none ring-0 focus-visible:ring-0 focus-visible:ring-offset-0">
-            New
-          </Button>
-        </div>
-        {/* BODY */}
-        <div className="  border-t h-[calc(100%-40px)] w-full">
-          {/* FILTER */}
-          <div className="px-6 py-4 flex gap-2 overflow-x-auto whitespace-nowrap min-h-[56px]">
-            <DropDownCheckBox
-              title="Owner"
-              options={optionsOwner}
-              isSearch={false}
-              value={selectedOwners}
-              onChange={setSelectedOwners as any}></DropDownCheckBox>
-            <DropDownCheckBox
-              title="Users"
-              options={memberData}
-              isSearch={true}
-              value={selectedUsers}
-              onChange={setSelectedUsers as any}></DropDownCheckBox>
-            <DropDownCheckBox
-              title="Group"
-              options={groupData}
-              isSearch={true}
-              value={selectedGroups}
-              onChange={setSelectedGroups as any}></DropDownCheckBox>
-            <DropDownCheckBox
-              title="Status"
-              options={status}
-              isSearch={false}
-              value={selectedStatuses}
-              onChange={setSelectedStatuses as any}
-              returnObject={true}></DropDownCheckBox>
-
-            <DropDownCheckBox
-              title="Priority"
-              options={priorityData}
-              isSearch={false}
-              value={selectedPriorities}
-              onChange={setSelectedPriorities as any}></DropDownCheckBox>
-            <DropdownDatePicker
-              title="Date modified"
-              options={DATE_OPTIONS}
-              value={date}
-              onChange={setDate}
-              from={dateRange.from}
-              to={dateRange.to}
-              onRangeChange={setDateRange}></DropdownDatePicker>
-
-            {hasActiveFilters() && (
-              <Button
-                onClick={handleResetFilters}
-                className="text-blue-800 bg-transparent shadow-none text-base hover:bg-blue-100">
-                Reset
-              </Button>
-            )}
+    <div className="flex h-full w-full flex-col bg-[#F5F6F7]">
+      <div className="flex min-h-0 flex-1 w-full flex-col overflow-hidden">
+        <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-gray-200 bg-white shadow-sm">
+          <div className="flex shrink-0 items-center justify-between rounded-t-md border-b border-gray-100 bg-white px-4 py-3">
+            <h2 className="text-lg font-medium text-gray-800">Todo</h2>
+            <Button
+              onClick={() => {
+                setLinkedTopicForNewTodo(null);
+                setOpenDialog(true);
+              }}
+              className="flex items-center rounded bg-[#406D87] px-6 py-2 text-base font-medium text-white transition-colors hover:bg-[#345a70] focus-visible:ring-0 focus-visible:ring-offset-0 disabled:opacity-50"
+            >
+              New
+            </Button>
           </div>
 
-          {/* TABLE */}
-          <DataTable
-            columns={columnsTable}
-            data={filteredData}
-            isDrawer={isOpenDrawer}
-            selectedTodoId={rowSelection?._id ?? null}
-            onRowSelectionChange={handleRowSelectionChange}></DataTable>
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-gray-100 bg-white px-4 py-3">
+              <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
+                <DropDownCheckBox
+                  title="Owner"
+                  options={optionsOwner}
+                  isSearch={false}
+                  value={selectedOwners}
+                  onChange={setSelectedOwners as any}
+                />
+                <DropDownCheckBox
+                  title="Users"
+                  options={memberData}
+                  isSearch={true}
+                  value={selectedUsers}
+                  onChange={setSelectedUsers as any}
+                />
+                <DropDownCheckBox
+                  title="Group"
+                  options={groupData}
+                  isSearch={true}
+                  value={selectedGroups}
+                  onChange={setSelectedGroups as any}
+                />
+                <MultiCheckboxFilterPopover
+                  label="Status"
+                  options={statusFilterOptions}
+                  selectedValues={selectedStatusValuesForUi}
+                  onChange={handleStatusFilterChange}
+                />
+                <MultiCheckboxFilterPopover
+                  label="Priority"
+                  options={priorityFilterOptions}
+                  selectedValues={selectedPriorities}
+                  onChange={setSelectedPriorities}
+                  renderOptionIcon={(opt) =>
+                    opt.color ? (
+                      <span
+                        className="inline-block h-3 w-3 rounded-sm border"
+                        style={{ backgroundColor: opt.color }}
+                      />
+                    ) : null
+                  }
+                />
+                <DateModifiedFilterPopover
+                  label="Date modified"
+                  options={DATE_OPTIONS}
+                  presetValue={date}
+                  onPresetChange={setDate}
+                  from={dateRange.from}
+                  to={dateRange.to}
+                  onRangeChange={setDateRange}
+                />
+              </div>
+
+              {hasActiveFilters() && (
+                <div className="flex shrink-0 items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleResetFilters}
+                    className="text-gray-500 hover:text-red-600"
+                  >
+                    Reset
+                  </Button>
+                </div>
+              )}
+            </div>
+
+            <DataTable
+              columns={columnsTable}
+              data={filteredData}
+              isDrawer={isOpenDrawer}
+              selectedTodoId={rowSelection?._id ?? null}
+              onRowSelectionChange={handleRowSelectionChange}
+            />
+          </div>
+
+          <AddTodoDialog
+            key={openDialog ? "dialog-open" : "dialog-closed"}
+            open={openDialog}
+            users={assigneeData}
+            priority={priorityData}
+            type={typeData}
+            tag={tagData}
+            projectId={projectId}
+            topicLinkOptions={topicLinkOptions}
+            topicLinkLocked={false}
+            linkedTopicItem={linkedTopicForNewTodo}
+            onClose={onCloseDialog}
+          />
         </div>
-        <AddTodoDialog
-          key={openDialog ? "dialog-open" : "dialog-closed"}
-          open={openDialog}
-          users={assigneeData}
-          priority={priorityData}
-          type={typeData}
-          tag={tagData}
-          projectId={projectId}
-          topicLinkOptions={topicLinkOptions}
-          topicLinkLocked={false}
-          linkedTopicItem={linkedTopicForNewTodo}
-          onClose={onCloseDialog}
-        />
       </div>
       <NewTodoDrawer
         open={isOpenDrawer}
