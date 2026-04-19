@@ -894,13 +894,19 @@ export default function IfcViewer({
   const handleSelectClashItem = (item1, item2) => {
     if (!loaderRef.current) return;
 
-    const itemsToHighlight = [
-      { modelID: item1.modelID, expressID: item1.expressID },
-      { modelID: item2.modelID, expressID: item2.expressID }
-    ];
+    const sourceUrl1 = modelUrlMap.current[item1.modelID];
+    const sourceUrl2 = modelUrlMap.current[item2.modelID];
 
+    const itemsToHighlight = [
+      { modelID: item1.modelID, expressID: item1.expressID, fileUrl: sourceUrl1 },
+      { modelID: item2.modelID, expressID: item2.expressID, fileUrl: sourceUrl2 }
+    ];
     loaderRef.current.highlightItems(itemsToHighlight);
 
+    setSelectedItems(itemsToHighlight);
+    if (setSelectdItemsForNavbar) {
+      setSelectdItemsForNavbar(itemsToHighlight);
+    }
     // Zoom camera  (Optional)
     // loaderRef.current.zoomToItems(itemsToHighlight); 
   };

@@ -30,7 +30,18 @@ import { useApi } from "@/app/hooks/useApi";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import ProjectsNavbar from "@/components/layout/ProjectsNavbar";
-
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
 // ========================
 // DEFAULT THUMBNAIL
 // ========================
@@ -100,8 +111,8 @@ export default function ProjectsPage() {
           </div>
         </div>
 
-        {view === "grid" && <GridView projects={projects} />}
-        {view === "list" && <ListView projects={projects} />}
+        {view === "grid" && <GridView projects={projects} onRefresh={loadProjects} />}
+        {view === "list" && <ListView projects={projects} onRefresh={loadProjects} />}
       </div>
     </div>
   );
@@ -109,22 +120,68 @@ export default function ProjectsPage() {
 //#endregion
 
 //#region popup menu
-function PopoverProject() {
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <button className="py-2 px-4 rounded hover:bg-gray-300">⋮</button>
-      </PopoverTrigger>
+function PopoverProject({
+  projectId,
+  onLeft
+}: {
+  projectId: string;
+  onLeft: () => void
+}) {
+  const { put } = useApi();
+  const [isPending, setIsPending] = useState(false);
 
-      <PopoverContent className="w-56 p-3 flex flex-col gap-2">
-        <p className="hover:bg-gray-100 p-2 rounded cursor-pointer">
-          Use as template for a new project
-        </p>
-        <p className="hover:bg-gray-100 p-2 rounded cursor-pointer">
-          Leave project
-        </p>
-      </PopoverContent>
-    </Popover>
+  const handleLeaveProject = async () => {
+    setIsPending(true);
+    try {
+      const response = await put(`/projects/leaveProject/${projectId}`);
+      if (response.success) {
+        toast.success("You have left the project");
+        onLeft();
+      } else {
+        toast.error(response.error || "Failed to leave project");
+      }
+    } catch (error) {
+      toast.error("An error occurred");
+    } finally {
+      setIsPending(false);
+    }
+  };
+
+  return (
+    <div onClick={(e) => e.stopPropagation()}>
+      <Popover>
+        <PopoverTrigger asChild>
+          <button className="py-2 px-4 rounded hover:bg-gray-300">⋮</button>
+        </PopoverTrigger>
+        <PopoverContent className="w-56 p-3 flex flex-col gap-2">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <p className="hover:bg-red-50 text-red-600 p-2 rounded cursor-pointer text-sm">
+                Leave project
+              </p>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Leave project?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to leave this project?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleLeaveProject}
+                  className="bg-red-600 hover:bg-red-700"
+                  disabled={isPending}
+                >
+                  {isPending ? "Leaving..." : "Leave"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </PopoverContent>
+      </Popover>
+    </div>
   );
 }
 //#endregion
@@ -429,35 +486,18 @@ function NewProjectDialog({ onCreated }: { onCreated: () => void }) {
 //#endregion
 
 //#region GRID VIEW
-function GridView({ projects }: { projects: Project[] }) {
+function GridView({ projects, onRefresh }: { projects: Project[], onRefresh: () => void }) {
   const router = useRouter();
-
-  const handleProjectClick = (id: any) => {
-    router.push(`/projects/${id}`);
-  };
   return (
     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
       {projects.map((p) => (
-        <div
-          key={p._id}
-          className="bg-white shadow rounded overflow-hidden cursor-pointer"
-          onClick={() => handleProjectClick(p._id)}
-        >
+        <div key={p._id} className="bg-white shadow rounded overflow-hidden cursor-pointer" onClick={() => router.push(`/projects/${p._id}`)}>
           <div className="h-40 bg-gray-200">
-            <Image
-              src={p.thumbnail || DEFAULT_THUMBNAIL}
-              alt={p.name || "Project Thumbnail"}
-              width={300}
-              height={200}
-              className="w-full h-full object-cover"
-              loading="eager"
-            />
+            <Image src={p.thumbnail || DEFAULT_THUMBNAIL} alt={p.name || ""} width={300} height={200} className="w-full h-full object-cover" />
           </div>
           <div className="p-4 flex items-center justify-between">
-            <p className="font-medium cursor-pointer">{p.name}</p>
-            <div onClick={(e) => e.stopPropagation()}>
-              <PopoverProject />
-            </div>
+            <p className="font-medium">{p.name}</p>
+            <PopoverProject projectId={p._id} onLeft={onRefresh} />
           </div>
         </div>
       ))}
@@ -467,69 +507,21 @@ function GridView({ projects }: { projects: Project[] }) {
 //#endregion
 
 //#region LIST VIEW
-function ListView({ projects }: { projects: Project[] }) {
+function ListView({ projects, onRefresh }: { projects: Project[], onRefresh: () => void }) {
   const router = useRouter();
-
-  const handleProjectClick = (id: any) => {
-    router.push(`/projects/${id}`);
-  };
   return (
     <div className="bg-white shadow rounded">
-      <div className="grid grid-cols-[40%_15%_15%_15%_15%] p-3 text-sm font-medium border-b">
-        <div>Name</div>
-        <div>Size</div>
-        <div>Last visited</div>
-        <div>Modified on</div>
-        <div></div>
-      </div>
-
       {projects.map((p) => (
-        <div
-          key={p._id}
-          className="grid grid-cols-[40%_15%_15%_15%_15%] items-center p-3 hover:bg-gray-100 cursor-pointer"
-          onClick={() => handleProjectClick(p._id)}
-        >
+        <div key={p._id} className="grid grid-cols-[40%_15%_15%_15%_15%] items-center p-3 hover:bg-gray-100 cursor-pointer" onClick={() => router.push(`/projects/${p._id}`)}>
           <div className="flex items-center gap-2">
-            <Image
-              src={p.thumbnail || DEFAULT_THUMBNAIL}
-              alt={p.name || "Project Thumbnail"}
-              width={40}
-              height={40}
-              className="rounded"
-              loading="eager"
-            />
+            <Image src={p.thumbnail || DEFAULT_THUMBNAIL} alt="" width={40} height={40} className="rounded" />
             {p.name}
           </div>
-
           <div>{p.size}</div>
-          <div>
-            {p.lastAccessed
-              ? new Date(p.lastAccessed).toLocaleString("en-US", {
-                month: "short",
-                day: "2-digit",
-                year: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-                hour12: true,
-              })
-              : ""}
-          </div>
-
-          <div>
-            {p.lastModifiedOn && !isNaN(new Date(p.lastModifiedOn).getTime())
-              ? new Date(p.lastModifiedOn).toLocaleString("en-US", {
-                month: "short",
-                day: "2-digit",
-                year: "numeric",
-                hour: "2-digit",
-                minute: "2-digit",
-                hour12: true,
-              })
-              : "No Date Available"}
-          </div>
-
+          <div>{p.lastAccessed ? format(new Date(p.lastAccessed), "MMM dd, yyyy") : ""}</div>
+          <div>{p.lastModifiedOn ? format(new Date(p.lastModifiedOn), "MMM dd, yyyy") : ""}</div>
           <div className="flex justify-end">
-            <PopoverProject />
+            <PopoverProject projectId={p._id} onLeft={onRefresh} />
           </div>
         </div>
       ))}

@@ -453,7 +453,7 @@ export default function AddTodoDialog({
           <Button
             onClick={onToggleDetails}
             className="text-sm bg-transparent w-full text-left justify-start shadow-none hover:bg-blue-100 text-blue-600 ">
-            Show less
+            {moreDetails ? "Show less" : "Show more"}
           </Button>
         </div>
 
