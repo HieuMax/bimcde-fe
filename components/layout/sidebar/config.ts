@@ -5,9 +5,6 @@ import {
   ClipboardCheck,
   Users,
   LayoutTemplate,
-  ShieldCheck,
-  Bell,
-  LayoutGrid,
   Ruler,
   Tag,
   Key,
@@ -45,28 +42,10 @@ export const SETTINGS_ITEMS: SidebarItemConfig[] = [
     pathSegment: "settings/details",
   },
   {
-    key: "permissions-overview",
-    label: "Permissions Overview",
-    icon: ShieldCheck,
-    pathSegment: "settings/permissions-overview",
-  },
-  {
     key: "topics",
     label: "BCF Topics",
     icon: MessageSquare,
     pathSegment: "settings/topics",
-  },
-  {
-    key: "extensions",
-    label: "Extensions",
-    icon: LayoutGrid,
-    pathSegment: "settings/extensions",
-  },
-  {
-    key: "notifications",
-    label: "Notifications",
-    icon: Bell,
-    pathSegment: "settings/notifications",
   },
   {
     key: "units",

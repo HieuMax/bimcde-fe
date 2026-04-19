@@ -28,6 +28,8 @@ import { Label } from "@/components/ui/label";
 import type { CdeWorkflowMode } from "@/types/explorer";
 import { useApi } from "@/app/hooks/useApi";
 import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
+import ProjectsNavbar from "@/components/layout/ProjectsNavbar";
 
 // ========================
 // DEFAULT THUMBNAIL
@@ -38,29 +40,29 @@ const DEFAULT_THUMBNAIL =
 //#region MAIN PAGE COMPONENT
 export default function ProjectsPage() {
   const [view, setView] = useState<"grid" | "list">("grid");
-  const [loading, setLoading] = useState(false);
-
-  const [projects, setProjects] = useState<Project[]>([]);
   const { get } = useApi();
 
-  async function loadProjects() {
-    try {
-      const res = await get("/projects/getAllProject");
-      if (res.success) {
-        setProjects(res.result || []);
-      } else {
-        console.error("Failed to load project list:", res.data.message);
+  const {
+    data: projects = [],
+    isLoading: loading,
+    refetch: loadProjects,
+  } = useQuery<Project[]>({
+    queryKey: ["projects"],
+    queryFn: async () => {
+      try {
+        const res = await get("/projects/getAllProject");
+        if (res.success) {
+          return res.result || [];
+        } else {
+          console.error("Failed to load project list:", res.data?.message || res.message);
+          return [];
+        }
+      } catch (e) {
+        console.error("Failed to load project list:", e);
+        return [];
       }
-    } catch (e) {
-      console.error("Failed to load project list:", e);
-    }
-
-    setLoading(false);
-  }
-
-  useEffect(() => {
-    loadProjects();
-  }, []);
+    },
+  });
 
   if (loading) {
     return (
@@ -70,38 +72,37 @@ export default function ProjectsPage() {
     );
   }
   return (
-    <div className="w-full min-h-screen bg-[#f2f3f7] p-10">
-      {/* HEADER */}
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-2xl font-medium">Projects</h1>
+    <div className="flex flex-col min-h-screen bg-[#f2f3f7]">
+      <ProjectsNavbar />
+      <div className="flex-1 w-full p-10">
+        {/* HEADER */}
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-2xl font-medium">Projects</h1>
 
-        <div className="flex gap-3">
-          <Button
-            variant="ghost"
-            onClick={() => setView("grid")}
-            className={view === "grid" ? "bg-gray-300" : ""}
-          >
-            <Grid size={18} />
-          </Button>
+          <div className="flex gap-3">
+            <Button
+              variant="ghost"
+              onClick={() => setView("grid")}
+              className={view === "grid" ? "bg-gray-300" : ""}
+            >
+              <Grid size={18} />
+            </Button>
 
-          <Button
-            variant="ghost"
-            onClick={() => setView("list")}
-            className={view === "list" ? "bg-gray-300" : ""}
-          >
-            <List size={18} />
-          </Button>
+            <Button
+              variant="ghost"
+              onClick={() => setView("list")}
+              className={view === "list" ? "bg-gray-300" : ""}
+            >
+              <List size={18} />
+            </Button>
 
-          <NewProjectDialog onCreated={loadProjects} />
+            <NewProjectDialog onCreated={loadProjects} />
+          </div>
         </div>
+
+        {view === "grid" && <GridView projects={projects} />}
+        {view === "list" && <ListView projects={projects} />}
       </div>
-
-      <p className="text-sm font-medium mb-4 flex items-center gap-1">
-        Asia <span className="text-gray-500">▼</span>
-      </p>
-
-      {view === "grid" && <GridView projects={projects} />}
-      {view === "list" && <ListView projects={projects} />}
     </div>
   );
 }
@@ -219,15 +220,19 @@ function NewProjectDialog({ onCreated }: { onCreated: () => void }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="bg-[#0f6cbd] text-white px-5">New</Button>
+        <Button className="bg-[#406D87] hover:bg-[#345a70] px-6 py-4 rounded text-base font-medium flex items-center transition-colors disabled:opacity-50 outline-none ring-0 focus-visible:ring-0 focus-visible:ring-offset-0">
+          New
+        </Button>
       </DialogTrigger>
 
-      <DialogContent className="max-w-xl" aria-describedby="dialog-desc">
-        <DialogHeader>
-          <DialogTitle>New Project</DialogTitle>
-        </DialogHeader>
-        <DialogDescription></DialogDescription>
-        <div className="flex flex-col gap-4">
+      <DialogContent className="max-w-xl max-h-[90vh] flex flex-col p-0" aria-describedby="dialog-desc">
+        <div className="p-6 pb-0">
+          <DialogHeader>
+            <DialogTitle>New Project</DialogTitle>
+          </DialogHeader>
+          <DialogDescription></DialogDescription>
+        </div>
+        <div className="flex flex-col gap-4 p-6 overflow-y-auto flex-1">
           {/* Name */}
           <div>
             <label className="text-sm">Name</label>
@@ -406,10 +411,12 @@ function NewProjectDialog({ onCreated }: { onCreated: () => void }) {
             </p>
           )}
 
-          {/* Submit */}
+        </div>
+        {/* Submit */}
+        <div className="p-6 pt-4 border-t mt-auto flex justify-end bg-white rounded-b-lg">
           <Button
             onClick={handleSubmit}
-            className="bg-[#0f6cbd] text-white w-24 ml-auto"
+            className="bg-[#406D87] hover:bg-[#345a70] text-white w-24 ml-auto"
           >
             Submit
           </Button>
@@ -498,26 +505,26 @@ function ListView({ projects }: { projects: Project[] }) {
           <div>
             {p.lastAccessed
               ? new Date(p.lastAccessed).toLocaleString("en-US", {
-                  month: "short",
-                  day: "2-digit",
-                  year: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  hour12: true,
-                })
+                month: "short",
+                day: "2-digit",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: true,
+              })
               : ""}
           </div>
 
           <div>
             {p.lastModifiedOn && !isNaN(new Date(p.lastModifiedOn).getTime())
               ? new Date(p.lastModifiedOn).toLocaleString("en-US", {
-                  month: "short",
-                  day: "2-digit",
-                  year: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  hour12: true,
-                })
+                month: "short",
+                day: "2-digit",
+                year: "numeric",
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: true,
+              })
               : "No Date Available"}
           </div>
 

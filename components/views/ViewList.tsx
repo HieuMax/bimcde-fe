@@ -107,7 +107,7 @@ export function ViewList({
         } else if (filterType === "current-context") {
             result = result.filter(v => {
                 if (!v.items || v.items.length === 0) return false;
-                return v.items.some(item => 
+                return v.items.some(item =>
                     ifcUrls.some(activeUrl => urlsMatch(item.fileUrl, activeUrl))
                 );
             });
@@ -245,7 +245,7 @@ export function ViewList({
                             {/* Thumbnail Image */}
                             <div
                                 className="aspect-video w-full bg-slate-100 cursor-pointer relative overflow-hidden"
-                                onClick={() => onRestoreView && onRestoreView(view.viewState, (view as any).items || [])}
+                                onClick={() => onRestoreView && onRestoreView(view)}
                             >
                                 {/* Prefer explicit thumbnail from viewState, fall back to previewSrc */}
                                 {view.viewState?.thumbnail ? (

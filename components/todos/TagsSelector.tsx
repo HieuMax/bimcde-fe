@@ -49,7 +49,14 @@ export function TagSelector({
   const [loading, setLoading] = React.useState(false);
 
   React.useEffect(() => {
-    setSelectedOptions(initialOptions);
+    if (initialOptions) {
+      setSelectedOptions((prev) => {
+        const prevIds = prev.map((p) => p.tagId).sort().join(',');
+        const newIds = initialOptions.map((n) => n.tagId).sort().join(',');
+        if (prevIds === newIds) return prev;
+        return initialOptions;
+      });
+    }
   }, [initialOptions]);
 
   // Fetch tags
@@ -72,7 +79,7 @@ export function TagSelector({
     };
 
     fetchTags();
-  }, [projectId, open]);
+  }, [projectId]);
 
   // Select / unselect
   const handleSelect = (tag: ITagTodo) => {

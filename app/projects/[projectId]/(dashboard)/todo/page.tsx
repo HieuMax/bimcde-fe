@@ -14,6 +14,7 @@ import DropdownDatePicker from "@/components/features/todo/dropdown/dropdownDate
 import { columnsTable } from "@/components/features/todo/table/column";
 import { DataTable } from "@/components/features/todo/table/DataTable";
 import { NewTodoDrawer } from "@/components/todos/NewTodoDrawer";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { ITodo } from "@/types/todo3d";
@@ -512,7 +513,6 @@ export default function page({
   };
   //#endregion
 
-  const handleExcel = (type: String) => { };
   return (
     <div className="flex relative w-full h-full gap-3">
       <div className="   h-full w-full overflow-y-hidden">
@@ -615,6 +615,25 @@ export default function page({
         projectId={projectId}
         todoToEdit={rowSelection}
         mode="view"
+        onRestoreView={(viewState) => {
+          if (!rowSelection) return;
+          const targetUrls = Array.from(
+            new Set((rowSelection.items || []).map((i: any) => i.fileUrl).filter(Boolean)),
+          );
+          if (targetUrls.length === 0) {
+            toast.error("No 3D models attached to this Todo");
+            return;
+          }
+          const pendingKey = `bimcde_pending_todo_${projectId}`;
+          sessionStorage.setItem(
+            pendingKey,
+            JSON.stringify({ todo: rowSelection, mode: "view", type: "todo" })
+          );
+          const newUrlsParams = JSON.stringify(targetUrls);
+          router.push(
+            `/projects/${projectId}/viewer3d?urls=${encodeURIComponent(newUrlsParams)}`
+          );
+        }}
       />
     </div>
   );

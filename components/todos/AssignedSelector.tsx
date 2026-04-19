@@ -53,7 +53,14 @@ export function AssignedSelector({
 
   // Sync nếu initialOptions thay đổi từ bên ngoài
   React.useEffect(() => {
-    setSelectedOptions(initialOptions);
+    if (initialOptions) {
+      setSelectedOptions((prev) => {
+        const prevIds = prev.map((p) => p.assigneeId).sort().join(',');
+        const newIds = initialOptions.map((n) => n.assigneeId).sort().join(',');
+        if (prevIds === newIds) return prev;
+        return initialOptions;
+      });
+    }
   }, [initialOptions]);
 
   // Fetch Data (Users & Groups) để gợi ý tìm kiếm
@@ -98,7 +105,7 @@ export function AssignedSelector({
     };
 
     fetchData();
-  }, [projectId, open]);
+  }, [projectId]);
 
   const mapToIAssigness = (items: IAssigneeTodo[]): IAssigneeTodo[] => {
     return items.map((item) => ({

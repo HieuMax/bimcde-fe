@@ -40,7 +40,7 @@ function DraggableCard({
   onCheckboxClick: (item: IFolder | IFile) => void;
 }) {
   const isFolder = "totalSize" in item;
-  const folderBlocked = isFolder && (item as IFolder).cdeAccessible === false;
+  const itemBlocked = (item as any).cdeAccessible === false;
   const isFileLocked = !isFolder && (item as IFile).isLocked;
 
   // --- LOGIC DND ---
@@ -52,13 +52,13 @@ function DraggableCard({
   } = useDraggable({
     id: item._id,
     data: { item, type: isFolder ? "folder" : "file" },
-    disabled: folderBlocked,
+    disabled: itemBlocked,
   });
 
   const { setNodeRef: setDropRef, isOver } = useDroppable({
     id: item._id,
     data: { item },
-    disabled: !isFolder || folderBlocked,
+    disabled: !isFolder || itemBlocked,
   });
 
   const setNodeRef = (node: HTMLElement | null) => {
@@ -72,7 +72,7 @@ function DraggableCard({
 
   const handleCheckboxInteraction = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (folderBlocked) return;
+    if (itemBlocked) return;
     onCheckboxClick(item);
   };
 
@@ -87,20 +87,20 @@ function DraggableCard({
         onClick={handleCardInteraction}
         className={cn(
           "group relative flex items-center gap-3 px-4 py-3 rounded-lg border transition-all duration-200 bg-white select-none",
-          folderBlocked
+          itemBlocked
             ? "cursor-not-allowed bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100"
             : cn(
-                "cursor-pointer",
-                isSelected
-                  ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500"
-                  : "border-slate-200 hover:bg-slate-50 hover:shadow-sm",
-              ),
+              "cursor-pointer",
+              isSelected
+                ? "border-blue-500 bg-blue-50 ring-1 ring-blue-500"
+                : "border-slate-200 hover:bg-slate-50 hover:shadow-sm",
+            ),
           isOver && "ring-2 ring-blue-400 bg-blue-100",
         )}
       >
         {/* Checkbox Area */}
         <div className="flex items-center justify-center size-5 shrink-0 relative">
-          {!folderBlocked && (
+          {!itemBlocked && (
             <Checkbox
               checked={isSelected}
               onClick={handleCheckboxInteraction}
@@ -116,13 +116,13 @@ function DraggableCard({
           <FolderIcon
             className={cn(
               "size-5 transition-opacity",
-              folderBlocked
+              itemBlocked
                 ? "text-slate-400 fill-slate-300"
                 : "text-slate-600 fill-slate-600",
               isSelected ? "opacity-0" : "group-hover:opacity-0",
             )}
           />
-          {folderBlocked && !isSelected && (
+          {itemBlocked && !isSelected && (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-200">
               <span className="rounded-full bg-white/95 p-1 shadow-sm border border-slate-200">
                 <LockKeyhole className="size-3.5 text-slate-600" />
@@ -134,7 +134,7 @@ function DraggableCard({
         <span
           className={cn(
             "truncate text-sm font-medium flex-1",
-            folderBlocked ? "text-slate-500" : "text-slate-700",
+            itemBlocked ? "text-slate-500" : "text-slate-700",
           )}
           title={item.name}
         >
@@ -260,8 +260,8 @@ export default function ViewGrid({
     null,
   );
 
-  const isBlockedFolder = (i: IFolder | IFile) =>
-    "totalSize" in i && (i as IFolder).cdeAccessible === false;
+  const isBlockedItem = (i: IFolder | IFile) =>
+    (i as any).cdeAccessible === false;
 
   const handleCardClickWithEvent = (
     e: React.MouseEvent,
@@ -275,13 +275,13 @@ export default function ViewGrid({
       const end = Math.max(lastSelectedIndex, currentIndex);
       const itemsToSelect = allItems
         .slice(start, end + 1)
-        .filter((i) => !isBlockedFolder(i));
+        .filter((i) => !isBlockedItem(i));
       onMultiSelect(itemsToSelect);
       setLastSelectedIndex(currentIndex);
       return;
     }
 
-    if (isBlockedFolder(item)) return;
+    if (isBlockedItem(item)) return;
 
     if (e.ctrlKey || e.metaKey) {
       onCheckboxClick(item);
