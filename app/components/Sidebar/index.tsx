@@ -115,27 +115,9 @@ export default function Sidebar() {
                 small
               />
               <SidebarItem
-                name="Permissions Overview"
-                icon={<ShieldCheck size={18} />}
-                href="/dashboard/settings/per-overview"
-                small
-              />
-              <SidebarItem
                 name="BCF Topics"
                 icon={<CircuitBoard size={18} />}
                 href="/dashboard/settings/bcf-topics"
-                small
-              />
-              <SidebarItem
-                name="Extensions"
-                icon={<Blocks size={18} />}
-                href="/dashboard/settings/extensions"
-                small
-              />
-              <SidebarItem
-                name="Notifications"
-                icon={<BellRing size={18} />}
-                href="/dashboard/settings/notifications"
                 small
               />
               <SidebarItem

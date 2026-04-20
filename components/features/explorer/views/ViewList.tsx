@@ -55,7 +55,7 @@ function DraggableRow({
   onNavigate: (item: IFolder | IFile) => void;
 }) {
   const isFolder = "totalSize" in item;
-  const folderBlocked = isFolder && (item as IFolder).cdeAccessible === false;
+  const itemBlocked = (item as any).cdeAccessible === false;
   const isFileLocked = !isFolder && (item as IFile).isLocked;
 
   const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -97,7 +97,7 @@ function DraggableRow({
   };
 
   const handleRowInteraction = (e: React.MouseEvent) => {
-    if (folderBlocked) return;
+    if (itemBlocked) return;
 
     if (clickTimeoutRef.current) {
       clearTimeout(clickTimeoutRef.current);
@@ -119,7 +119,7 @@ function DraggableRow({
 
   const handleCheckboxInteraction = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (folderBlocked) return;
+    if (itemBlocked) return;
     if (clickTimeoutRef.current) {
       clearTimeout(clickTimeoutRef.current);
       clickTimeoutRef.current = null;
@@ -136,13 +136,13 @@ function DraggableRow({
   } = useDraggable({
     id: item._id,
     data: { item, type: isFolder ? "folder" : "file" },
-    disabled: folderBlocked,
+    disabled: itemBlocked,
   });
 
   const { setNodeRef: setDropRef, isOver } = useDroppable({
     id: item._id,
     data: { item },
-    disabled: !isFolder || folderBlocked,
+    disabled: !isFolder || itemBlocked,
   });
 
   const setNodeRef = (node: HTMLElement | null) => {
@@ -169,29 +169,26 @@ function DraggableRow({
       style={style}
       {...attributes}
       {...listeners}
-      className={`group select-none transition-colors border-gray-50 text-base ${
-        folderBlocked
+      className={`group select-none transition-colors border-gray-50 text-base ${itemBlocked
           ? "cursor-not-allowed bg-slate-50 text-slate-500 hover:bg-slate-100/90"
           : "cursor-pointer"
-      } ${
-        !folderBlocked && isSelected
+        } ${!itemBlocked && isSelected
           ? "bg-blue-50 hover:bg-blue-100"
-          : !folderBlocked
+          : !itemBlocked
             ? "hover:bg-gray-50"
             : ""
-      } ${isOver && !folderBlocked ? "bg-blue-100 ring-2 ring-blue-400 z-10" : ""}`}
+        } ${isOver && !itemBlocked ? "bg-blue-100 ring-2 ring-blue-400 z-10" : ""}`}
       onClick={handleRowInteraction}
     >
       {/* ICON & CHECKBOX CELL */}
       <TableCell className="py-2 md:py-4 relative w-14 md:w-20 text-center p-0">
         <div className="flex items-center justify-center w-full h-full relative">
-          {!folderBlocked && (
+          {!itemBlocked && (
             <div
               className={`
               absolute inset-0 flex items-center justify-center z-10 transition-opacity duration-200
-              ${
-                isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-              }
+              ${isSelected ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                }
             `}
             >
               <Checkbox
@@ -210,11 +207,10 @@ function DraggableRow({
           >
             {isFolder ? (
               <Folder
-                className={`size-8 md:size-10 ${
-                  folderBlocked
+                className={`size-8 md:size-10 ${itemBlocked
                     ? "text-slate-400 fill-slate-300"
                     : "text-black fill-black"
-                }`}
+                  }`}
               />
             ) : (
               (() => {
@@ -243,7 +239,7 @@ function DraggableRow({
               })()
             )}
           </div>
-          {folderBlocked && !isSelected && (
+          {itemBlocked && !isSelected && (
             <div className="absolute inset-0 z-20 pointer-events-none flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-200">
               <span className="rounded-full bg-white/95 p-1.5 shadow-sm border border-slate-200">
                 <LockKeyhole className="size-4 text-slate-600" />
@@ -257,12 +253,11 @@ function DraggableRow({
       <TableCell className="font-medium pl-2 md:pl-4">
         <div className="flex flex-col gap-0.5 justify-center">
           <span
-            onClick={folderBlocked ? undefined : handleNameClick}
-            className={`flex items-center w-fit font-normal gap-2 truncate max-w-[200px] sm:max-w-[300px] md:max-w-[400px] ${
-              folderBlocked
+            onClick={itemBlocked ? undefined : handleNameClick}
+            className={`flex items-center w-fit font-normal gap-2 truncate max-w-[200px] sm:max-w-[300px] md:max-w-[400px] ${itemBlocked
                 ? "cursor-not-allowed text-slate-500"
                 : "cursor-pointer text-slate-700 hover:text-blue-600 hover:underline"
-            }`}
+              }`}
           >
             {isFileLocked && (
               <LockKeyhole className="size-3 text-orange-500 shrink-0" />
@@ -368,14 +363,13 @@ export default function ViewList({
     null,
   );
 
-  const isBlockedFolder = (i: IFolder | IFile) =>
-    "totalSize" in i && (i as IFolder).cdeAccessible === false;
+  const isBlockedItem = (i: IFolder | IFile) => (i as any).cdeAccessible === false;
 
   const handleRowClickWithEvent = (
     e: React.MouseEvent,
     item: IFolder | IFile,
   ) => {
-    if (isBlockedFolder(item)) return;
+    if (isBlockedItem(item)) return;
 
     const currentIndex = allItems.findIndex((i) => i._id === item._id);
 
@@ -384,7 +378,7 @@ export default function ViewList({
       const end = Math.max(lastSelectedIndex, currentIndex);
       const itemsToSelect = allItems
         .slice(start, end + 1)
-        .filter((i) => !isBlockedFolder(i));
+        .filter((i) => !isBlockedItem(i));
       onMultiSelect(itemsToSelect);
     } else {
       onRowClick(item);

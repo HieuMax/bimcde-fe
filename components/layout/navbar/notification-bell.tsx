@@ -74,7 +74,8 @@ export function BellComponent() {
       );
 
       // refetch from server to get canonical IDs and data so actions work immediately
-      void queryClient.invalidateQueries(["notifications", user._id]);
+      void queryClient.invalidateQueries({ queryKey: ["notifications", user._id] });
+      void queryClient.invalidateQueries({ queryKey: ["projects"] });
     });
 
     // 🟡 READ

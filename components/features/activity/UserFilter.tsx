@@ -11,6 +11,12 @@ import { Search, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import { ChevronDown } from "lucide-react";
 import { activityService } from "@/services/activity.service";
+import {
+  activityFilterChevronDownClassName,
+  activityFilterCountBadgeClassName,
+  activityFilterPopoverContentClassName,
+  activityFilterTriggerClassName,
+} from "./activity-filter-ui";
 
 interface User {
   userId: string;
@@ -22,22 +28,21 @@ interface UserFilterProps {
   projectId: string;
   selectedUserIds: string[];
   onChange: (userIds: string[]) => void;
+  /** Label on the filter trigger (default: "Users") */
+  triggerLabel?: string;
 }
 
 export const UserFilter: React.FC<UserFilterProps> = ({
   projectId,
   selectedUserIds,
   onChange,
+  triggerLabel = "Users",
 }) => {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [isOpen, setIsOpen] = useState(false);
-
-  // Trigger style giống cái dropdown Activity Type
-  const triggerStyle =
-    "border-0 shadow-none focus:ring-0 w-auto gap-2 font-medium text-sm text-gray-600 hover:text-black px-2 h-8 data-[state=open]:bg-gray-100 rounded-md transition-colors flex items-center";
 
   const fetchMembers = async () => {
     setLoading(true);
@@ -81,23 +86,29 @@ export const UserFilter: React.FC<UserFilterProps> = ({
     }
   };
 
+  const isActive = selectedUserIds.length > 0;
+
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" className={triggerStyle}>
-          <span>Users</span>
-          {/* Hiển thị số lượng đang chọn nếu có */}
-          {selectedUserIds.length > 0 && (
-            <span className="ml-1 bg-blue-100 text-blue-700 text-[10px] px-1.5 rounded-full">
+        <Button
+          variant="ghost"
+          className={activityFilterTriggerClassName(isActive)}
+        >
+          <span>{triggerLabel}</span>
+          {isActive && (
+            <span className={activityFilterCountBadgeClassName}>
               {selectedUserIds.length}
             </span>
           )}
-          <ChevronDown className="w-4 h-4s text-gray-400" />
+          <ChevronDown className={activityFilterChevronDownClassName} />
         </Button>
       </PopoverTrigger>
 
-      {/* Width 300px để giống ảnh */}
-      <PopoverContent className="w-[320px] p-0" align="start">
+      <PopoverContent
+        className={activityFilterPopoverContentClassName}
+        align="start"
+      >
         {/* Header: Search Box */}
         <div className="p-3 border-b border-gray-100">
           <div className="relative">

@@ -1,4 +1,4 @@
-export type ReleaseStatus = "DRAFT" | "SENT";
+export type ReleaseStatus = "DRAFT" | "RELEASED";
 
 export interface IReleaseItem {
   fileId: string;
@@ -20,7 +20,6 @@ export interface IRelease {
   description?: string;
   status: ReleaseStatus;
   items: IReleaseItem[];
-  recipients: { _id: string; fullName: string; email: string }[]; // Populate từ BE
   createdBy: { _id: string; fullName: string };
   dueDate?: string; // [NEW]
   sentAt?: string;
@@ -35,7 +34,6 @@ export interface CreateReleaseDTO {
   /** `yyyy-MM-dd` — parsed on server as an unambiguous calendar day */
   dueDate: string;
   items: { fileId: string; version?: number }[];
-  recipients: string[];
 }
 
 export interface UpdateReleaseDTO {
@@ -44,6 +42,5 @@ export interface UpdateReleaseDTO {
   status?: ReleaseStatus;
   /** `yyyy-MM-dd` — parsed on server like create */
   dueDate?: string;
-  recipients?: string[];
   items?: { fileId: string; version?: number }[];
 }

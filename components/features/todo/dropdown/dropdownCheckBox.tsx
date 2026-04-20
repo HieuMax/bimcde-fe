@@ -3,13 +3,18 @@ import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ChevronDown } from "lucide-react";
 import { useState, useEffect } from "react";
+import {
+  activityFilterChevronDownClassName,
+  activityFilterCountBadgeClassName,
+  activityFilterTriggerClassName,
+} from "@/components/features/activity/activity-filter-ui";
+import { cn } from "@/lib/utils";
 
 type DropdownItem = {
   name: string;
@@ -94,15 +99,12 @@ const DropDownCheckBox = ({
     return option.id?.toString() || option._id?.toString() || option.name || `option-${index}`;
   };
 
-  const getDisplayTitle = () => {
-    const count = returnObject 
-      ? (normalizeValue(selectedValues) as Array<{ name: string; value?: string }>).length
-      : (normalizeValue(selectedValues) as string[]).length;
-    
-    if (count === 0) return title;
-    if (count === 1) return `${title} (1)`;
-    return `${title} (${count})`;
-  };
+  const selectionCount = returnObject
+    ? (normalizeValue(selectedValues) as Array<{ name: string; value?: string }>)
+        .length
+    : (normalizeValue(selectedValues) as string[]).length;
+
+  const isActive = selectionCount > 0;
 
   const isOptionChecked = (option: DropdownItem): boolean => {
     if (returnObject) {
@@ -117,28 +119,40 @@ const DropDownCheckBox = ({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button className="bg-transparent hover:bg-gray-100 hover:shadow-sm text-gray-700 shadow-none focus-visible:ring-0 text-base">
-          {getDisplayTitle()} <ChevronDown />
+        <Button
+          variant="ghost"
+          className={activityFilterTriggerClassName(isActive)}
+        >
+          <span>{title}</span>
+          {isActive && (
+            <span className={activityFilterCountBadgeClassName}>
+              {selectionCount}
+            </span>
+          )}
+          <ChevronDown className={activityFilterChevronDownClassName} />
         </Button>
       </DropdownMenuTrigger>
 
       <DropdownMenuContent
         side="bottom"
         align="start"
-        className="py-4 px-4 max-w-xs min-w-64">
+        className={cn(
+          "w-[280px] max-h-[400px] overflow-y-auto border border-gray-100 bg-white p-0 py-2 shadow-md",
+        )}
+      >
         {isSearch && (
-          <Input
-            placeholder="Search..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="mb-2 p-2 text-sm border border-gray-300 rounded"
-          />
+          <div className="border-b border-gray-100 px-2 pb-2">
+            <Input
+              placeholder="Search..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-8 border-gray-200 text-sm"
+            />
+          </div>
         )}
 
-        <DropdownMenuSeparator />
-
         {filteredOptions.length === 0 ? (
-          <div className="text-gray-500 py-2 px-3">No results found</div>
+          <div className="px-3 py-2 text-sm text-gray-500">No results found</div>
         ) : (
           filteredOptions.map((option, index) => {
             const optionId = getOptionId(option, index);
@@ -146,7 +160,8 @@ const DropDownCheckBox = ({
             return (
               <div
                 key={optionId}
-                className="flex items-center gap-3 hover:bg-gray-100  px-3 cursor-pointer">
+                className="flex cursor-pointer items-center gap-3 px-2 py-2 hover:bg-gray-50"
+              >
                 <Checkbox
                   id={`checkbox-${optionId}`}
                   checked={isChecked}

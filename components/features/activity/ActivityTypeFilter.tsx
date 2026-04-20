@@ -9,6 +9,14 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { ChevronRight, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ACTIVITY_TYPES_TREE } from "./activity-constants";
+import {
+  activityFilterChevronDownClassName,
+  activityFilterClearRowButtonClassName,
+  activityFilterCountBadgeClassName,
+  activityFilterPopoverContentClassName,
+  activityFilterPopoverScrollClassName,
+  activityFilterTriggerClassName,
+} from "./activity-filter-ui";
 
 interface ActivityTypeFilterProps {
   onFilterChange: (selectedMap: Record<string, string[]>) => void;
@@ -92,30 +100,30 @@ export const ActivityTypeFilter: React.FC<ActivityTypeFilterProps> = ({
   const selectedCount = selectedKeys.size;
   const isActive = selectedCount > 0;
 
-  const triggerStyle = cn(
-    "border-0 shadow-none focus:ring-0 w-auto gap-2 font-medium text-sm px-2 h-8 data-[state=open]:bg-gray-100 rounded-md transition-colors flex items-center",
-    isActive ? "text-[#005F9E] font-semibold" : "text-gray-600 hover:text-black"
-  );
-
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" className={triggerStyle}>
+        <Button
+          variant="ghost"
+          className={activityFilterTriggerClassName(isActive)}
+        >
           <span>Activity type</span>
 
-          {/* --- [NEW] UI Hiển thị số lượng --- */}
           {selectedCount > 0 && (
-            <span className="ml-1 bg-[#E6F4FF] text-[#005F9E] text-[10px] px-1.5 h-4 flex items-center justify-center rounded-full font-bold min-w-[1.25rem]">
+            <span className={activityFilterCountBadgeClassName}>
               {selectedCount}
             </span>
           )}
 
-          <ChevronDown className="h-3 w-3 ml-1 opacity-50" />
+          <ChevronDown className={activityFilterChevronDownClassName} />
         </Button>
       </PopoverTrigger>
 
-      <PopoverContent className="w-[280px] p-0 bg-white" align="start">
-        <div className="py-2 max-h-[400px] overflow-y-auto">
+      <PopoverContent
+        className={activityFilterPopoverContentClassName}
+        align="start"
+      >
+        <div className={activityFilterPopoverScrollClassName}>
           {ACTIVITY_TYPES_TREE.map((groupItem, index) => {
             const groupState = getGroupState(index);
             const isExpanded = expandedGroups.includes(groupItem.group);
@@ -203,7 +211,7 @@ export const ActivityTypeFilter: React.FC<ActivityTypeFilterProps> = ({
           <div className="border-t border-gray-100 p-2">
             <Button
               variant="ghost"
-              className="w-full h-8 text-xs font-normal text-gray-500 hover:text-black justify-start px-2"
+              className={activityFilterClearRowButtonClassName}
               onClick={handleReset}
             >
               Clear filter

@@ -1,6 +1,6 @@
 import React from "react";
 import { Button } from "@/components/ui/button";
-import { FileDown, RefreshCcw } from "lucide-react";
+import { RefreshCcw } from "lucide-react";
 import { UserFilter } from "./UserFilter";
 import { DateFilter } from "./DateFilter";
 import { ActivityTypeFilter } from "./ActivityTypeFilter";
@@ -68,13 +68,10 @@ export const ActivityFilters: React.FC<ActivityFiltersProps> = ({
       actionTypes, // ✅ string CSV
     });
   };
-  // Custom trigger style to match Trimble Connect (Text only, no border box)
-  const triggerStyle =
-    "border-0 shadow-none focus:ring-0 w-auto gap-2 font-medium text-sm text-gray-600 hover:text-black px-2 h-8 data-[state=open]:bg-gray-100 rounded-md transition-colors";
 
   return (
-    <div className="flex items-center justify-between p-4 bg-white border-b sticky top-0 z-10">
-      <div className="flex items-center gap-1">
+    <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-gray-100 bg-white px-4 py-3">
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
         {/* Activity Type Filter */}
         <ActivityTypeFilter onFilterChange={handleActivityTypeChange} />
 
@@ -101,7 +98,7 @@ export const ActivityFilters: React.FC<ActivityFiltersProps> = ({
         <DateFilter onFilterChange={handleDateChange} />
       </div>
 
-      <div className="flex items-center gap-1">
+      <div className="flex shrink-0 items-center gap-1">
         <Button
           variant="ghost"
           size="icon"

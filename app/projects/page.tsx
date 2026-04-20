@@ -28,7 +28,20 @@ import { Label } from "@/components/ui/label";
 import type { CdeWorkflowMode } from "@/types/explorer";
 import { useApi } from "@/app/hooks/useApi";
 import { useRouter } from "next/navigation";
-
+import { useQuery } from "@tanstack/react-query";
+import ProjectsNavbar from "@/components/layout/ProjectsNavbar";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
 // ========================
 // DEFAULT THUMBNAIL
 // ========================
@@ -38,29 +51,29 @@ const DEFAULT_THUMBNAIL =
 //#region MAIN PAGE COMPONENT
 export default function ProjectsPage() {
   const [view, setView] = useState<"grid" | "list">("grid");
-  const [loading, setLoading] = useState(false);
-
-  const [projects, setProjects] = useState<Project[]>([]);
   const { get } = useApi();
 
-  async function loadProjects() {
-    try {
-      const res = await get("/projects/getAllProject");
-      if (res.success) {
-        setProjects(res.result || []);
-      } else {
-        console.error("Failed to load project list:", res.data.message);
+  const {
+    data: projects = [],
+    isLoading: loading,
+    refetch: loadProjects,
+  } = useQuery<Project[]>({
+    queryKey: ["projects"],
+    queryFn: async () => {
+      try {
+        const res = await get("/projects/getAllProject");
+        if (res.success) {
+          return res.result || [];
+        } else {
+          console.error("Failed to load project list:", res.data?.message || res.message);
+          return [];
+        }
+      } catch (e) {
+        console.error("Failed to load project list:", e);
+        return [];
       }
-    } catch (e) {
-      console.error("Failed to load project list:", e);
-    }
-
-    setLoading(false);
-  }
-
-  useEffect(() => {
-    loadProjects();
-  }, []);
+    },
+  });
 
   if (loading) {
     return (
@@ -70,60 +83,105 @@ export default function ProjectsPage() {
     );
   }
   return (
-    <div className="w-full min-h-screen bg-[#f2f3f7] p-10">
-      {/* HEADER */}
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-2xl font-medium">Projects</h1>
+    <div className="flex flex-col min-h-screen bg-[#f2f3f7]">
+      <ProjectsNavbar />
+      <div className="flex-1 w-full p-10">
+        {/* HEADER */}
+        <div className="flex justify-between items-center mb-8">
+          <h1 className="text-2xl font-medium">Projects</h1>
 
-        <div className="flex gap-3">
-          <Button
-            variant="ghost"
-            onClick={() => setView("grid")}
-            className={view === "grid" ? "bg-gray-300" : ""}
-          >
-            <Grid size={18} />
-          </Button>
+          <div className="flex gap-3">
+            <Button
+              variant="ghost"
+              onClick={() => setView("grid")}
+              className={view === "grid" ? "bg-gray-300" : ""}
+            >
+              <Grid size={18} />
+            </Button>
 
-          <Button
-            variant="ghost"
-            onClick={() => setView("list")}
-            className={view === "list" ? "bg-gray-300" : ""}
-          >
-            <List size={18} />
-          </Button>
+            <Button
+              variant="ghost"
+              onClick={() => setView("list")}
+              className={view === "list" ? "bg-gray-300" : ""}
+            >
+              <List size={18} />
+            </Button>
 
-          <NewProjectDialog onCreated={loadProjects} />
+            <NewProjectDialog onCreated={loadProjects} />
+          </div>
         </div>
+
+        {view === "grid" && <GridView projects={projects} onRefresh={loadProjects} />}
+        {view === "list" && <ListView projects={projects} onRefresh={loadProjects} />}
       </div>
-
-      <p className="text-sm font-medium mb-4 flex items-center gap-1">
-        Asia <span className="text-gray-500">▼</span>
-      </p>
-
-      {view === "grid" && <GridView projects={projects} />}
-      {view === "list" && <ListView projects={projects} />}
     </div>
   );
 }
 //#endregion
 
 //#region popup menu
-function PopoverProject() {
-  return (
-    <Popover>
-      <PopoverTrigger asChild>
-        <button className="py-2 px-4 rounded hover:bg-gray-300">⋮</button>
-      </PopoverTrigger>
+function PopoverProject({
+  projectId,
+  onLeft
+}: {
+  projectId: string;
+  onLeft: () => void
+}) {
+  const { put } = useApi();
+  const [isPending, setIsPending] = useState(false);
 
-      <PopoverContent className="w-56 p-3 flex flex-col gap-2">
-        <p className="hover:bg-gray-100 p-2 rounded cursor-pointer">
-          Use as template for a new project
-        </p>
-        <p className="hover:bg-gray-100 p-2 rounded cursor-pointer">
-          Leave project
-        </p>
-      </PopoverContent>
-    </Popover>
+  const handleLeaveProject = async () => {
+    setIsPending(true);
+    try {
+      const response = await put(`/projects/leaveProject/${projectId}`);
+      if (response.success) {
+        toast.success("You have left the project");
+        onLeft();
+      } else {
+        toast.error(response.error || "Failed to leave project");
+      }
+    } catch (error) {
+      toast.error("An error occurred");
+    } finally {
+      setIsPending(false);
+    }
+  };
+
+  return (
+    <div onClick={(e) => e.stopPropagation()}>
+      <Popover>
+        <PopoverTrigger asChild>
+          <button className="py-2 px-4 rounded hover:bg-gray-300">⋮</button>
+        </PopoverTrigger>
+        <PopoverContent className="w-56 p-3 flex flex-col gap-2">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <p className="hover:bg-red-50 text-red-600 p-2 rounded cursor-pointer text-sm">
+                Leave project
+              </p>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Leave project?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to leave this project?
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleLeaveProject}
+                  className="bg-red-600 hover:bg-red-700"
+                  disabled={isPending}
+                >
+                  {isPending ? "Leaving..." : "Leave"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </PopoverContent>
+      </Popover>
+    </div>
   );
 }
 //#endregion
@@ -219,15 +277,19 @@ function NewProjectDialog({ onCreated }: { onCreated: () => void }) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button className="bg-[#0f6cbd] text-white px-5">New</Button>
+        <Button className="bg-[#406D87] hover:bg-[#345a70] px-6 py-4 rounded text-base font-medium flex items-center transition-colors disabled:opacity-50 outline-none ring-0 focus-visible:ring-0 focus-visible:ring-offset-0">
+          New
+        </Button>
       </DialogTrigger>
 
-      <DialogContent className="max-w-xl" aria-describedby="dialog-desc">
-        <DialogHeader>
-          <DialogTitle>New Project</DialogTitle>
-        </DialogHeader>
-        <DialogDescription></DialogDescription>
-        <div className="flex flex-col gap-4">
+      <DialogContent className="max-w-xl max-h-[90vh] flex flex-col p-0" aria-describedby="dialog-desc">
+        <div className="p-6 pb-0">
+          <DialogHeader>
+            <DialogTitle>New Project</DialogTitle>
+          </DialogHeader>
+          <DialogDescription></DialogDescription>
+        </div>
+        <div className="flex flex-col gap-4 p-6 overflow-y-auto flex-1">
           {/* Name */}
           <div>
             <label className="text-sm">Name</label>
@@ -406,10 +468,12 @@ function NewProjectDialog({ onCreated }: { onCreated: () => void }) {
             </p>
           )}
 
-          {/* Submit */}
+        </div>
+        {/* Submit */}
+        <div className="p-6 pt-4 border-t mt-auto flex justify-end bg-white rounded-b-lg">
           <Button
             onClick={handleSubmit}
-            className="bg-[#0f6cbd] text-white w-24 ml-auto"
+            className="bg-[#406D87] hover:bg-[#345a70] text-white w-24 ml-auto"
           >
             Submit
           </Button>
@@ -422,35 +486,18 @@ function NewProjectDialog({ onCreated }: { onCreated: () => void }) {
 //#endregion
 
 //#region GRID VIEW
-function GridView({ projects }: { projects: Project[] }) {
+function GridView({ projects, onRefresh }: { projects: Project[], onRefresh: () => void }) {
   const router = useRouter();
-
-  const handleProjectClick = (id: any) => {
-    router.push(`/projects/${id}`);
-  };
   return (
     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
       {projects.map((p) => (
-        <div
-          key={p._id}
-          className="bg-white shadow rounded overflow-hidden cursor-pointer"
-          onClick={() => handleProjectClick(p._id)}
-        >
+        <div key={p._id} className="bg-white shadow rounded overflow-hidden cursor-pointer" onClick={() => router.push(`/projects/${p._id}`)}>
           <div className="h-40 bg-gray-200">
-            <Image
-              src={p.thumbnail || DEFAULT_THUMBNAIL}
-              alt={p.name || "Project Thumbnail"}
-              width={300}
-              height={200}
-              className="w-full h-full object-cover"
-              loading="eager"
-            />
+            <Image src={p.thumbnail || DEFAULT_THUMBNAIL} alt={p.name || ""} width={300} height={200} className="w-full h-full object-cover" />
           </div>
           <div className="p-4 flex items-center justify-between">
-            <p className="font-medium cursor-pointer">{p.name}</p>
-            <div onClick={(e) => e.stopPropagation()}>
-              <PopoverProject />
-            </div>
+            <p className="font-medium">{p.name}</p>
+            <PopoverProject projectId={p._id} onLeft={onRefresh} />
           </div>
         </div>
       ))}
@@ -460,69 +507,21 @@ function GridView({ projects }: { projects: Project[] }) {
 //#endregion
 
 //#region LIST VIEW
-function ListView({ projects }: { projects: Project[] }) {
+function ListView({ projects, onRefresh }: { projects: Project[], onRefresh: () => void }) {
   const router = useRouter();
-
-  const handleProjectClick = (id: any) => {
-    router.push(`/projects/${id}`);
-  };
   return (
     <div className="bg-white shadow rounded">
-      <div className="grid grid-cols-[40%_15%_15%_15%_15%] p-3 text-sm font-medium border-b">
-        <div>Name</div>
-        <div>Size</div>
-        <div>Last visited</div>
-        <div>Modified on</div>
-        <div></div>
-      </div>
-
       {projects.map((p) => (
-        <div
-          key={p._id}
-          className="grid grid-cols-[40%_15%_15%_15%_15%] items-center p-3 hover:bg-gray-100 cursor-pointer"
-          onClick={() => handleProjectClick(p._id)}
-        >
+        <div key={p._id} className="grid grid-cols-[40%_15%_15%_15%_15%] items-center p-3 hover:bg-gray-100 cursor-pointer" onClick={() => router.push(`/projects/${p._id}`)}>
           <div className="flex items-center gap-2">
-            <Image
-              src={p.thumbnail || DEFAULT_THUMBNAIL}
-              alt={p.name || "Project Thumbnail"}
-              width={40}
-              height={40}
-              className="rounded"
-              loading="eager"
-            />
+            <Image src={p.thumbnail || DEFAULT_THUMBNAIL} alt="" width={40} height={40} className="rounded" />
             {p.name}
           </div>
-
           <div>{p.size}</div>
-          <div>
-            {p.lastAccessed
-              ? new Date(p.lastAccessed).toLocaleString("en-US", {
-                  month: "short",
-                  day: "2-digit",
-                  year: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  hour12: true,
-                })
-              : ""}
-          </div>
-
-          <div>
-            {p.lastModifiedOn && !isNaN(new Date(p.lastModifiedOn).getTime())
-              ? new Date(p.lastModifiedOn).toLocaleString("en-US", {
-                  month: "short",
-                  day: "2-digit",
-                  year: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  hour12: true,
-                })
-              : "No Date Available"}
-          </div>
-
+          <div>{p.lastAccessed ? format(new Date(p.lastAccessed), "MMM dd, yyyy") : ""}</div>
+          <div>{p.lastModifiedOn ? format(new Date(p.lastModifiedOn), "MMM dd, yyyy") : ""}</div>
           <div className="flex justify-end">
-            <PopoverProject />
+            <PopoverProject projectId={p._id} onLeft={onRefresh} />
           </div>
         </div>
       ))}

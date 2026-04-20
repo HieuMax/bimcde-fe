@@ -161,6 +161,24 @@ export default function ViewerClient() {
     setActiveTool(null);
   };
 
+  // --- HÀM MỚI: Nhận URL từ nút Load bên trong IfcViewer ---
+  const handleAddNewIfcUrl = (newUrls: string[]) => {
+    setIfcUrls((prev) => {
+      // Nối URL mới và lọc trùng lặp
+      const combined = Array.from(new Set([...prev, ...newUrls]));
+
+      // Lưu vào storage và param để không mất khi F5
+      const storageKey = `bimcde_active_models_${projectId}`;
+      sessionStorage.setItem(storageKey, JSON.stringify(combined));
+
+      // Update URL silently
+      const newUrlsParams = JSON.stringify(combined);
+      router.replace(`/projects/${projectId}/viewer3d?urls=${encodeURIComponent(newUrlsParams)}`, { scroll: false });
+
+      return combined;
+    });
+  };
+
   // const activeTool: ActiveToolType = useMemo(() => {
   //   if (isDrawerOpen) return 'todo';
   //   if (isViewDrawerOpen) return 'view';
@@ -713,9 +731,9 @@ export default function ViewerClient() {
         const matchedVersion =
           typeof topic.linkedFileVersion === "number"
             ? versionHistory.find(
-                (version: any) =>
-                  Number(version?.version) === Number(topic.linkedFileVersion),
-              )
+              (version: any) =>
+                Number(version?.version) === Number(topic.linkedFileVersion),
+            )
             : null;
 
         const latestKnownUrl =
@@ -734,7 +752,7 @@ export default function ViewerClient() {
         }
       } catch (error) {
         console.error("[Context Switch] Failed to resolve file via fileId:", error);
-        
+
         // If fileId resolution fails but we have fallback URL from items, warn but continue
         if (resolvedTargetUrls.length > 0 && resolvedTargetUrls[0] !== targetUrls[0]) {
           console.warn("[Context Switch] Using fallback URL from topic items");
@@ -961,11 +979,10 @@ export default function ViewerClient() {
               return (
                 <span
                   key={index}
-                  className={`flex justify-center cursor-pointer py-3 mb-2 p-3 ${
-                    isActive
-                      ? "bg-slate-600 text-white"
-                      : "text-black hover:bg-slate-600 hover:text-white"
-                  }`}
+                  className={`flex justify-center cursor-pointer py-3 mb-2 p-3 ${isActive
+                    ? "bg-slate-600 text-white"
+                    : "text-black hover:bg-slate-600 hover:text-white"
+                    }`}
                   onClick={() => setState(item.label)}>
                   {item.icon}
                 </span>
@@ -1036,6 +1053,7 @@ export default function ViewerClient() {
               onAddTodoForTopic={(topicId: string) =>
                 onAddTodo({ presetTopicId: topicId })
               }
+              onLoadAdditionalModels={handleAddNewIfcUrl}
             />
 
             {/* --- DATA TABLE DRAWER (BOTTOM) --- */}
@@ -1079,7 +1097,7 @@ export default function ViewerClient() {
         availableModels={availableModelsForClash}
         onRunTest={runAnalysis}
         projectId={projectId as string}
-        onClashSetCreated={() => {}}
+        onClashSetCreated={() => { }}
       />
     </div>
   );

@@ -10,9 +10,17 @@ import { format, subDays, startOfDay, endOfDay } from "date-fns";
 import { Calendar as CalendarIcon, Plus, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ChevronDown } from "lucide-react";
+import {
+  activityFilterChevronDownClassName,
+  activityFilterClearRowButtonClassName,
+  activityFilterPopoverContentClassName,
+  activityFilterTriggerClassName,
+} from "./activity-filter-ui";
 
 interface DateFilterProps {
   onFilterChange: (range: { startDate?: Date; endDate?: Date }) => void;
+  label?: string;
+  hideCustom?: boolean;
 }
 
 interface RadioItemProps {
@@ -50,7 +58,11 @@ const RadioItem: React.FC<RadioItemProps> = ({
   );
 };
 
-export const DateFilter: React.FC<DateFilterProps> = ({ onFilterChange }) => {
+export const DateFilter: React.FC<DateFilterProps> = ({
+  onFilterChange,
+  label = "Date modified",
+  hideCustom = false,
+}) => {
   const [isOpen, setIsOpen] = useState(false);
 
   // State cho việc mở rộng vùng Custom Date (nút +)
@@ -66,10 +78,6 @@ export const DateFilter: React.FC<DateFilterProps> = ({ onFilterChange }) => {
   // State lịch nhỏ popup cho From/To input
   const [isFromCalendarOpen, setIsFromCalendarOpen] = useState(false);
   const [isToCalendarOpen, setIsToCalendarOpen] = useState(false);
-
-  // Style giống các filter khác
-  const triggerStyle =
-    "border-0 shadow-none focus:ring-0 w-auto gap-2 font-medium text-sm text-gray-600 hover:text-black px-2 h-8 data-[state=open]:bg-gray-100 rounded-md transition-colors flex items-center";
 
   // Hàm xử lý khi chọn Preset (Today, Yesterday...)
   const handleSelectPreset = (preset: PresetType) => {
@@ -170,22 +178,30 @@ export const DateFilter: React.FC<DateFilterProps> = ({ onFilterChange }) => {
         }
         return "Custom Date";
       default:
-        return "Date modified"; // Mặc định
+        return label;
     }
   };
+
+  const isActive = selectedPreset !== null;
 
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
-        <Button variant="ghost" className={triggerStyle}>
+        <Button
+          variant="ghost"
+          className={activityFilterTriggerClassName(isActive)}
+        >
           <span>{getFilterLabel()}</span>
-          <ChevronDown className="w-4 h-4s text-gray-400" />
+          <ChevronDown className={activityFilterChevronDownClassName} />
         </Button>
       </PopoverTrigger>
 
-      <PopoverContent className="w-[280px] p-0 bg-white" align="start">
+      <PopoverContent
+        className={activityFilterPopoverContentClassName}
+        align="start"
+      >
         <div className="flex flex-col">
-          {/* --- SECTION: CUSTOM DATE --- */}
+          {!hideCustom && (
           <div className="p-4 pb-2">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">
@@ -284,11 +300,12 @@ export const DateFilter: React.FC<DateFilterProps> = ({ onFilterChange }) => {
               </div>
             )}
           </div>
+          )}
 
-          <div className="h-[1px] bg-gray-100 w-full" />
+          {!hideCustom && <div className="h-[1px] w-full bg-gray-100" />}
 
           {/* --- SECTION: PRESETS --- */}
-          <div className="p-4 pt-2">
+          <div className={cn("p-4 pt-2", hideCustom && "pt-4")}>
             <RadioItem
               label="Today"
               value="today"
@@ -315,11 +332,10 @@ export const DateFilter: React.FC<DateFilterProps> = ({ onFilterChange }) => {
             />
           </div>
 
-          {/* --- FOOTER: RESET --- */}
-          <div className="p-3 pt-0">
+          <div className="border-t border-gray-100 p-2">
             <Button
               variant="ghost"
-              className="text-gray-600 hover:text-black hover:bg-transparent px-0 font-semibold h-auto"
+              className={activityFilterClearRowButtonClassName}
               onClick={handleReset}
             >
               Reset

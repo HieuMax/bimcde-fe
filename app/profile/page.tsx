@@ -4,7 +4,8 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { Loader2 } from "lucide-react";
+import { Loader2, ArrowLeft } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 import { useAuth } from "@/app/context/authContext";
 import { useApi } from "@/app/hooks/useApi";
@@ -21,18 +22,18 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
 const profileSchema = z.object({
-  fullName: z.string().min(1, "Vui lòng nhập họ tên"),
+  fullName: z.string().min(1, "Please enter full name"),
   phone: z.string().optional(),
 });
 
 const passwordSchema = z
   .object({
-    currentPassword: z.string().min(6, "Mật khẩu hiện tại không hợp lệ"),
-    newPassword: z.string().min(6, "Mật khẩu mới phải có ít nhất 6 ký tự"),
+    currentPassword: z.string().min(6, "Current password is invalid"),
+    newPassword: z.string().min(6, "New password must be at least 6 characters"),
     confirmPassword: z.string(),
   })
   .refine((data) => data.newPassword === data.confirmPassword, {
-    message: "Mật khẩu xác nhận không khớp",
+    message: "Password confirmation does not match",
     path: ["confirmPassword"],
   });
 
@@ -42,6 +43,7 @@ type PasswordFormData = z.infer<typeof passwordSchema>;
 export default function ProfilePage() {
   const { user, refreshUser, loading: authLoading } = useAuth();
   const { post } = useApi();
+  const router = useRouter();
 
   const [message, setMessage] = useState<string | null>(null);
   const [passwordMessage, setPasswordMessage] = useState<string | null>(null);
@@ -81,13 +83,13 @@ export default function ProfilePage() {
     try {
       const res = await post("/accounts/update-profile", data);
       if (res.success) {
-        setMessage("Thông tin đã được lưu.");
+        setMessage("Profile saved.");
         await refreshUser();
       } else {
-        setMessage("Cập nhật thất bại. Vui lòng thử lại.");
+        setMessage("Update failed. Please try again.");
       }
     } catch {
-      setMessage("Cập nhật thất bại. Vui lòng thử lại.");
+      setMessage("Update failed. Please try again.");
     }
   };
 
@@ -96,13 +98,13 @@ export default function ProfilePage() {
     try {
       const res = await post("/accounts/change-password", data);
       if (res.success) {
-        setPasswordMessage("Mật khẩu đã được đổi.");
+        setPasswordMessage("Password changed.");
         passwordForm.reset();
       } else {
-        setPasswordMessage("Đổi mật khẩu thất bại. Vui lòng thử lại.");
+        setPasswordMessage("Change password failed. Please try again.");
       }
     } catch {
-      setPasswordMessage("Đổi mật khẩu thất bại. Vui lòng thử lại.");
+      setPasswordMessage("Change password failed. Please try again.");
     }
   };
 
@@ -118,32 +120,38 @@ export default function ProfilePage() {
   if (!user) {
     return (
       <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-white to-slate-100 px-4 py-10">
-        <p className="text-slate-600">Vui lòng kiểm tra lại dữ liệu hồ sơ.</p>
+        <p className="text-slate-600">Please check profile data.</p>
       </main>
     );
   }
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 px-4 py-10">
-      <div className="max-w-6xl mx-auto space-y-10">
-        {/* Header + Button Save */}
-        <div className="bg-white shadow-sm border border-gray-200 rounded-2xl p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-          <div className="flex items-center gap-5">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center text-white text-3xl font-bold shadow-lg select-none">
-              {profileForm.getValues("fullName")?.charAt(0) || "U"}
+      <div className="max-w-6xl mx-auto space-y-6">
+        {/* Top navbar / header with back button */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => router.back()}
+              aria-label="Back"
+              className="p-2 rounded-md hover:bg-slate-100">
+              <ArrowLeft size={20} />
+            </button>
+            <div className="flex items-center gap-5">
+              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-600 to-cyan-500 flex items-center justify-center text-white text-2xl font-bold shadow-lg select-none">
+                {profileForm.getValues("fullName")?.charAt(0) || "U"}
+              </div>
+              <h1 className="text-2xl font-semibold text-gray-900">Profile</h1>
             </div>
-            <h1 className="text-3xl font-semibold text-gray-900">
-              Hồ sơ cá nhân
-            </h1>
           </div>
           <Button
             onClick={profileForm.handleSubmit(onSubmitProfile)}
-            className="h-12 px-8 text-lg"
+            className="h-10 px-6 text-base"
             disabled={profileForm.formState.isSubmitting}>
             {profileForm.formState.isSubmitting && (
               <Loader2 className="mr-2 h-5 w-5 animate-spin" />
             )}
-            Lưu thay đổi
+            Save changes
           </Button>
         </div>
 
@@ -156,7 +164,7 @@ export default function ProfilePage() {
               {/* Left - Overview */}
               <section className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm lg:col-span-1">
                 <h2 className="text-xl font-semibold text-gray-900 mb-6">
-                  Tổng quan
+                  Overview
                 </h2>
                 <div className="space-y-5">
                   <OverviewItem
@@ -173,7 +181,7 @@ export default function ProfilePage() {
                         <path d="M6 20c0-2.21 2.686-4 6-4s6 1.79 6 4" />
                       </svg>
                     }
-                    title="Vai trò"
+                    title="Role"
                     value={user.role}
                   />
                   <OverviewItem
@@ -198,7 +206,7 @@ export default function ProfilePage() {
               {/* Right - Profile info form */}
               <section className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm lg:col-span-2 space-y-6">
                 <h2 className="text-xl font-semibold text-gray-900">
-                  Thông tin cá nhân
+                  Profile information
                 </h2>
 
                 <FormField
@@ -206,11 +214,11 @@ export default function ProfilePage() {
                   name="fullName"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Họ và tên</FormLabel>
+                      <FormLabel>Full name</FormLabel>
                       <FormControl>
                         <Input
                           {...field}
-                          placeholder="Nhập họ tên"
+                          placeholder="Enter full name"
                           className="text-lg h-12"
                         />
                       </FormControl>
@@ -224,11 +232,11 @@ export default function ProfilePage() {
                   name="phone"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Số điện thoại</FormLabel>
+                      <FormLabel>Phone number</FormLabel>
                       <FormControl>
                         <Input
                           {...field}
-                          placeholder="Nhập số điện thoại"
+                          placeholder="Enter phone number"
                           className="text-lg h-12"
                         />
                       </FormControl>
@@ -255,17 +263,17 @@ export default function ProfilePage() {
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div>
                 <h2 className="text-xl font-semibold text-gray-900">
-                  Đổi mật khẩu
+                  Change password
                 </h2>
                 <p className="text-sm text-gray-600">
-                  Cập nhật mật khẩu định kỳ để bảo mật tài khoản.
+                  Update your password periodically to keep your account secure.
                 </p>
               </div>
               <Button
                 variant="outline"
                 onClick={() => passwordForm.reset()}
                 disabled={passwordForm.formState.isSubmitting}>
-                Làm mới
+                Reset
               </Button>
             </div>
 
@@ -275,7 +283,7 @@ export default function ProfilePage() {
                 name="currentPassword"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Mật khẩu hiện tại</FormLabel>
+                    <FormLabel>Current password</FormLabel>
                     <FormControl>
                       <Input
                         {...field}
@@ -295,7 +303,7 @@ export default function ProfilePage() {
                 name="newPassword"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Mật khẩu mới</FormLabel>
+                    <FormLabel>New password</FormLabel>
                     <FormControl>
                       <Input
                         {...field}
@@ -315,7 +323,7 @@ export default function ProfilePage() {
                 name="confirmPassword"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Xác nhận mật khẩu</FormLabel>
+                    <FormLabel>Confirm password</FormLabel>
                     <FormControl>
                       <Input
                         {...field}
@@ -344,7 +352,7 @@ export default function ProfilePage() {
               {passwordForm.formState.isSubmitting && (
                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
               )}
-              Đổi mật khẩu
+              Change password
             </Button>
           </form>
         </Form>

@@ -186,6 +186,12 @@ export default function ExplorerClient({ projectId, folderId }: Props) {
   };
 
   const handleNavigate = (item: IFolder | IFile) => {
+    if ((item as any).cdeAccessible === false) {
+      const itemType = "mimeType" in item ? "file" : "folder";
+      toast.error(`You do not have access to this ${itemType}.`);
+      return;
+    }
+
     if ("mimeType" in item) {
       router.push(`/projects/${projectId}/viewer/${item._id}`);
     } else {
@@ -213,9 +219,8 @@ export default function ExplorerClient({ projectId, folderId }: Props) {
       <div className="flex h-full relative overflow-hidden">
         {/* LEFT MAIN CONTENT */}
         <div
-          className={`flex flex-col h-full flex-1 transition-all duration-300 ${
-            isPanelOpen ? "mr-0 sm:mr-80" : "mr-0"
-          }`}
+          className={`flex flex-col h-full flex-1 transition-all duration-300 ${isPanelOpen ? "mr-0 sm:mr-80" : "mr-0"
+            }`}
         >
           <ExplorerToolbar
             currentFolder={currentFolder}
@@ -319,10 +324,9 @@ export default function ExplorerClient({ projectId, folderId }: Props) {
             bg-white shadow-lg border-l z-20 flex flex-col
             fixed inset-0 w-full h-full
             transition-opacity duration-200
-            ${
-              isPanelOpen
-                ? "opacity-100 visible pointer-events-auto"
-                : "opacity-0 invisible pointer-events-none"
+            ${isPanelOpen
+              ? "opacity-100 visible pointer-events-auto"
+              : "opacity-0 invisible pointer-events-none"
             }
             sm:absolute sm:inset-auto sm:top-0 sm:right-0 sm:bottom-0 sm:w-[320px] 
             sm:opacity-100 sm:visible sm:pointer-events-auto

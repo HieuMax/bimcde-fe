@@ -221,15 +221,14 @@ export const TopicsPageClient: React.FC<{ projectId: string }> = ({
   };
 
   return (
-    <div className="flex h-full w-full min-h-0">
+    <div className="flex h-full min-h-0 w-full">
       <div
-        className={`flex flex-col h-full flex-1 min-w-0 transition-all duration-300 ${
-          isPanelOpen ? "mr-0 sm:mr-80" : "mr-0"
-        }`}
+        className={`flex flex-col h-full flex-1 min-w-0 transition-all duration-300 ${isPanelOpen ? "mr-0 sm:mr-80" : "mr-0"
+          }`}
       >
-        <div className="flex flex-col h-full bg-white border border-gray-200 rounded-md shadow-sm overflow-hidden">
+        <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-gray-200 bg-white shadow-sm">
           {/* Header */}
-          <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between bg-white">
+          <div className="flex shrink-0 items-center justify-between border-b border-gray-100 bg-white px-4 py-3">
             <div className="flex items-center gap-2">
               <h2 className="text-lg font-medium text-gray-800">Topics</h2>
               {/* <DropdownMenu>
@@ -260,7 +259,7 @@ export const TopicsPageClient: React.FC<{ projectId: string }> = ({
 
             <div className="flex items-center gap-1">
               <Button
-                className="h-9 px-4 bg-[#0B4F8A] hover:bg-[#094574] text-white"
+                className="bg-[#406D87] hover:bg-[#345a70] px-6 py-4 rounded text-base font-medium flex items-center transition-colors disabled:opacity-50 outline-none ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
                 onClick={() => handleCreateNew()}
               >
                 New
@@ -268,8 +267,8 @@ export const TopicsPageClient: React.FC<{ projectId: string }> = ({
             </div>
           </div>
 
-          {/* Filter bar (like screenshot) */}
-          <div className="px-4 py-2 border-b border-gray-200 bg-white flex items-center gap-3 text-sm text-gray-600">
+          <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-gray-100 bg-white px-4 py-3 text-sm text-gray-600">
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
             <MultiCheckboxFilterPopover
               label="Type"
               options={topicTypes}
@@ -339,20 +338,21 @@ export const TopicsPageClient: React.FC<{ projectId: string }> = ({
               }}
             />
 
-            <div className="flex items-center gap-2 ml-2">
+            <div className="ml-1 flex items-center gap-2">
               <Checkbox
                 checked={assignedToMe}
                 onCheckedChange={(v) => setAssignedToMe(!!v)}
               />
               <span>Assigned to me</span>
             </div>
+            </div>
 
-            <div className="ml-auto w-[260px]">
+            <div className="flex w-full shrink-0 items-center gap-1 sm:w-[260px] sm:min-w-[200px]">
               <Input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search"
-                className="h-8"
+                className="h-8 w-full text-sm"
               />
             </div>
           </div>
@@ -391,10 +391,9 @@ export const TopicsPageClient: React.FC<{ projectId: string }> = ({
           bg-white shadow-lg border-l z-20 flex flex-col min-w-0 overflow-hidden
           fixed inset-0 w-full h-full
           transition-opacity duration-200
-          ${
-            isPanelOpen
-              ? "opacity-100 visible pointer-events-auto"
-              : "opacity-0 invisible pointer-events-none"
+          ${isPanelOpen
+            ? "opacity-100 visible pointer-events-auto"
+            : "opacity-0 invisible pointer-events-none"
           }
           sm:absolute sm:inset-auto sm:top-0 sm:right-0 sm:bottom-0 sm:w-[320px] sm:min-w-0
           sm:opacity-100 sm:visible sm:pointer-events-auto

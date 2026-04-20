@@ -76,7 +76,7 @@ export default function ExplorerToolbar({
 
   return (
     <>
-      <div className="flex items-center justify-between p-4 sticky top-0 z-10">
+      <div className="flex shrink-0 items-center justify-between rounded-t-md border-b border-gray-100 bg-white px-4 py-3">
         <nav className="flex items-center text-sm text-slate-600 overflow-hidden gap-2">
           {workflowMode === "ISO_19650" && (
             <span

@@ -9,11 +9,11 @@ interface ReleaseStatusBadgeProps {
 export const ReleaseStatusBadge: React.FC<ReleaseStatusBadgeProps> = ({
   status,
 }) => {
-  if (status === "SENT") {
+  if (status === "RELEASED" || (status as string) === "SENT") {
     return (
       <span className="inline-flex items-center px-3 py-1 rounded bg-[#72A544] text-white text-xs font-medium">
         <Check className="w-3 h-3 mr-1" />
-        Sent
+        Released
       </span>
     );
   }

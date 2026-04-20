@@ -109,6 +109,20 @@ export default function page({
   const [isOpenDrawer, setIsOpenDrawer] = useState(false);
   const [rowSelection, setRowSelection] = useState({});
 
+  const [permissions, setPermissions] = useState<any>(null);
+
+  const fetchPermissions = async () => {
+    const projectId = (await params).projectId;
+    try {
+      const response = await get(`/permissions/get/${projectId}`);
+      if (response.success) {
+        setPermissions(response.result);
+      }
+    } catch (err) {
+      console.error("Error fetching permissions:", err);
+    }
+  };
+
   const { user } = useAuth();
   const { get, post, put, delete: deleteApi } = useApi();
   const [updatingGroupRoleUserId, setUpdatingGroupRoleUserId] = useState<
@@ -163,6 +177,7 @@ export default function page({
   const loadInitialData = async () => {
     await fetchTeam();
     await getAllUser();
+    await fetchPermissions();
   };
 
   useEffect(() => {
@@ -214,7 +229,7 @@ export default function page({
 
   const handleInvitePeople = () => {
     setDialog(true);
-    setTtileDialog("Invite others to test");
+    setTtileDialog("Invite others to project");
     setLabelDialog("People");
     setIsInvite(true);
   };
@@ -338,6 +353,8 @@ export default function page({
     return me?.role === "admin";
   }, [user?._id, memberPorject]);
 
+  const canInvite = isProjectAdmin || (permissions && !permissions.isProjectInviteRestricted);
+
   const showGroupMemberRoleCol = activeGroup._id !== "all";
   const isTeamReadOnly = !isProjectAdmin;
 
@@ -363,8 +380,8 @@ export default function page({
         } else {
           toast.error(
             (res.message as string) ||
-              (res.error as string) ||
-              "Unable to update.",
+            (res.error as string) ||
+            "Unable to update."
           );
         }
       } catch (e) {
@@ -429,13 +446,13 @@ export default function page({
         {/* HEADER */}
         <div className="flex items-center justify-between px-4 overflow-x-auto gap-1">
           <h1 className="text-xl font-normal text-gray-800">Project members</h1>
-          {!isTeamReadOnly ? (
+          {canInvite && (
             <Button
               onClick={handleInvitePeople}
               className="bg-[#406D87] hover:bg-[#345a70] px-6 py-4 rounded text-base font-medium flex items-center transition-colors disabled:opacity-50 outline-none ring-0 focus-visible:ring-0 focus-visible:ring-offset-0">
               Invite people to project
             </Button>
-          ) : null}
+          )}
         </div>
         {/* BODY */}
         <div className="flex  border-t h-[calc(100%-40px)] bg-white">
@@ -456,9 +473,8 @@ export default function page({
             <div className="h-full bg-white border-none ">
               <Button
                 onClick={() => handleGroupSelection({ _id: "all" })}
-                className={`w-full flex flex-col rounded-none items-start h-14 bg-white text-gray-500 hover:bg-gray-200 border-none outline-none shadow-none ${
-                  activeGroup._id === "all" ? "text-[#005f9e] bg-[#e5f0f8]" : ""
-                }`}>
+                className={`w-full flex flex-col rounded-none items-start h-14 bg-white text-gray-500 hover:bg-gray-200 border-none outline-none shadow-none ${activeGroup._id === "all" ? "text-[#005f9e] bg-[#e5f0f8]" : ""
+                  }`}>
                 <span> All project members</span>
                 <span className="font-normal">{memberProjectCount} Users</span>
               </Button>
@@ -471,11 +487,10 @@ export default function page({
                 <div key={group._id}>
                   <Button
                     onClick={() => handleGroupSelection(group)}
-                    className={`w-full flex flex-col items-start rounded-none h-14 bg-white text-gray-500 hover:bg-gray-200 border-none outline-none shadow-none ${
-                      activeGroup._id === group._id
-                        ? "text-[#005f9e] bg-[#e5f0f8]"
-                        : ""
-                    }`}>
+                    className={`w-full flex flex-col items-start rounded-none h-14 bg-white text-gray-500 hover:bg-gray-200 border-none outline-none shadow-none ${activeGroup._id === group._id
+                      ? "text-[#005f9e] bg-[#e5f0f8]"
+                      : ""
+                      }`}>
                     <span> {group.name}</span>
                     <span className="font-normal">
                       {group.memberCount} Users
@@ -575,9 +590,10 @@ export default function page({
                   {/* Search */}
                   {!isTeamReadOnly ? (
                     <div
-                      className={`flex items-center flex-shrink-0 ${
-                        isSearch ? "border-b-4 border-b-blue-900" : ""
-                      } ${isSearch ? "md:w-[300px] w-[250px]" : ""}`}>
+                      className={`flex items-center ${isSearch
+                        ? "border w-[450px] border-b-4 border-b-blue-900"
+                        : ""
+                        }`}>
                       <Button
                         variant="ghost"
                         className="p-2 h-10 w-10"
@@ -615,16 +631,16 @@ export default function page({
 
                         ...(activeGroup._id !== "all"
                           ? [
-                              {
-                                label: "Rename Group",
-                                onClick: () => onModifiedGroup("edit"),
-                              },
-                              {
-                                className: "border-t mt-2",
-                                label: "Delete Group",
-                                onClick: () => onModifiedGroup("delete"),
-                              },
-                            ]
+                            {
+                              label: "Rename Group",
+                              onClick: () => onModifiedGroup("edit"),
+                            },
+                            {
+                              className: "border-t mt-2",
+                              label: "Delete Group",
+                              onClick: () => onModifiedGroup("delete"),
+                            },
+                          ]
                           : []),
                       ]}
                     />
@@ -668,7 +684,7 @@ export default function page({
                     id="name"
                     value={dialogInput || ""}
                     onChange={(e) => setDialogInput(e.target.value)}
-                    // onKeyDown={(e) => e.key === "Enter" && handleSaveEdit()}
+                  // onKeyDown={(e) => e.key === "Enter" && handleSaveEdit()}
                   />
                 )}
               </div>
@@ -719,17 +735,20 @@ export default function page({
                     <h3 className="text-sm font-medium text-gray-500">Role</h3>
                   </div>
                   <RadioGroup
-                    className="flex items-center text-black"
+                    className="flex text-black flex-col py-2"
                     value={roleDialog.id}
                     onValueChange={(value) => handleRoleDialog(value)}>
-                    {roleRadio.map((item) => (
-                      <div key={item.id} className="flex items-center gap-3 ">
-                        <Label>{item.label}</Label>
-                        <RadioGroupItem
-                          value={item.id}
-                          id={item.id}></RadioGroupItem>
-                      </div>
-                    ))}
+                    {roleRadio.map((item) => {
+                      if (item.id === "admin" && !isProjectAdmin) return null;
+                      return (
+                        <div key={item.id} className="flex items-center gap-3 ">
+                          <Label>{item.label}</Label>
+                          <RadioGroupItem
+                            value={item.id}
+                            id={item.id}></RadioGroupItem>
+                        </div>
+                      )
+                    })}
                   </RadioGroup>
                 </div>
               )}

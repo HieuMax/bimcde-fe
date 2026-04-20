@@ -18,7 +18,8 @@ import {
   Menu, Search, Check,
   Settings2,
   Footprints,
-  Move
+  Move,
+  Plus
 } from 'lucide-react';
 import './ifc.css';
 import LoadingBar from '../LoadingBar';
@@ -29,6 +30,10 @@ import { Topics } from '@/components/_3d/topics/Topics';
 import { ClashSets } from '@/components/_3d/clash_sets/ClashSets';
 import { PropertiesDrawer } from './PropertiesDrawer';
 import { ModelPositionDrawer } from './ModelPositionDrawer';
+// import { AttachFileDialog } from './AttachFileDialog';
+import { useAuth } from "@/app/context/authContext";
+import { toast } from "sonner";
+import { AttachFileDialog } from '@/components/todos/AttachFileDialog';
 
 export default function IfcViewer({
   ifcUrls,
@@ -57,6 +62,7 @@ export default function IfcViewer({
   activeTool,
   onToolChange,
   onAddTodoForTopic,
+  onLoadAdditionalModels
 }) {
   const canvasRef = useRef(null);
   const loaderRef = useRef(null);
@@ -66,6 +72,8 @@ export default function IfcViewer({
   const selectedItemsRef = useRef([]);
   const selectionModeRef = useRef(selectionMode)
   const modelUrlMap = useRef({})
+
+  const processedUrlsRef = useRef([]);
 
   const normalizeIfcUrl = (url) => {
     if (!url) return "";
@@ -97,7 +105,7 @@ export default function IfcViewer({
   //< "name" | "date-modified" >
   const [sortBy, setSortBy] = useState("date-modified")
   const [showSearch, setShowSearch] = useState(false)
-  const [statusFilter, setStatusFilter] = useState(undefined)
+  // const [statusFilter, setStatusFilter] = useState(undefined)
   const [searchQuery, setSearchQuery] = useState("")
 
   const [isPropertiesOpen, setIsPropertiesOpen] = useState(false);
@@ -106,6 +114,70 @@ export default function IfcViewer({
 
   const EXPANDED_WIDTH = 370;
   const COLLAPSED_WIDTH = 250;
+
+  const { user } = useAuth(); // Lấy thông tin user cho AttachFileDialog
+  const [isAttachDialogOpen, setIsAttachDialogOpen] = useState(false);
+
+  // Hàm xử lý khi người dùng chọn xong file từ Dialog
+  const handleLoadAdditionalModels = async (files) => {
+    if (!files || files.length === 0) return;
+
+    setIsLoading(true);
+    const currentModels = [...models];
+    const failedFiles = [];
+    const successfullyLoadedUrls = []; // <--- Dùng mảng này để gom các URL tải thành công
+
+    for (const file of files) {
+      try {
+        const url = file.url;
+        console.log(`[Viewer] Dynamically loading model: ${url}`);
+
+        // Load file IFC vào scene
+        const model = await loaderRef.current.loadIfcUrl(url);
+        const modelID = model.modelID;
+        modelUrlMap.current[modelID] = url;
+
+        // Lấy cấu trúc cây và layer
+        const { tree, layers } = await loaderRef.current.getSpatialTree(modelID);
+
+        // Tạo ID mảng mới an toàn (tránh trùng lặp)
+        const nextId = currentModels.length > 0 ? Math.max(...currentModels.map(m => m.id)) + 1 : 0;
+
+        currentModels.push({
+          id: nextId,
+          ifcModelID: modelID,
+          name: file.name || url.split('/').pop(),
+          tree,
+          layers,
+          mesh: model.mesh,
+          visible: true,
+        });
+
+        successfullyLoadedUrls.push(url); // Ghi nhận tải thành công
+
+        if (!processedUrlsRef.current.includes(url)) {
+          processedUrlsRef.current.push(url);
+        }
+        toast.success(`Successfully load model: ${file.name}`);
+      } catch (err) {
+        console.error(`Failed to load model ${file.name}:`, err);
+        failedFiles.push(file.name);
+      }
+    }
+
+    if (failedFiles.length > 0) {
+      toast.error(`Failed to load: ${failedFiles.join(', ')}`);
+    }
+
+    // Báo cho file cha cập nhật `ifcUrls`
+    if (successfullyLoadedUrls.length > 0 && onLoadAdditionalModels) {
+      onLoadAdditionalModels(successfullyLoadedUrls);
+    }
+
+    // Cập nhật lại danh sách Models để Sidebar hiển thị
+    setModels(currentModels);
+    setIsLoading(false);
+  };
 
   // const [isCollapsed, setIsCollapsed] = useState(false);
 
@@ -135,61 +207,61 @@ export default function IfcViewer({
   const updateMarkerMesh = async (point) => {
     if (!sceneRef.current) return;
     const scene = sceneRef.current.scene;
-    
+
     if (markerMeshRef.current) {
-        scene.remove(markerMeshRef.current);
-        if (markerMeshRef.current.material && markerMeshRef.current.material.map) {
-          markerMeshRef.current.material.map.dispose();
-        }
-        if (markerMeshRef.current.material) {
-          markerMeshRef.current.material.dispose();
-        }
-        markerMeshRef.current = null;
+      scene.remove(markerMeshRef.current);
+      if (markerMeshRef.current.material && markerMeshRef.current.material.map) {
+        markerMeshRef.current.material.map.dispose();
+      }
+      if (markerMeshRef.current.material) {
+        markerMeshRef.current.material.dispose();
+      }
+      markerMeshRef.current = null;
     }
 
     if (point) {
-        const THREE = await import('three');
+      const THREE = await import('three');
 
-        const canvas = document.createElement('canvas');
-        canvas.width = canvasSize;
-        canvas.height = canvasSize;
-        const ctx = canvas.getContext('2d');
+      const canvas = document.createElement('canvas');
+      canvas.width = canvasSize;
+      canvas.height = canvasSize;
+      const ctx = canvas.getContext('2d');
 
-        // Tính toán tâm và bán kính
-        const center = canvasSize / 2;
-        const outerRadius = (canvasSize / 2) * 0.9; 
-        const innerRadius = (canvasSize / 2) * 0.6;
+      // Tính toán tâm và bán kính
+      const center = canvasSize / 2;
+      const outerRadius = (canvasSize / 2) * 0.9;
+      const innerRadius = (canvasSize / 2) * 0.6;
 
-        ctx.beginPath();
-        ctx.arc(center, center, outerRadius, 0, 2 * Math.PI);
-        ctx.fillStyle = 'rgba(255, 255, 255, 1.0)';
-        ctx.fill();
+      ctx.beginPath();
+      ctx.arc(center, center, outerRadius, 0, 2 * Math.PI);
+      ctx.fillStyle = 'rgba(255, 255, 255, 1.0)';
+      ctx.fill();
 
-        ctx.beginPath();
-        ctx.arc(center, center, innerRadius, 0, 2 * Math.PI);
-        ctx.fillStyle = '#ff0000';
-        ctx.fill();
+      ctx.beginPath();
+      ctx.arc(center, center, innerRadius, 0, 2 * Math.PI);
+      ctx.fillStyle = '#ff0000';
+      ctx.fill();
 
-        const markerTexture = new THREE.CanvasTexture(canvas);
+      const markerTexture = new THREE.CanvasTexture(canvas);
 
-        const material = new THREE.SpriteMaterial({ 
-            map: markerTexture, 
-            depthTest: false, 
-            transparent: true,
-            opacity: 0.9
-        }); 
-        
-        const sprite = new THREE.Sprite(material);
+      const material = new THREE.SpriteMaterial({
+        map: markerTexture,
+        depthTest: false,
+        transparent: true,
+        opacity: 0.9
+      });
 
-        sprite.scale.set(0.8, 0.8, 1.0); 
-        
-        // Đặt vị trí
-        sprite.position.set(point.x, point.y, point.z);
-        
-        sprite.renderOrder = 999; 
-        
-        scene.add(sprite);
-        markerMeshRef.current = sprite;
+      const sprite = new THREE.Sprite(material);
+
+      sprite.scale.set(0.8, 0.8, 1.0);
+
+      // Đặt vị trí
+      sprite.position.set(point.x, point.y, point.z);
+
+      sprite.renderOrder = 999;
+
+      scene.add(sprite);
+      markerMeshRef.current = sprite;
     }
   };
 
@@ -269,6 +341,17 @@ export default function IfcViewer({
   useEffect(() => {
     if (!ifcUrls?.length || !canvasRef.current) return;
 
+    const isSame =
+      ifcUrls.length === processedUrlsRef.current.length &&
+      ifcUrls.every(u => processedUrlsRef.current.includes(u));
+
+    // Nếu danh sách ifcUrls truyền vào trùng khớp với những gì đã load -> BỎ QUA
+    if (isSame) {
+      return;
+    }
+
+    processedUrlsRef.current = [...ifcUrls];
+
     // Create AbortController for this load cycle
     const abortController = new AbortController();
     let isMounted = true;
@@ -332,25 +415,25 @@ export default function IfcViewer({
 
             if (markerCallbackRef.current) {
               const hitResult = loaderRef.current.pick(event, camera, renderer);
-              
+
               const intersectPoint = hitResult?.point || hitResult?.intersect?.point;
-              
+
               if (intersectPoint) {
-                  markerCallbackRef.current({
-                      x: intersectPoint.x,
-                      y: intersectPoint.y,
-                      z: intersectPoint.z
-                  });
-                  updateMarkerMesh(intersectPoint);
+                markerCallbackRef.current({
+                  x: intersectPoint.x,
+                  y: intersectPoint.y,
+                  z: intersectPoint.z
+                });
+                updateMarkerMesh(intersectPoint);
               } else {
-                  // CẢNH BÁO: Nếu chạy vào đây nghĩa là ifc-manager đang bị thiếu point
-                  alert("Click thành công vật thể, nhưng file ifc-manager.js chưa trả về tọa độ (point). Vui lòng xem hướng dẫn để fix!");
-                  
-                  markerCallbackRef.current({ x: 0, y: 0, z: 0 });
+                // CẢNH BÁO: Nếu chạy vào đây nghĩa là ifc-manager đang bị thiếu point
+                alert("Click thành công vật thể, nhưng file ifc-manager.js chưa trả về tọa độ (point). Vui lòng xem hướng dẫn để fix!");
+
+                markerCallbackRef.current({ x: 0, y: 0, z: 0 });
               }
-              
+
               markerCallbackRef.current = null;
-              return; 
+              return;
             }
 
             const result = loaderRef.current.pick(event, scene.getCamera(), scene.getRenderer());
@@ -462,7 +545,7 @@ export default function IfcViewer({
 
           try {
             const model = await loaderRef.current.loadIfcUrl(url);
-            
+
             // Check again after async operation
             if (abortController.signal.aborted) {
               console.log(`[Viewer] Aborting after model ${i + 1} loaded (context switched)`);
@@ -674,9 +757,9 @@ export default function IfcViewer({
     }
 
     if (viewState && viewState.marker) {
-        updateMarkerMesh(viewState.marker);
+      updateMarkerMesh(viewState.marker);
     } else {
-        updateMarkerMesh(null); 
+      updateMarkerMesh(null);
     }
     // ---------------------------------------------------------
     // 3. RESTORE VISIBILITY
@@ -811,13 +894,19 @@ export default function IfcViewer({
   const handleSelectClashItem = (item1, item2) => {
     if (!loaderRef.current) return;
 
-    const itemsToHighlight = [
-      { modelID: item1.modelID, expressID: item1.expressID },
-      { modelID: item2.modelID, expressID: item2.expressID }
-    ];
+    const sourceUrl1 = modelUrlMap.current[item1.modelID];
+    const sourceUrl2 = modelUrlMap.current[item2.modelID];
 
+    const itemsToHighlight = [
+      { modelID: item1.modelID, expressID: item1.expressID, fileUrl: sourceUrl1 },
+      { modelID: item2.modelID, expressID: item2.expressID, fileUrl: sourceUrl2 }
+    ];
     loaderRef.current.highlightItems(itemsToHighlight);
 
+    setSelectedItems(itemsToHighlight);
+    if (setSelectdItemsForNavbar) {
+      setSelectdItemsForNavbar(itemsToHighlight);
+    }
     // Zoom camera  (Optional)
     // loaderRef.current.zoomToItems(itemsToHighlight); 
   };
@@ -990,14 +1079,31 @@ export default function IfcViewer({
                         <Input type="text" placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="h-8 text-sm" />
                       </div>
                     )}
-                    <div className="w-fit">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild><Button variant="ghost" className="w-full justify-between h-8 px-2 text-sm font-normal">{statusFilter || "All Models"}<ChevronDown className="h-4 w-4 opacity-50" /></Button></DropdownMenuTrigger>
-                        <DropdownMenuContent align="start" className="w-64">
-                          <DropdownMenuItem onClick={() => setStatusFilter("Selected model")}>Selected model</DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => setStatusFilter(undefined)}>All Models</DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                    <div className="flex items-center gap-2 mb-3">
+                      {/* Dropdown All Models */}
+                      {/* <div className="flex-1">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button variant="ghost" className="w-full justify-between h-8 px-2 text-sm font-normal border bg-white">
+                              {statusFilter || "All Models"}
+                              <ChevronDown className="h-4 w-4 opacity-50" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="start" className="w-64">
+                            <DropdownMenuItem onClick={() => setStatusFilter("Selected model")}>Selected model</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setStatusFilter(undefined)}>All Models</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div> */}
+
+                      {/* Nút Load Model mới */}
+                      <Button
+                        variant="outline"
+                        className="h-8 px-3 my-3 text-sm flex items-center gap-1 bg-blue-50 text-blue-600 border-blue-200 hover:bg-blue-100 shrink-0"
+                        onClick={() => setIsAttachDialogOpen(true)}
+                      >
+                        <Plus className="w-4 h-4" /> Load
+                      </Button>
                     </div>
                   </div>
 
@@ -1182,7 +1288,7 @@ export default function IfcViewer({
                     )}
                     <div className="w-fit">
                       <DropdownMenu>
-                        <DropdownMenuTrigger asChild><Button variant="ghost" className="w-full justify-between h-8 px-2 text-sm font-normal">{statusFilter || "All Layers"}<ChevronDown className="h-4 w-4 opacity-50" /></Button></DropdownMenuTrigger>
+                        {/* <DropdownMenuTrigger asChild><Button variant="ghost" className="w-full justify-between h-8 px-2 text-sm font-normal">{statusFilter || "All Layers"}<ChevronDown className="h-4 w-4 opacity-50" /></Button></DropdownMenuTrigger> */}
                         <DropdownMenuContent align="start" className="w-64">
                           <DropdownMenuItem onClick={() => setStatusFilter(undefined)}>All Layers</DropdownMenuItem>
                           <DropdownMenuItem onClick={() => setStatusFilter("Isolated layer")}>Isolated layer</DropdownMenuItem>
@@ -1414,21 +1520,21 @@ export default function IfcViewer({
                     width: '100%',
                   }}
                 >
-                  <Topics 
-                    projectId={projectId} 
+                  <Topics
+                    projectId={projectId}
                     ifcUrls={ifcUrls}
                     autoOpenTopicId={autoOpenTopicId}
                     onAddTodoForTopic={onAddTodoForTopic}
                     capture3DState={
-                      async () =>{
+                      async () => {
                         const snapshot = getSnapshot();
                         const context =
                           snapshot?.selection && snapshot.selection.length > 0
                             ? snapshot.selection
                             : getContext();
 
-                        let thumbnailBase64 ="";
-                        if(canvasRef.current && sceneRef.current) {
+                        let thumbnailBase64 = "";
+                        if (canvasRef.current && sceneRef.current) {
                           const renderer = sceneRef.current.getRenderer();
                           const scene = sceneRef.current.scene;
                           const camera = sceneRef.current.getCamera();
@@ -1659,6 +1765,18 @@ export default function IfcViewer({
         initialData={posDrawerData}
         onSave={handleSavePosition}
       />
+
+      {/* RENDER ATTACH MODEL DIALOG */}
+      {isAttachDialogOpen && (
+        <AttachFileDialog
+          open={isAttachDialogOpen}
+          onOpenChange={setIsAttachDialogOpen}
+          projectId={projectId}
+          userId={user?._id || ""}
+          onAttach={handleLoadAdditionalModels}
+          hideUpload={true}
+        />
+      )}
     </div>
   );
 }
