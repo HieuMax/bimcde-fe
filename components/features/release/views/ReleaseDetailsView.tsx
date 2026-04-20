@@ -10,7 +10,7 @@ import {
   Trash2,
   MoreVertical,
   Activity,
-  Send,
+  CircleCheck,
   Loader2,
   Calendar as CalendarIcon,
 } from "lucide-react";
@@ -30,13 +30,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-import { useAuth } from "@/app/context/authContext";
-
 interface Props {
   release: IRelease;
   onClose: () => void;
   onEdit: () => void;
   onUpdate: () => void; // Refresh list parent
+  canMutateRelease: boolean;
 }
 
 export default function ReleaseDetailsView({
@@ -44,8 +43,8 @@ export default function ReleaseDetailsView({
   onClose,
   onEdit,
   onUpdate,
+  canMutateRelease,
 }: Props) {
-  const { user } = useAuth();
   const [isProcessing, setIsProcessing] = useState(false);
 
   // Hook Comments (Giữ nguyên logic của bạn)
@@ -68,28 +67,17 @@ export default function ReleaseDetailsView({
   // --- LOGIC HELPER ---
   const isDraft = release.status === "DRAFT";
 
-  // Permission Check
-  const canModify =
-    user?.role === "admin" || user?._id === release.createdBy._id;
+  const canPublish = isDraft && canMutateRelease;
 
-  // Logic kiểm tra xem có thể gửi hay không (Phải có ít nhất 1 recipient)
-  const hasRecipients = release.recipients && release.recipients.length > 0;
-  const canSend = isDraft && hasRecipients && canModify;
-
-  // --- ACTIONS ---
-  const handleSend = async () => {
-    if (!hasRecipients) {
-      toast.error("Please add recipients before sending.");
-      return;
-    }
+  const handlePublish = async () => {
     try {
       setIsProcessing(true);
-      await releaseService.sendRelease(release._id);
-      toast.success("Release sent successfully");
-      onUpdate(); // Refresh để cập nhật trạng thái sang SENT
+      await releaseService.finalizeRelease(release._id);
+      toast.success("Release completed");
+      onUpdate();
     } catch (error) {
       console.error(error);
-      toast.error("Failed to send release");
+      toast.error("Failed to release");
     } finally {
       setIsProcessing(false);
     }
@@ -145,7 +133,7 @@ export default function ReleaseDetailsView({
           {release.name}
         </h2>
         <div className="flex items-center gap-1">
-          {isDraft && canModify && (
+          {isDraft && canMutateRelease && (
             <Button
               variant="ghost"
               size="icon"
@@ -170,23 +158,19 @@ export default function ReleaseDetailsView({
       {/* 2. TOOLBAR */}
       <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-100 bg-white">
         {/* Chỉ hiện nút Send khi là Draft */}
-        {isDraft && canModify && (
+        {canPublish && (
           <Button
-            onClick={handleSend}
-            disabled={isProcessing || !canSend}
-            className={`h-9 px-4 rounded-sm font-medium transition-colors ${
-              !canSend
-                ? "bg-gray-300 cursor-not-allowed"
-                : "bg-[#5b636a] hover:bg-[#4a5157] text-white"
-            }`}
-            title={!canSend ? "Add recipients to send" : "Send Release"}
+            onClick={handlePublish}
+            disabled={isProcessing}
+            className="h-9 px-4 rounded-sm font-medium transition-colors bg-[#5b636a] hover:bg-[#4a5157] text-white"
+            title="Mark as released (draft becomes read-only)"
           >
             {isProcessing ? (
               <Loader2 className="h-4 w-4 animate-spin mr-2" />
             ) : (
-              <Send className="h-4 w-4 mr-2" />
+              <CircleCheck className="h-4 w-4 mr-2" />
             )}
-            Send
+            Release
           </Button>
         )}
 
@@ -201,7 +185,7 @@ export default function ReleaseDetailsView({
             <Download className="h-5 w-5" />
           </Button>
 
-          {canModify && (
+          {isDraft && canMutateRelease && (
             <Button
               variant="ghost"
               size="icon"
@@ -261,31 +245,6 @@ export default function ReleaseDetailsView({
                   <span className="text-gray-400 italic">--</span>
                 )}
               </p>
-            </div>
-
-            {/* Recipients */}
-            <div>
-              <h4 className="text-xs font-normal text-gray-500 mb-1">
-                Recipients
-              </h4>
-              <div className="text-sm text-gray-900">
-                {release.recipients && release.recipients.length > 0 ? (
-                  <div className="flex flex-wrap gap-1">
-                    {release.recipients.map((r, i) => (
-                      <span
-                        key={i}
-                        className="bg-gray-100 px-2 py-0.5 rounded text-xs"
-                      >
-                        {r.fullName || "User"}
-                      </span>
-                    ))}
-                  </div>
-                ) : (
-                  <span className="text-red-500 italic text-xs">
-                    No recipients added
-                  </span>
-                )}
-              </div>
             </div>
 
             {/* Notes */}

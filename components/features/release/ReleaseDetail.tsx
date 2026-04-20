@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { IRelease, IReleaseItem } from "@/types/release";
 import { Button } from "@/components/ui/button";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   Download,
@@ -37,6 +36,8 @@ interface ReleaseDetailProps {
   release: IRelease;
   onBack: () => void;
   onRefresh?: () => void;
+  /** Edit/remove files in the package (project admin or release creator, draft only). */
+  canMutateContent: boolean;
 }
 
 // Helper format bytes
@@ -60,6 +61,7 @@ export const ReleaseDetail: React.FC<ReleaseDetailProps> = ({
   release,
   onBack,
   onRefresh,
+  canMutateContent,
 }) => {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [userFilter, setUserFilter] = useState<string[]>([]);
@@ -280,7 +282,7 @@ export const ReleaseDetail: React.FC<ReleaseDetailProps> = ({
 
         {/* Filter Bar */}
         <div className="px-6 py-3 flex gap-4 border-b border-gray-200 bg-gray-50/50">
-          <FilterButton label="Data type" />
+          {/* <FilterButton label="Data type" /> */}
           <UserFilter
             projectId={release.projectId}
             selectedUserIds={userFilter}
@@ -351,13 +353,13 @@ export const ReleaseDetail: React.FC<ReleaseDetailProps> = ({
                       </div>
                     </TableCell>
                     <TableCell className="font-medium text-gray-900 py-2">
-                      <Link
-                        href={`/projects/6963fab7de281e63da904093/viewer/${item.fileId}`}
-                        onClick={(e) => e.stopPropagation()} // Prevent row click when clicking link
-                        className="hover:underline hover:text-blue-600"
+                      <span
+                        className="truncate block max-w-md"
+                        title={item.name}
+                        onClick={(e) => e.stopPropagation()}
                       >
                         {item.name}
-                      </Link>
+                      </span>
                     </TableCell>
                     <TableCell className="text-gray-600 py-2">
                       {item.version}
@@ -441,15 +443,19 @@ export const ReleaseDetail: React.FC<ReleaseDetailProps> = ({
         {selectedCount === 1 && singleItem ? (
           <FilePropertiesPanel
             item={singleItem}
-            projectId={release.projectId}
             onClose={handleClearSelection}
             onDownload={handleDownloadItem}
-            onDelete={release.status === "DRAFT" ? handleDeleteItem : undefined}
+            onDelete={
+              release.status === "DRAFT" && canMutateContent
+                ? handleDeleteItem
+                : undefined
+            }
           />
         ) : selectedCount > 1 ? (
           <FileBulkPanel
              selectedItems={selectedItems}
              releaseStatus={release.status}
+             canMutateFiles={canMutateContent}
              onClose={handleClearSelection}
              onDeselect={handleDeselectItem}
              onDownload={handleBulkDownload}

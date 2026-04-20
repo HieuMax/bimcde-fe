@@ -1,20 +1,17 @@
 "use client";
 
-import React, { useState } from "react";
+import React from "react";
 import { IReleaseItem } from "@/types/release";
 import { Button } from "@/components/ui/button";
-import { X, FileText, Download, Eye, Tag, Trash2, Key } from "lucide-react";
-import { ItemPermissionsDialog } from "@/components/features/explorer/dialogs/ItemPermissionsDialog";
+import { X, FileText, Download, Tag, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { filesize } from "filesize";
-import { useRouter } from "next/navigation";
 
 interface FilePropertiesPanelProps {
   item: IReleaseItem | null;
-  projectId: string;
   onClose: () => void;
   onDownload: () => void;
   onDelete?: () => void;
@@ -22,56 +19,11 @@ interface FilePropertiesPanelProps {
 
 export const FilePropertiesPanel: React.FC<FilePropertiesPanelProps> = ({
   item,
-  projectId,
   onClose,
   onDownload,
   onDelete,
 }) => {
-  const router = useRouter();
-  const [permissionsOpen, setPermissionsOpen] = useState(false);
-
   if (!item) return null;
-  const handleViewFile = () => {
-    if (!item?.name) return;
-
-    const fileExt = item.name.split(".").pop()?.toLowerCase();
-    if (!fileExt) return;
-
-    const IFC_FILES = ["ifc"];
-    const DOC_FILES = ["pdf", "png", "jpg", "jpeg", "webp", "doc", "docx"];
-
-    // IFC → 3D Viewer
-    if (IFC_FILES.includes(fileExt)) {
-      if (!item.location) return;
-
-      // Normalize in case location is already URL-encoded
-      let locationUrl = item.location;
-      try {
-        const decoded = decodeURIComponent(item.location);
-        if (/^https?:\/\//i.test(decoded)) {
-          locationUrl = decoded;
-        }
-      } catch {
-        // ignore malformed encoding and keep original
-      }
-
-      router.push(
-        `/projects/${projectId}/viewer3d?urls=${encodeURIComponent(
-          JSON.stringify([locationUrl]),
-        )}`,
-      );
-      return;
-    }
-
-    // Document / Image → Project Viewer
-    if (DOC_FILES.includes(fileExt)) {
-      router.push(`/projects/${projectId}/viewer/${item.fileId}`);
-      return;
-    }
-
-    // Fallback (nếu cần)
-    router.push(`/projects/${projectId}/viewer/${item.fileId}`);
-  };
   return (
     <div className="flex flex-col h-full bg-white border-l border-gray-200">
       {/* HEADER */}
@@ -100,28 +52,9 @@ export const FilePropertiesPanel: React.FC<FilePropertiesPanelProps> = ({
 
           <Separator />
 
-          {/* TOOLBAR SECTION */}
-          <div className="flex items-center justify-between px-4 py-2">
-            <div className="mr-auto">
-              <Button
-                className="bg-slate-800 hover:bg-slate-700 text-white h-9 px-4 text-sm font-medium"
-                onClick={handleViewFile}
-              >
-                <Eye className="mr-2 h-4 w-4" />
-                View
-              </Button>
-            </div>
-
+          {/* TOOLBAR SECTION — release items: download pinned version only (no in-app viewer). */}
+          <div className="flex items-center justify-start px-4 py-2">
             <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-gray-600 hover:bg-gray-100 h-9 w-9"
-                onClick={() => setPermissionsOpen(true)}
-                title="Permissions"
-              >
-                <Key size={18} />
-              </Button>
               <Button
                 variant="ghost"
                 size="icon"
@@ -213,15 +146,6 @@ export const FilePropertiesPanel: React.FC<FilePropertiesPanelProps> = ({
           </div>
         </div>
       </ScrollArea>
-
-      <ItemPermissionsDialog
-        open={permissionsOpen}
-        onOpenChange={setPermissionsOpen}
-        mode="file"
-        projectId={projectId}
-        itemId={item.fileId}
-        itemName={item.name}
-      />
     </div>
   );
 };

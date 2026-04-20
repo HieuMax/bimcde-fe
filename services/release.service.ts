@@ -13,7 +13,6 @@ export const releaseService = {
     projectId: string;
     status?: string;
     userIds?: string[];
-    groupIds?: string[];
     dueStartDate?: string;
     dueEndDate?: string;
   }) => {
@@ -23,8 +22,6 @@ export const releaseService = {
       queryParams.status = params.status;
     if (params.userIds && params.userIds.length > 0)
       queryParams.userIds = params.userIds.join(",");
-    if (params.groupIds && params.groupIds.length > 0)
-      queryParams.groupIds = params.groupIds.join(","); // [NEW]
     if (params.dueStartDate) queryParams.dueStartDate = params.dueStartDate;
     if (params.dueEndDate) queryParams.dueEndDate = params.dueEndDate;
 
@@ -49,8 +46,8 @@ export const releaseService = {
     return data as IRelease;
   },
 
-  sendRelease: async (id: string) => {
-    const data = await api.post(`/releases/${id}/send`);
+  finalizeRelease: async (id: string) => {
+    const data = await api.post(`/releases/${id}/release`);
     return data as IRelease;
   },
 
