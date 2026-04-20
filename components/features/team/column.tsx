@@ -59,16 +59,14 @@ const teamBaseColumns: ColumnDef<TeamMemberRow>[] = [
   {
     accessorKey: "role",
     header: "Role (project)",
-    cell: ({ row }) => (
-      <div className="capitalize">{row.getValue("role")}</div>
-    ),
+    cell: ({ row }) => <div className="capitalize">{row.getValue("role")}</div>,
   },
   {
     accessorKey: "lastAccessed",
     header: ({ column }) => {
       return (
         <Button
-          className="px-0"
+          className="px-0 hidden lg:block"
           variant="ghost"
           onClick={() => column.toggleSorting(column.getIsSorted() === "asc")}>
           Last Accessed
@@ -77,7 +75,7 @@ const teamBaseColumns: ColumnDef<TeamMemberRow>[] = [
       );
     },
     cell: ({ row }) => (
-      <div className="">
+      <div className=" hidden lg:block">
         {row.original.lastAccessed
           ? new Date(row.original.lastAccessed as string | Date).toLocaleString(
               "en-US",
@@ -88,7 +86,7 @@ const teamBaseColumns: ColumnDef<TeamMemberRow>[] = [
                 hour: "2-digit",
                 minute: "2-digit",
                 hour12: true,
-              }
+              },
             )
           : ""}
       </div>
@@ -103,7 +101,7 @@ export function getTeamTableColumns(options: {
   projectAdmin: boolean;
   onGroupMemberRoleChange?: (
     userId: string,
-    role: GroupMemberRoleOption
+    role: GroupMemberRoleOption,
   ) => Promise<void>;
   updatingUserId?: string | null;
 }): ColumnDef<TeamMemberRow>[] {
@@ -116,14 +114,11 @@ export function getTeamTableColumns(options: {
     header: "In group (ISO)",
     cell: ({ row }) => {
       const gr = row.original.groupMemberRole;
-      const uid = row.original.userId
-        ? String(row.original.userId)
-        : "";
+      const uid = row.original.userId ? String(row.original.userId) : "";
       if (!gr) {
         return <span className="text-sm text-muted-foreground">—</span>;
       }
-      const label =
-        gr === "GROUP_LEADER" ? "Group Leader" : "Group Member";
+      const label = gr === "GROUP_LEADER" ? "Group Leader" : "Group Member";
       if (!options.projectAdmin || !options.onGroupMemberRoleChange) {
         return <div className="text-sm">{label}</div>;
       }
@@ -134,10 +129,7 @@ export function getTeamTableColumns(options: {
             value={gr}
             disabled={busy}
             onValueChange={(v) =>
-              options.onGroupMemberRoleChange!(
-                uid,
-                v as GroupMemberRoleOption
-              )
+              options.onGroupMemberRoleChange!(uid, v as GroupMemberRoleOption)
             }>
             <SelectTrigger className="h-9 w-full border-slate-300">
               <SelectValue />

@@ -852,6 +852,11 @@ export default function page({
               {/* Footer Buttons */}
               <div className="flex gap-2 pt-4 border-t">
                 <Button
+                  onClick={handleNewGroup}
+                  className="flex-1 bg-[#406D87] hover:bg-[#345a70] text-white">
+                  New Group
+                </Button>
+                <Button
                   variant="outline"
                   className="flex-1"
                   onClick={() => setIsFilterSheetOpen(false)}>
