@@ -8,7 +8,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -40,6 +39,10 @@ import {
 import { cn } from "@/lib/utils";
 import { useApi } from "@/app/hooks/useApi";
 import { useAuth } from "@/app/context/authContext";
+import {
+  RecipientSelector,
+  type RecipientOption,
+} from "@/components/features/release/RecipientSelector";
 
 export type TopicLinkOption = {
   id: string;
@@ -51,7 +54,6 @@ interface AddTodoDialogProps {
   open: boolean;
   priority: any[];
   type: any[];
-  users: any[];
   tag: any[];
   projectId: string;
   onClose: () => void;
@@ -71,7 +73,6 @@ export default function AddTodoDialog({
   open,
   onClose,
   priority,
-  users,
   type,
   tag,
   projectId,
@@ -82,10 +83,12 @@ export default function AddTodoDialog({
   const [title, setTitle] = useState("");
   const [showError, setShowError] = useState(false);
   const [moreDetails, setMoreDetails] = useState(false);
-  const [selectedUsers, setSelectedUsers] = useState<any[]>([]);
+  const [assigneeSelections, setAssigneeSelections] = useState<RecipientOption[]>(
+    [],
+  );
   const [selectedTags, setSelectedTags] = useState<any[]>([]);
   const [description, setDescription] = useState("");
-  const [prioritySelected, setPrioritySelected] = useState({});
+  const [prioritySelected, setPrioritySelected] = useState("");
   const [dueDate, setDueDate] = useState<Date | undefined>(undefined);
   const [typeId, setTypeId] = useState<string | null>(null);
   const [createAnother, setCreateAnother] = useState(false);
@@ -97,48 +100,42 @@ export default function AddTodoDialog({
 
   useEffect(() => {
     if (!open) return;
-    // Sync pre-selected topic when the dialog opens (controlled from parent).
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset form field when `open` becomes true
     setSelectedTopicLink(linkedTopicItem ?? null);
-  }, [open, linkedTopicItem?.id, linkedTopicItem?.code, linkedTopicItem?.title]); // eslint-disable-line react-hooks/exhaustive-deps -- stable fields only; object identity may change each parent render
+  }, [open, linkedTopicItem?.id, linkedTopicItem?.code, linkedTopicItem?.title]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Reset the form when the dialog opens for creating a new todo
   useEffect(() => {
     if (!open) return;
-    setTitle("");
-    setShowError(false);
-    setMoreDetails(false);
-    setSelectedUsers([]);
-    setSelectedTags([]);
-    setDescription("");
-    setPrioritySelected({});
-    setDueDate(undefined);
-    setTypeId(null);
-    setCreateAnother(false);
-    // selectedTopicLink is set by the other effect above
+    queueMicrotask(() => {
+      setTitle("");
+      setShowError(false);
+      setMoreDetails(false);
+      setAssigneeSelections([]);
+      setSelectedTags([]);
+      setDescription("");
+      setPrioritySelected("");
+      setDueDate(undefined);
+      setTypeId(null);
+      setCreateAnother(false);
+    });
   }, [open]);
-  const onToggleDetails = () => {
-    setMoreDetails(!moreDetails);
-  };
+
   const handleSave = async () => {
     if (!title.trim()) {
       setShowError(true);
       return;
     }
-    const selectedUserObjects = users.filter((user) =>
-      selectedUsers.includes(user._id),
-    );
 
     const selectedTagObjects = tag.filter((t) => selectedTags.includes(t._id));
 
     const selectedPriority = priority.find((p) => prioritySelected === p._id);
     const selectedType = type.find((p) => typeId === p._id);
 
-    const assignessUpdate = selectedUserObjects?.map((a) => ({
-      assigneeId: a.userId || a._id,
-      name: a.name,
-      type: a.type,
-      label: a.email || a.name,
+    const assignessUpdate = assigneeSelections.map((a) => ({
+      assigneeId: a.id,
+      name: a.label,
+      type: a.type === "GROUP" ? "group" : "user",
+      label: a.email ?? a.label,
     }));
 
     const tagUpdate = selectedTagObjects?.map((t) => ({
@@ -148,17 +145,17 @@ export default function AddTodoDialog({
 
     const priorityUpdate = selectedPriority
       ? {
-        priorityId: selectedPriority._id,
-        name: selectedPriority.name,
-        color: selectedPriority.color,
-      }
+          priorityId: selectedPriority._id,
+          name: selectedPriority.name,
+          color: selectedPriority.color,
+        }
       : null;
 
     const typeUpdate = selectedType
       ? {
-        typeId: selectedType._id,
-        name: selectedType.name,
-      }
+          typeId: selectedType._id,
+          name: selectedType.name,
+        }
       : null;
 
     const userCreateBy = {
@@ -206,9 +203,9 @@ export default function AddTodoDialog({
     } else {
       setTitle("");
       setDescription("");
-      setSelectedUsers([]);
+      setAssigneeSelections([]);
       setSelectedTags([]);
-      setPrioritySelected({});
+      setPrioritySelected("");
       setTypeId(null);
       setDueDate(undefined);
       if (!topicLinkLocked) {
@@ -219,22 +216,26 @@ export default function AddTodoDialog({
 
   return (
     <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent className="sm:max-w-[500px]">
-        <DialogHeader>
-          <DialogTitle className="text-lg font-semibold">
+      <DialogContent className="flex max-h-[90vh] flex-col gap-0 overflow-hidden rounded-md bg-white p-0 sm:max-w-[500px]">
+        <DialogHeader className="flex flex-row items-center justify-between space-y-0 border-b-0 p-5 pb-2">
+          <DialogTitle className="text-xl font-medium text-gray-800">
             Create ToDo
           </DialogTitle>
         </DialogHeader>
 
-        {/* BODY */}
-        <div className="space-y-4">
-          <div className="space-y-1">
-            <Label>Link to a Topic</Label>
+        <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 pt-2 pb-4">
+          <div className="space-y-1.5">
+            <Label className="text-sm font-normal text-gray-600">
+              Link to a Topic
+            </Label>
             {topicLinkLocked && linkedTopicItem?.id ? (
               <div className="rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-slate-800">
                 <span className="font-medium">{linkedTopicItem.code}</span>
                 {linkedTopicItem.title ? (
-                  <span className="text-slate-700"> — {linkedTopicItem.title}</span>
+                  <span className="text-slate-700">
+                    {" "}
+                    — {linkedTopicItem.title}
+                  </span>
                 ) : null}
               </div>
             ) : topicLinkLocked ? (
@@ -248,24 +249,25 @@ export default function AddTodoDialog({
                     return;
                   }
                   const opt = topicLinkOptions.find((t) => t.id === v);
-                  setSelectedTopicLink(
-                    opt ?? { id: v, code: v, title: "" },
-                  );
+                  setSelectedTopicLink(opt ?? { id: v, code: v, title: "" });
                 }}
               >
-                <SelectTrigger className="w-full">
+                <SelectTrigger className="h-9 w-full border-gray-300 focus-visible:ring-1 focus-visible:ring-[#005F9E]">
                   <SelectValue placeholder="None" />
                 </SelectTrigger>
                 <SelectContent>
                   <ScrollArea className="h-44">
-                    <SelectItem value={NONE_TOPIC_VALUE} className="cursor-pointer">
+                    <SelectItem
+                      value={NONE_TOPIC_VALUE}
+                      className="cursor-pointer"
+                    >
                       None
                     </SelectItem>
                     {topicLinkOptions.map((t) => (
                       <SelectItem
                         key={t.id}
                         value={t.id}
-                        className="cursor-pointer h-auto min-h-11 py-2"
+                        className="h-auto min-h-11 cursor-pointer py-2"
                       >
                         <span className="font-medium">{t.code}</span>
                         {t.title ? (
@@ -278,84 +280,80 @@ export default function AddTodoDialog({
               </Select>
             )}
           </div>
-          {/* Title */}
-          <div className="space-y-1">
-            <Label>Title</Label>
+
+          <div className="space-y-1.5">
+            <Label
+              htmlFor="todo-title"
+              className="text-sm font-normal text-gray-600"
+            >
+              Title (required)
+            </Label>
             <Input
+              id="todo-title"
               value={title}
               onChange={(e) => {
                 setTitle(e.target.value);
                 setShowError(false);
               }}
-              className={showError ? "border-red-500" : ""}
+              className={cn(
+                "h-9 border-gray-300 focus-visible:ring-1 focus-visible:ring-[#005F9E]",
+                showError && "border-red-500 focus-visible:ring-red-500",
+              )}
+              placeholder="Enter title"
             />
             {showError && (
-              <p className="text-sm text-red-500">This field is required.</p>
+              <p className="mt-1 text-xs text-red-600">This field is required.</p>
             )}
           </div>
 
-          {/* Description */}
-          <div className="space-y-1">
-            <Label>Description</Label>
+          <div className="space-y-1.5">
+            <Label
+              htmlFor="todo-desc"
+              className="text-sm font-normal text-gray-600"
+            >
+              Description
+            </Label>
             <Textarea
+              id="todo-desc"
               rows={3}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
+              className="min-h-[80px] border-gray-300 focus-visible:ring-1 focus-visible:ring-[#005F9E]"
+              placeholder="Enter description"
             />
           </div>
 
-          {/* Assignee */}
-          <div className="space-y-1">
-            <Label>Assignee</Label>
-            <MultiSelect
-              values={selectedUsers}
-              onValuesChange={setSelectedUsers}>
-              <MultiSelectTrigger className=" w-full min-h-11 h-fit">
-                <MultiSelectValue
-                  className="flex flex-col justify-items-start "
-                  placeholder="Please enter users, groups"
-                />
-              </MultiSelectTrigger>
-              <MultiSelectContent className="">
-                {users.length > 0 ? (
-                  <MultiSelectGroup>
-                    <ScrollArea className="h-44">
-                      {users.map((user: any) => (
-                        <MultiSelectItem
-                          className="flex items-center h-8 cursor-pointer"
-                          key={user._id}
-                          value={user._id}>
-                          <span>
-                            {user.name}
-                            {user.email && ` (${user.email})`}
-                          </span>
-                        </MultiSelectItem>
-                      ))}
-                    </ScrollArea>
-                  </MultiSelectGroup>
-                ) : (
-                  <p>No users available in this project</p>
-                )}
-              </MultiSelectContent>
-            </MultiSelect>
+          <div className="space-y-1.5">
+            <Label className="text-sm font-normal text-gray-600">Assignee</Label>
+            <RecipientSelector
+              projectId={projectId}
+              initialOptions={[]}
+              onChange={(_ids, opts) => setAssigneeSelections(opts ?? [])}
+              addButtonPlaceholder="Add user or group..."
+            />
           </div>
 
           {moreDetails && (
-            <>
-              {/* Priority + Due date */}
+            <div className="space-y-5 animate-in fade-in zoom-in duration-200">
               <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <Label>Priority</Label>
-                  <Select onValueChange={setPrioritySelected}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Please Select" />
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-normal text-gray-600">
+                    Priority
+                  </Label>
+                  <Select
+                    value={prioritySelected || undefined}
+                    onValueChange={setPrioritySelected}
+                  >
+                    <SelectTrigger className="h-9 border-gray-300 focus-visible:ring-1 focus-visible:ring-[#005F9E]">
+                      <SelectValue placeholder="Please select" />
                     </SelectTrigger>
                     <SelectContent>
                       {priority.map((item, index) => (
                         <SelectItem
                           key={index}
                           value={item._id}
-                          className={`cursor-pointer h-12`}>
+                          className="h-12 cursor-pointer"
+                        >
                           {item.name}
                         </SelectItem>
                       ))}
@@ -363,21 +361,23 @@ export default function AddTodoDialog({
                   </Select>
                 </div>
 
-                <div className="space-y-1">
-                  <Label>Due date</Label>
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-normal text-gray-600">
+                    Due date
+                  </Label>
                   <Popover>
                     <PopoverTrigger asChild>
                       <Button
+                        type="button"
                         variant="outline"
                         className={cn(
-                          "w-full justify-start text-left font-normal",
+                          "h-9 w-full justify-start border-gray-300 text-left font-normal focus-visible:ring-1 focus-visible:ring-[#005F9E]",
                           !dueDate && "text-muted-foreground",
-                        )}>
+                        )}
+                      >
                         <CalendarIcon className="mr-2 h-4 w-4" />
-                        {dueDate ? (
-                          format(dueDate, "PPP")
-                        ) : (
-                          <span>Pick a date</span>
+                        {dueDate ? format(dueDate, "MM/dd/yyyy") : (
+                          <span>mm/dd/yyyy</span>
                         )}
                       </Button>
                     </PopoverTrigger>
@@ -393,20 +393,23 @@ export default function AddTodoDialog({
                 </div>
               </div>
 
-              {/* Type */}
-              <div className="space-y-1">
-                <Label>Type</Label>
-                <Select onValueChange={setTypeId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Please Select" />
+              <div className="space-y-1.5">
+                <Label className="text-sm font-normal text-gray-600">Type</Label>
+                <Select
+                  value={typeId ?? undefined}
+                  onValueChange={setTypeId}
+                >
+                  <SelectTrigger className="h-9 border-gray-300 focus-visible:ring-1 focus-visible:ring-[#005F9E]">
+                    <SelectValue placeholder="Please select" />
                   </SelectTrigger>
-                  <SelectContent className="">
+                  <SelectContent>
                     <ScrollArea className="h-44">
                       {type.map((item, index) => (
                         <SelectItem
                           key={index}
                           value={item._id}
-                          className={`cursor-pointer h-12`}>
+                          className="h-12 cursor-pointer"
+                        >
                           {item.name}
                         </SelectItem>
                       ))}
@@ -415,50 +418,72 @@ export default function AddTodoDialog({
                 </Select>
               </div>
 
-              {/* Tags */}
-              <div className="space-y-1">
-                <Label>Tags</Label>
+              <div className="space-y-1.5">
+                <Label className="text-sm font-normal text-gray-600">Tags</Label>
                 <MultiSelect
                   values={selectedTags}
-                  onValuesChange={setSelectedTags}>
-                  <MultiSelectTrigger className=" w-full min-h-11 h-fit">
+                  onValuesChange={setSelectedTags}
+                >
+                  <MultiSelectTrigger className="h-auto min-h-11 w-full border-gray-300 focus-visible:ring-1 focus-visible:ring-[#005F9E]">
                     <MultiSelectValue
-                      className="flex flex-col justify-items-start "
+                      className="flex flex-col justify-items-start"
                       placeholder="Tags"
                     />
                   </MultiSelectTrigger>
-                  <MultiSelectContent className="">
+                  <MultiSelectContent>
                     <ScrollArea className="h-32">
                       {tag.length > 0 ? (
                         <MultiSelectGroup>
                           {tag.map((t: any) => (
                             <MultiSelectItem
-                              className="flex items-center  h-8 cursor-pointer"
+                              className="flex h-8 cursor-pointer items-center"
                               key={t._id}
-                              value={t._id}>
+                              value={t._id}
+                            >
                               <span>{t.name}</span>
                             </MultiSelectItem>
                           ))}
                         </MultiSelectGroup>
                       ) : (
-                        <p>No tag available in this project</p>
+                        <p className="px-2 py-2 text-sm text-muted-foreground">
+                          No tag available in this project
+                        </p>
                       )}
                     </ScrollArea>
                   </MultiSelectContent>
-                </MultiSelect>{" "}
+                </MultiSelect>
               </div>
-            </>
+            </div>
           )}
 
-          <Button
-            onClick={onToggleDetails}
-            className="text-sm bg-transparent w-full text-left justify-start shadow-none hover:bg-blue-100 text-blue-600 ">
-            Show less
-          </Button>
+          {!moreDetails ? (
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={() => setMoreDetails(true)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") setMoreDetails(true);
+              }}
+              className="inline-block cursor-pointer text-sm font-medium text-gray-500 hover:text-[#005F9E] hover:underline"
+            >
+              Add more details
+            </span>
+          ) : (
+            <span
+              role="button"
+              tabIndex={0}
+              onClick={() => setMoreDetails(false)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") setMoreDetails(false);
+              }}
+              className="inline-block cursor-pointer text-sm font-medium text-gray-500 hover:text-[#005F9E] hover:underline"
+            >
+              Show less
+            </span>
+          )}
         </div>
 
-        {/* FOOTER */}
-        <DialogFooter className="flex items-center justify-between pt-4">
+        <div className="flex shrink-0 items-center justify-between gap-3 border-t border-gray-100 px-6 py-4">
           <div className="flex items-center gap-2">
             <Checkbox
               id="createAnother"
@@ -470,13 +495,24 @@ export default function AddTodoDialog({
             </Label>
           </div>
 
-          <div className="flex gap-2">
-            <Button variant="ghost" onClick={onClose}>
+          <div className="flex gap-3">
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={onClose}
+              className="font-normal text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+            >
               Cancel
             </Button>
-            <Button onClick={handleSave}>Save</Button>
+            <Button
+              type="button"
+              onClick={handleSave}
+              className="min-w-[80px] rounded-sm bg-[#005F9E] font-medium text-white hover:bg-[#004B7D]"
+            >
+              Save
+            </Button>
           </div>
-        </DialogFooter>
+        </div>
       </DialogContent>
     </Dialog>
   );

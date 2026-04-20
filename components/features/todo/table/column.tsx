@@ -23,7 +23,7 @@ export const columnsTable: ColumnDef<any>[] = [
           checked={row.getIsSelected()}
           onCheckedChange={(value) => row.toggleSelected(!!value)}
           aria-label="Select row"
-          className="absolute inset-0 m-auto opacity-0 border-2 p-2 border-gray-400 group-hover:opacity-100 data-[state=checked]:bg-[#005a92] data-[state=checked]:opacity-100 "
+          className="absolute inset-0 m-auto border-2 border-slate-400 bg-white p-2 opacity-0 shadow-sm group-hover:opacity-100 data-[state=checked]:opacity-100"
         />
       </div>
     ),

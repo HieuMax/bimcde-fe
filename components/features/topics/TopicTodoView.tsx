@@ -77,8 +77,6 @@ export const TopicTodoView: React.FC<TopicTodoViewProps> = ({
   const [loading, setLoading] = useState(true);
   const [todos, setTodos] = useState<Record<string, unknown>[]>([]);
   const [addOpen, setAddOpen] = useState(false);
-  const [memberData, setMemberData] = useState<Record<string, unknown>[]>([]);
-  const [groupData, setGroupData] = useState<Record<string, unknown>[]>([]);
   const [priorityData, setPriorityData] = useState<Record<string, unknown>[]>(
     [],
   );
@@ -108,33 +106,6 @@ export const TopicTodoView: React.FC<TopicTodoViewProps> = ({
       try {
         await Promise.all([
           loadTodos(),
-          (async () => {
-            const res = await client.get(`/team/getMemberProject/${projectId}`);
-            const u = res?.data;
-            if (!alive || !u?.success) return;
-            const updatedUsers = (u.result || []).map(
-              (user: Record<string, unknown>) => ({
-                ...user,
-                subLabel: user.email,
-                name: user.fullName,
-                type: "user",
-              }),
-            );
-            setMemberData(updatedUsers);
-          })(),
-          (async () => {
-            const res = await client.get(`/team/getGroup/${projectId}`);
-            const g = res?.data;
-            if (!alive || !g?.success) return;
-            const updateData = (g.result || []).map(
-              (group: Record<string, unknown>) => ({
-                ...group,
-                subLabel: group.memberCount,
-                type: "group",
-              }),
-            );
-            setGroupData(updateData);
-          })(),
           (async () => {
             const res = await client.get(`/topics/getAll/${projectId}`);
             const t = res?.data;
@@ -170,11 +141,6 @@ export const TopicTodoView: React.FC<TopicTodoViewProps> = ({
   const filtered = useMemo(
     () => todos.filter((t) => todoMatchesTopic(t, topic.id)),
     [todos, topic.id],
-  );
-
-  const assigneeData = useMemo(
-    () => [...memberData, ...groupData],
-    [memberData, groupData],
   );
 
   const handleCloseAdd = () => {
@@ -263,7 +229,6 @@ export const TopicTodoView: React.FC<TopicTodoViewProps> = ({
         <AddTodoDialog
           open={addOpen}
           onClose={handleCloseAdd}
-          users={assigneeData}
           priority={priorityData}
           type={typeData}
           tag={tagData}

@@ -412,7 +412,7 @@ export const ViewList = () => {
     <div className="flex h-full min-h-0 w-full flex-col bg-[#F5F6F7]">
       <div className="flex min-h-0 flex-1 flex-row">
         <div
-          className={`relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border border-gray-200 bg-white shadow-sm transition-all duration-300 ${
+          className={`relative flex min-h-0 flex-1 flex-col overflow-hidden bg-white shadow-sm transition-all duration-300 ${
             isPanelOpen ? "mr-0 sm:mr-80" : "mr-0"
           }`}
         >

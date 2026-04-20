@@ -226,7 +226,7 @@ export const TopicsPageClient: React.FC<{ projectId: string }> = ({
         className={`flex flex-col h-full flex-1 min-w-0 transition-all duration-300 ${isPanelOpen ? "mr-0 sm:mr-80" : "mr-0"
           }`}
       >
-        <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-gray-200 bg-white shadow-sm">
+        <div className="flex h-full min-h-0 flex-col overflow-hidden  bg-white shadow-sm">
           {/* Header */}
           <div className="flex shrink-0 items-center justify-between border-b border-gray-100 bg-white px-4 py-3">
             <div className="flex items-center gap-2">

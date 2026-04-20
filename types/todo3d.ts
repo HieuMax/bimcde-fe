@@ -1,5 +1,7 @@
 export interface IAttachment {
   _id?: string;
+  /** Explorer file id — required to open in project 2D viewer */
+  fileId?: string;
   name: string;
   url: string;
   mimeType: string;

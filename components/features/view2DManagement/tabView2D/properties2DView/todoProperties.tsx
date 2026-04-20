@@ -66,7 +66,7 @@ export default function TodoDetailPanel({
     updateComment,
     deleteComment,
     currentUserId,
-  } = useComments(todo?._id || todo?.id || "", "todo" as any);
+  } = useComments(todo?._id || todo?.id || "", "todo");
 
   const { tags: availableTags, isLoading: isTagsLoading } = useTags(projectId);
   const api = useApi();
@@ -191,7 +191,7 @@ export default function TodoDetailPanel({
   // ==========================================
   if (isEditing) {
     return (
-      <aside className="w-80 h-full bg-white border-l border-gray-300 flex flex-col shadow-2xl animate-in slide-in-from-right duration-300">
+      <aside className="w-80 h-full bg-white border-l border-gray-300 flex flex-col min-h-0 shadow-2xl animate-in slide-in-from-right duration-300">
         <header className="shrink-0 h-14 px-4 border-b border-gray-200 flex items-center justify-between bg-white sticky top-0 z-30">
           <div className="flex items-center gap-3">
             <button onClick={handleCancelEdit} className="text-gray-500 hover:text-gray-800 transition-colors">
@@ -204,7 +204,7 @@ export default function TodoDetailPanel({
           </button>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-5 space-y-4 custom-scrollbar">
+        <main className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4 custom-scrollbar">
           <div>
             <label className="block text-sm text-gray-500 mb-1">Title (Required)</label>
             <input
@@ -372,8 +372,33 @@ export default function TodoDetailPanel({
             </div>
             <div className="text-[11px] text-gray-400 mt-1">Click to select/unselect tags</div>
           </div>
-          
+
+          <div className="pt-4 border-t border-gray-100">
+            <h4 className="text-[11px] font-bold text-gray-400 uppercase tracking-widest mb-2">
+              Comments
+            </h4>
+            <CommentList
+              comments={comments}
+              totalComments={totalComments}
+              isLoading={isCommentsLoading}
+              hasNextPage={hasNextPage}
+              isFetchingNextPage={isFetchingNextPage}
+              fetchNextPage={fetchNextPage}
+              currentUserId={currentUserId}
+              onUpdate={updateComment}
+              onDelete={deleteComment}
+            />
+          </div>
         </main>
+
+        <div className="shrink-0 border-t border-gray-100 bg-white z-40">
+          <CommentInput
+            value={commentInput}
+            onChange={setCommentInput}
+            onSend={addComment}
+            isSending={isAddingComment}
+          />
+        </div>
 
         <footer className="shrink-0 border-t border-gray-200 bg-white p-4 flex items-center justify-end gap-4 z-40">
           <button

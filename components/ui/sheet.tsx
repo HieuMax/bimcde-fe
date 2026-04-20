@@ -51,27 +51,62 @@ const sheetVariants = cva(
 
 interface SheetContentProps
   extends React.ComponentPropsWithoutRef<typeof SheetPrimitive.Content>,
-    VariantProps<typeof sheetVariants> {}
+    VariantProps<typeof sheetVariants> {
+  /**
+   * Render in-place (no portal, no backdrop). Parent should be `relative` and reserve
+   * horizontal space (e.g. `sm:mr-80` with a 320px panel) so the sheet sits beside the main column.
+   */
+  embedded?: boolean;
+  /** Hide the built-in top-right close control (use an inline header close instead). */
+  hideDefaultClose?: boolean;
+}
 
 const SheetContent = React.forwardRef<
   React.ElementRef<typeof SheetPrimitive.Content>,
   SheetContentProps
->(({ side = "right", className, children, ...props }, ref) => (
-  <SheetPortal>
-    <SheetOverlay />
-    <SheetPrimitive.Content
-      ref={ref}
-      className={cn(sheetVariants({ side }), className)}
-      {...props}
-    >
-      <SheetPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-secondary">
-        <X className="h-4 w-4" />
-        <span className="sr-only">Close</span>
-      </SheetPrimitive.Close>
-      {children}
-    </SheetPrimitive.Content>
-  </SheetPortal>
-))
+>(({ side = "right", className, children, embedded, hideDefaultClose, ...props }, ref) => {
+  const closeButton = hideDefaultClose ? null : (
+    <SheetPrimitive.Close className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-secondary">
+      <X className="h-4 w-4" />
+      <span className="sr-only">Close</span>
+    </SheetPrimitive.Close>
+  );
+
+  if (embedded) {
+    return (
+      <SheetPrimitive.Content
+        ref={ref}
+        className={cn(
+          "gap-4 bg-background p-6 shadow-lg transition ease-in-out",
+          "data-[state=closed]:duration-300 data-[state=open]:duration-500",
+          "data-[state=open]:animate-in data-[state=closed]:animate-out",
+          "fixed inset-0 z-50 h-full w-full overflow-hidden border-l",
+          "data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right",
+          "sm:absolute sm:inset-y-0 sm:right-0 sm:left-auto sm:max-h-none",
+          className,
+        )}
+        {...props}
+      >
+        {closeButton}
+        {children}
+      </SheetPrimitive.Content>
+    );
+  }
+
+  return (
+    <SheetPortal>
+      <SheetOverlay />
+      <SheetPrimitive.Content
+        ref={ref}
+        className={cn(sheetVariants({ side }), className)}
+        {...props}
+      >
+        {closeButton}
+        {children}
+      </SheetPrimitive.Content>
+    </SheetPortal>
+  );
+});
 SheetContent.displayName = SheetPrimitive.Content.displayName
 
 const SheetHeader = ({

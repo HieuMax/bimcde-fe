@@ -12,7 +12,7 @@ import { useAuth } from "@/app/context/authContext";
 
 export function useComments(
   targetId: string,
-  targetType: "file" | "folder" | "release" | "topic" | "view",
+  targetType: "file" | "folder" | "release" | "topic" | "view" | "todo",
 ) {
   const queryClient = useQueryClient();
   const { user } = useAuth();
@@ -24,10 +24,11 @@ export function useComments(
   // 1. Fetch Comments
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
     useInfiniteQuery({
-      queryKey: ["comments", targetId],
+      queryKey: ["comments", targetId, targetType],
       queryFn: ({ pageParam = 0 }) =>
         commentService.getComments(targetId, pageParam, 6),
       initialPageParam: 0,
+      enabled: Boolean(targetId),
       getNextPageParam: (lastPage, allPages) => {
         const nextOffset = allPages.flatMap((p) => p.comments).length;
         return lastPage.hasMore ? nextOffset : undefined;
@@ -47,7 +48,9 @@ export function useComments(
         userId: user._id,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["comments", targetId] });
+      queryClient.invalidateQueries({
+        queryKey: ["comments", targetId, targetType],
+      });
       setCommentInput("");
     },
     onError: () => toast.error("Failed to post comment"),
@@ -58,7 +61,9 @@ export function useComments(
     mutationFn: ({ id, content }: { id: string; content: string }) =>
       commentService.updateComment(id, content, user._id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["comments", targetId] });
+      queryClient.invalidateQueries({
+        queryKey: ["comments", targetId, targetType],
+      });
       toast.success("Comment updated");
     },
   });
@@ -67,7 +72,9 @@ export function useComments(
   const deleteMutation = useMutation({
     mutationFn: (id: string) => commentService.deleteComment(id, user._id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["comments", targetId] });
+      queryClient.invalidateQueries({
+        queryKey: ["comments", targetId, targetType],
+      });
       toast.success("Comment deleted");
     },
   });

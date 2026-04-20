@@ -67,15 +67,28 @@ export interface View2DItem {
   fileId: string | FileItem;
 
   previewSrc?: string;
+  thumbnailUrl?: string;
   viewState?: ViewState;
 
   pageIndex?: number;
   scale?: number;
   rotation?: number;
 
-  createdBy?: string;
+  createdBy?: string | { _id?: string; fullName?: string; email?: string };
   createdAt?: string;
+  updatedAt?: string;
   assignedTo?: string;
+  /** Người nhận share (user/group) — dùng cho tab list & panel */
+  sharedWith?: {
+    isPublic?: boolean;
+    users?: Array<{
+      userId?: string;
+      fullName?: string;
+      email?: string;
+      label?: string;
+      type?: string;
+    }>;
+  };
 }
 
 export type ViewMode = "list" | "grid";
@@ -125,7 +138,15 @@ export interface CreateView2DDTO {
   fileId: string;
   createdBy: string;
   assignedTo?: string;
-  
+  /** Gửi kèm khi tạo view — backend nhận `sharedWithUsers` trong body */
+  sharedWithUsers?: Array<{
+    id: string;
+    label: string;
+    fullName: string;
+    email?: string;
+    type: "USER" | "GROUP";
+  }>;
+
   pageIndex?: number;
   scale?: number;
   rotation?: number;

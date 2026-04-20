@@ -5,6 +5,15 @@ import { Loader2 } from "lucide-react";
 
 import  {RecipientSelector, RecipientOption } from "@/components/features/release/RecipientSelector"; 
 
+/** Khớp backend `sharedWithUsers` → map user/group với id, label, email, type */
+export type SharedWithUserPayload = {
+  id: string;
+  label: string;
+  fullName: string;
+  email?: string;
+  type: "USER" | "GROUP";
+};
+
 interface CreateViewPanelProps {
   projectId: string;
   onClose: () => void;
@@ -12,7 +21,8 @@ interface CreateViewPanelProps {
     name: string;
     description: string;
     createdBy?: string;
-    sharedWithUsers?: string[];
+    /** Danh sách đầy đủ để backend lưu sharedWith + gửi mail */
+    sharedWithUsers?: SharedWithUserPayload[];
   }) => Promise<void>;
 }
 
@@ -51,14 +61,21 @@ export default function CreateViewPanel({
     try {
       setIsSubmitting(true);
 
-      // Trích xuất mảng ID từ các option đã chọn
-      const sharedUserIds = selectedRecipients.map(r => r.id);
+      const sharedWithUsers: SharedWithUserPayload[] = selectedRecipients.map(
+        (r) => ({
+          id: r.id,
+          label: r.label,
+          fullName: r.label,
+          email: r.email,
+          type: r.type,
+        }),
+      );
 
       await onSave({
         name: name.trim(),
         description: description.trim(),
         createdBy: currentUser || "Unknown",
-        sharedWithUsers: sharedUserIds, // 👈 Gửi mảng ID lên API
+        sharedWithUsers,
       });
       // parent sẽ tự đóng panel sau khi save thành công
     } catch (error) {
@@ -135,12 +152,20 @@ export default function CreateViewPanel({
              <RecipientSelector
                 projectId={projectId}
                 initialOptions={selectedRecipients}
-                onChange={(ids, options) => setSelectedRecipients(options)}
+                onChange={(_ids, options) =>
+                  setSelectedRecipients(options ?? [])
+                }
                 disabled={isSubmitting}
              />
           </div>
-          <div className="mt-1 text-xs text-gray-500">
-            Optional – leave empty to keep private
+          <div className="mt-1 text-xs text-gray-500 flex flex-wrap items-center gap-x-2">
+            <span>Optional – leave empty to keep private</span>
+            {selectedRecipients.length > 0 && (
+              <span className="font-medium text-[#005a9e]">
+                {selectedRecipients.length} recipient
+                {selectedRecipients.length !== 1 ? "s" : ""} selected
+              </span>
+            )}
           </div>
         </div>
 

@@ -38,4 +38,16 @@ export const todo2DService = {
     const res = await api.put(`${BASE_URL}/${todoId}`, payload);
     return res as TodoItem;
   },
+
+  /** Danh sách Todo2D theo project (dashboard) */
+  getTodosByProject: async (projectId: string) => {
+    const data = await api.get(`${BASE_URL}/project/${projectId}`);
+    return data as TodoItem[];
+  },
+
+  /** Một Todo2D theo id (mở từ query ?openTodoId=) */
+  getById: async (todoId: string) => {
+    const data = await api.get(`${BASE_URL}/${todoId}`);
+    return data as TodoItem;
+  },
 };
