@@ -146,6 +146,9 @@ export default function page({
   >([]);
   const [selectedPriorities, setSelectedPriorities] = useState<string[]>([]);
 
+  const [permissions, setPermissions] = useState<any>(null);
+  const [userRole, setUserRole] = useState<string>("user");
+
   const { get, post, put, delete: deleteApi } = useApi();
   const { user } = useAuth();
 
@@ -166,11 +169,28 @@ export default function page({
         });
 
         setMemberData(updatedUsers);
+
+        const currentUserMember = response.result.find((m: any) => m.userId === user?._id);
+        if (currentUserMember) {
+          setUserRole(currentUserMember.role);
+        }
       } else {
         console.error("Failed to fetch group:", response.error);
       }
     } catch (err) {
       console.error("Error fetching group:", err);
+    }
+  };
+
+  const getPermissions = async () => {
+    try {
+      const pid = (await params).projectId;
+      const response = await get(`/permissions/get/${pid}`);
+      if (response.success) {
+        setPermissions(response.result);
+      }
+    } catch (error) {
+      console.error(error);
     }
   };
 
@@ -236,14 +256,17 @@ export default function page({
     try {
       const projectId = (await params).projectId;
 
-      const response = await get(`/todo`, { params: { projectId } }); // ✅ valid
-      if (response) {
-        setTodoList(response);
-      } else {
-        console.error("Failed to fetch tag :", response.error);
-      }
+      const response3d = await get(`/todo`, { params: { projectId } });
+      const response2d = await get(`/todos2d/project/${projectId}`);
+
+      const todos3d = response3d || [];
+      const todos2d = response2d || [];
+
+      const combinedTodos = [...todos3d, ...todos2d];
+
+      setTodoList(combinedTodos as never[]);
     } catch (err) {
-      console.error("Error fetching tag :", err);
+      console.error("Error fetching todos :", err);
     }
   };
 
@@ -276,6 +299,7 @@ export default function page({
     getAllTags();
     getAllTodo();
     getAllTodo2d();
+    getPermissions()
   }, []);
 
   useEffect(() => {
@@ -384,6 +408,25 @@ export default function page({
 
   const filterTodos = (source: any[]) => {
     let filtered = [...source];
+  const filterTodos = () => {
+    let filtered = [...todoList];
+    const currentUserId = getCurrentUserId();
+
+    if (permissions?.isTodosRestricted && userRole !== "admin") {
+      filtered = filtered.filter((todo: any) => {
+        const createdById = typeof todo.createdBy === "string"
+          ? todo.createdBy
+          : (todo.createdBy?._id || todo.createdBy?.userId || "");
+        const isCreator = String(createdById) === String(currentUserId);
+
+        // Cho phép nếu được Assign
+        const isAssignee = todo.assignees?.some(
+          (assignee: any) => assignee.assigneeId === currentUserId
+        );
+
+        return isCreator || isAssignee;
+      });
+    }
 
     // Filter by Owner
     if (selectedOwners.length > 0) {

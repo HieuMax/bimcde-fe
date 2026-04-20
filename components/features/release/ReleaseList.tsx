@@ -26,9 +26,9 @@ import {
   Package,
   MoreVertical,
   FilterX,
-  Send,
+  CircleCheck,
   Download,
-  Trash2
+  Trash2,
 } from "lucide-react";
 import { ReleaseStatusBadge } from "./ReleaseStatusBadge";
 import { toast } from "sonner";
@@ -43,19 +43,28 @@ import {
   SelectItem,
   SelectTrigger,
 } from "@/components/ui/select";
-import { GroupFilter } from "../activity/GroupFilter";
 import { activityFilterTriggerClassName } from "@/components/features/activity/activity-filter-ui";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/app/context/authContext";
+import {
+  canMutateReleaseDraft,
+  type ProjectReleaseContext,
+} from "./releaseProjectContext";
 
 interface ReleaseListProps {
   projectId: string;
+  projectReleaseContext: ProjectReleaseContext | null;
+  canCreateRelease: boolean;
   onCreateRelease: () => void;
 }
 
 export const ReleaseList: React.FC<ReleaseListProps> = ({
   projectId,
+  projectReleaseContext,
+  canCreateRelease,
   onCreateRelease,
 }) => {
+  const { user } = useAuth();
   const [releases, setReleases] = useState<IRelease[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -64,8 +73,7 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
 
   // --- FILTER STATE ---
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
-  const [recipientIds, setRecipientIds] = useState<string[]>([]); // User Filter (Recipients)
-  const [groupIds, setGroupIds] = useState<string[]>([]); // Group IDs
+  const [createdByUserIds, setCreatedByUserIds] = useState<string[]>([]);
   const [dueFilter, setDueFilter] = useState<{ start?: Date; end?: Date }>({}); // Due Date Filter
   const [dateFilterResetKey, setDateFilterResetKey] = useState(0);
 
@@ -75,8 +83,7 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
       const data = await releaseService.getReleases({
         projectId,
         status: statusFilter,
-        userIds: recipientIds,
-        groupIds: groupIds,
+        userIds: createdByUserIds,
         dueStartDate: dueFilter.start?.toISOString(),
         dueEndDate: dueFilter.end?.toISOString(),
       });
@@ -87,19 +94,14 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [projectId, statusFilter, recipientIds, groupIds, dueFilter]);
+  }, [projectId, statusFilter, createdByUserIds, dueFilter]);
 
   useEffect(() => {
     fetchReleases();
   }, [fetchReleases]);
 
-  // Handler thay đổi Group Filter
-  const handleGroupFilterChange = (ids: string[]) => {
-    setGroupIds(ids);
-  };
-  // Handler thay đổi User Filter
-  const handleUserFilterChange = (userIds: string[]) => {
-    setRecipientIds(userIds);
+  const handleCreatedByFilterChange = (userIds: string[]) => {
+    setCreatedByUserIds(userIds);
   };
 
   // Handler thay đổi Date Filter
@@ -164,16 +166,24 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
     }
   };
 
-  const handleSendRelease = async (e: React.MouseEvent, release: IRelease) => {
+  const handleFinalizeRelease = async (
+    e: React.MouseEvent,
+    release: IRelease,
+  ) => {
     e.stopPropagation();
-    if (!confirm(`Are you sure you want to send release "${release.name}"?`)) return;
+    if (
+      !confirm(
+        `Release "${release.name}"? After this it cannot be edited or deleted.`,
+      )
+    )
+      return;
     try {
-      await releaseService.sendRelease(release._id);
-      toast.success("Release sent successfully");
+      await releaseService.finalizeRelease(release._id);
+      toast.success("Release completed");
       fetchReleases();
     } catch (error) {
       console.error(error);
-      toast.error("Failed to send release");
+      toast.error("Failed to release");
     }
   };
 
@@ -218,6 +228,12 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
           <h2 className="text-lg font-medium text-gray-800">Releases</h2>
           <Button
             onClick={onCreateRelease}
+            disabled={!canCreateRelease}
+            title={
+              !canCreateRelease
+                ? "Only project administrators and group leaders can create releases in ISO projects."
+                : undefined
+            }
             className="bg-[#406D87] hover:bg-[#345a70] px-6 py-4 rounded text-base font-medium flex items-center transition-colors disabled:opacity-50 outline-none ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
           >
             New
@@ -228,8 +244,9 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
           <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
             <UserFilter
               projectId={projectId}
-              selectedUserIds={recipientIds}
-              onChange={handleUserFilterChange}
+              selectedUserIds={createdByUserIds}
+              onChange={handleCreatedByFilterChange}
+              triggerLabel="Created by"
             />
 
             <span className="text-gray-300">|</span>
@@ -246,7 +263,7 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
               <SelectContent>
                 <SelectItem value="ALL">All Status</SelectItem>
                 <SelectItem value="DRAFT">Draft</SelectItem>
-                <SelectItem value="SENT">Sent</SelectItem>
+                <SelectItem value="RELEASED">Released</SelectItem>
               </SelectContent>
             </Select>
 
@@ -267,7 +284,7 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
             />
           </div>
 
-          {(recipientIds.length > 0 ||
+          {(createdByUserIds.length > 0 ||
             statusFilter !== "ALL" ||
             groupIds.length > 0 ||
             dueFilter.start) && (
@@ -279,6 +296,7 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
                   setStatusFilter("ALL");
                   setRecipientIds([]);
                   setGroupIds([]);
+                  setCreatedByUserIds([]);
                   setDueFilter({});
                   setDateFilterResetKey((k) => k + 1);
                 }}
@@ -337,21 +355,20 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
                       key="h6"
                       className="text-gray-500 font-semibold uppercase text-xs"
                     >
-                      Recipients
-                    </TableHead>,
-                    <TableHead
-                      key="h7"
-                      className="text-gray-500 font-semibold uppercase text-xs"
-                    >
                       Status
                     </TableHead>,
-                    <TableHead key="h8" className="w-[50px]" />,
+                    <TableHead key="h7" className="w-[50px]" />,
                   ]}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {releases.map((release) => {
                   const isSelected = selectedIds.has(release._id);
+                  const canMutate = canMutateReleaseDraft(
+                    release,
+                    projectReleaseContext,
+                    user?._id,
+                  );
                   return (
                     <TableRow
                       key={release._id}
@@ -391,37 +408,6 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
                           ? format(new Date(release.dueDate), "MMM d, yyyy")
                           : "-"}
                       </TableCell>
-                      <TableCell className="text-gray-600 max-w-[200px] truncate">
-                        {release.recipients && release.recipients.length > 0 ? (
-                          // Chỉ hiện tối đa 3 người để tránh vỡ layout, còn lại hiện +N
-                          <>
-                            {release.recipients
-                              .slice(0, 3)
-                              .map((r: any, i: number) => (
-                                <div
-                                  key={i}
-                                  className="inline-flex items-center bg-gray-100 px-1.5 py-0.5 rounded text-xs text-gray-700 whitespace-nowrap"
-                                  title={r.type === "GROUP" ? "Group" : "User"}
-                                >
-                                  {/* Hiển thị tên (ưu tiên fullName, fallback name) */}
-                                  <span className="truncate max-w-[80px]">
-                                    {r.fullName || r.name || "Unknown"}
-                                  </span>
-                                </div>
-                              ))}
-
-                            {release.recipients.length > 3 && (
-                              <span className="text-xs text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded">
-                                +{release.recipients.length - 3}
-                              </span>
-                            )}
-                          </>
-                        ) : (
-                          <span className="text-gray-400 italic text-xs">
-                            --
-                          </span>
-                        )}
-                      </TableCell>
                       <TableCell>
                         <ReleaseStatusBadge status={release.status} />
                       </TableCell>
@@ -438,12 +424,14 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
-                            {release.status === "DRAFT" && (
+                            {release.status === "DRAFT" && canMutate && (
                               <DropdownMenuItem
-                                onClick={(e) => handleSendRelease(e, release)}
+                                onClick={(e) =>
+                                  handleFinalizeRelease(e, release)
+                                }
                               >
-                                <Send className="mr-2 h-4 w-4" />
-                                <span>Send</span>
+                                <CircleCheck className="mr-2 h-4 w-4" />
+                                <span>Release</span>
                               </DropdownMenuItem>
                             )}
                             <DropdownMenuItem
@@ -452,7 +440,7 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
                               <Download className="mr-2 h-4 w-4" />
                               <span>Download</span>
                             </DropdownMenuItem>
-                            {release.status !== "SENT" && (
+                            {release.status === "DRAFT" && canMutate && (
                               <>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem
@@ -498,6 +486,11 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
             onClose={handleClearSelection}
             onRename={handleRenameRelease}
             onUpdate={fetchReleases}
+            canMutateRelease={canMutateReleaseDraft(
+              singleRelease,
+              projectReleaseContext,
+              user?._id,
+            )}
           />
         ) : selectedCount > 1 ? (
           <ReleaseBulkPanel

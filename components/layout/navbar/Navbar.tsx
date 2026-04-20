@@ -258,9 +258,6 @@ export function Navbar({
 
                         <div className="w-px h-6 bg-border mx-1" />
 
-                        <NavIconButton icon={Ruler} label="Measurement option" />
-                        <NavIconButton icon={MessageCircleDashed} label="Add markup" />
-
                         <NavIconButton
                             icon={SquareScissors}
                             label="Add Clip Plane"

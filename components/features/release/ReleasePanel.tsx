@@ -10,6 +10,7 @@ interface ReleasePanelProps {
   onClose: () => void;
   onRename: (newName: string) => Promise<void>;
   onUpdate: () => void;
+  canMutateRelease: boolean;
 }
 
 export const ReleasePanel: React.FC<ReleasePanelProps> = ({
@@ -17,6 +18,7 @@ export const ReleasePanel: React.FC<ReleasePanelProps> = ({
   onClose,
   onRename,
   onUpdate,
+  canMutateRelease,
 }) => {
   const [view, setView] = useState<"details" | "edit">("details");
 
@@ -30,8 +32,11 @@ export const ReleasePanel: React.FC<ReleasePanelProps> = ({
         <ReleaseDetailsView
           release={release}
           onClose={onClose}
-          onEdit={() => setView("edit")}
+          onEdit={() => {
+            if (canMutateRelease) setView("edit");
+          }}
           onUpdate={onUpdate}
+          canMutateRelease={canMutateRelease}
         />
       ) : (
         <ReleaseEditView

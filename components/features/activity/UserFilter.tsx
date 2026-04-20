@@ -28,12 +28,15 @@ interface UserFilterProps {
   projectId: string;
   selectedUserIds: string[];
   onChange: (userIds: string[]) => void;
+  /** Label on the filter trigger (default: "Users") */
+  triggerLabel?: string;
 }
 
 export const UserFilter: React.FC<UserFilterProps> = ({
   projectId,
   selectedUserIds,
   onChange,
+  triggerLabel = "Users",
 }) => {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
@@ -92,7 +95,7 @@ export const UserFilter: React.FC<UserFilterProps> = ({
           variant="ghost"
           className={activityFilterTriggerClassName(isActive)}
         >
-          <span>Users</span>
+          <span>{triggerLabel}</span>
           {isActive && (
             <span className={activityFilterCountBadgeClassName}>
               {selectedUserIds.length}

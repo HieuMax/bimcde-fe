@@ -7,6 +7,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 interface FileBulkPanelProps {
   selectedItems: IReleaseItem[];
   releaseStatus: string;
+  /** When false, remove is disabled even in draft (e.g. not creator / not project admin). */
+  canMutateFiles?: boolean;
   onClose: () => void;
   onDeselect: (fileId: string) => void;
   onDownload: () => void;
@@ -16,6 +18,7 @@ interface FileBulkPanelProps {
 export const FileBulkPanel: React.FC<FileBulkPanelProps> = ({
   selectedItems,
   releaseStatus,
+  canMutateFiles = true,
   onClose,
   onDeselect,
   onDownload,
@@ -47,8 +50,14 @@ export const FileBulkPanel: React.FC<FileBulkPanelProps> = ({
           variant="ghost"
           className="w-full justify-start gap-3 text-red-600 hover:text-red-700 hover:bg-red-50 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
           onClick={onRemove}
-          disabled={releaseStatus !== "DRAFT"}
-          title={releaseStatus !== "DRAFT" ? "Cannot remove files from sent release" : "Remove from release"}
+          disabled={releaseStatus !== "DRAFT" || !canMutateFiles}
+          title={
+            releaseStatus !== "DRAFT"
+              ? "Cannot remove files from a published release"
+              : !canMutateFiles
+                ? "Only the creator or a project administrator can change this release"
+                : "Remove from release"
+          }
         >
           <Trash2 className="h-5 w-5" />
           Remove File(s)
