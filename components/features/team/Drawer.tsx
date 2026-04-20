@@ -77,7 +77,7 @@ export default function TeamDrawer({
     try {
       const userIdPost = {
         userId: data.userId,
-        projectId: data.projectId,
+        projectId: data.projectId
       };
       const response = await post(`/team/getAllGroupByUserId`, userIdPost);
       if (response.success) {
@@ -167,35 +167,59 @@ export default function TeamDrawer({
             <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
               <div className="flex-1 min-w-0"></div>
 
-              <Button
-                onClick={onCLoseDrawer}
-                className="bg-transparent shadow-none text-gray-500 hover:bg-gray-200">
-                <X></X>
-              </Button>
-            </div>
-            <div className="overflow-y-auto flex flex-col h-full">
-              <div className="flex-1 pb-4">
-                <div className="block">
-                  <div className="flex items-center justify-center bg-slate-50 p-4 min-h-[150px]">
-                    <div className="flex flex-col w-full items-center">
-                      <Image
-                        src="https://resources.connect.trimble.com/thumb/user.png"
-                        alt="User image"
-                        width={88}
-                        height={88}
-                      />
-                      <div className="mt-2 text-center">
-                        <h3 className="text-lg font-semibold">
-                          {data.fullName}
-                        </h3>
-                        <span>
-                          <a
-                            href={`mailto:${data.email}`}
-                            className="text-sm text-[#005f9e] hover:underline">
-                            {data.email}
-                          </a>
-                        </span>
-                      </div>
+                <div className="">
+                  <div className="flex items-center nowrap border-t border-t-[#d0d0d7] pl-4 pr-2">
+                    <h5 className=" my-2 overflow-hidden whitespace-nowrap text-ellipsis">
+                      Details
+                    </h5>
+                  </div>
+                  <div className=" pl-4 pr-2 flex flex-col flex-nowrap space-y-2">
+                    <div className="min-h-12 flex flex-col relative text-sm">
+                      <label className="flex flex-end flex-nowrap text-muted-foreground font-normal mb-0 min-h-6">
+                        Last accessed
+                      </label>
+                      {data.lastAccessed ? (
+                        <div className=" overflow-hidden text-ellipsis whitespace-nowrap">
+                          {data.lastAccessed
+                            ? new Date(data.lastAccessed).toLocaleString(
+                              "en-US",
+                              {
+                                month: "short",
+                                day: "2-digit",
+                                year: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                                hour12: true,
+                              },
+                            )
+                            : ""}
+                        </div>
+                      ) : (
+                        <p className="font-semibold">Never</p>
+                      )}
+                    </div>
+                    <div className="min-h-12 flex flex-col relative text-sm">
+                      <label className="flex flex-end flex-nowrap text-muted-foreground font-normal mb-0 min-h-6">
+                        Role:
+                      </label>
+                      <Select
+                        value={selectedRole}
+                        onValueChange={handleRoleChange}>
+                        <SelectTrigger className="w-full border-b-1  focus-visible:outline-none focus:ring-0">
+                          <SelectValue placeholder="Select Role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {listRole.length > 0 ? (
+                            listRole.map((role) => (
+                              <SelectItem key={role.id} value={role.id}>
+                                {role.name}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <p>No roles available</p>
+                          )}
+                        </SelectContent>
+                      </Select>
                     </div>
                   </div>
 
