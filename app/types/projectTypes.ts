@@ -19,4 +19,7 @@ export class Project {
   folderCount?: number;
   filesCount?: number;
   userCount?: number;
+  /** Present on `GET /projects/getProject/:id` for the current user */
+  currentMemberRole?: "admin" | "user";
+  isGroupLeaderInProject?: boolean;
 }

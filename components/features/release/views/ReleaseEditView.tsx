@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState } from "react";
 import { IRelease, UpdateReleaseDTO } from "@/types/release";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +17,6 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { releaseService } from "@/services/release.service";
 import { toast } from "sonner";
-import { RecipientSelector, RecipientOption } from "../RecipientSelector";
 import {
   RELEASE_NAME_MAX_LENGTH,
   RELEASE_NOTE_MAX_LENGTH,
@@ -45,20 +44,6 @@ const ReleaseEditView: React.FC<ReleaseEditViewProps> = ({
   const [description, setDescription] = useState(release.description || "");
   const [dueDate, setDueDate] = useState<Date | undefined>(
     release.dueDate ? new Date(release.dueDate) : undefined,
-  );
-
-  const initialRecipientOptions: RecipientOption[] = useMemo(() => {
-    if (!release.recipients) return [];
-    return release.recipients.map((r: any) => ({
-      id: r._id,
-      label: r.fullName || r.name || "Unknown",
-      email: r.email,
-      type: "USER",
-    }));
-  }, [release.recipients]);
-
-  const [recipientIds, setRecipientIds] = useState<string[]>(
-    release.recipients?.map((r) => (typeof r === "string" ? r : r._id)) || [],
   );
 
   const [loading, setLoading] = useState(false);
@@ -91,7 +76,6 @@ const ReleaseEditView: React.FC<ReleaseEditViewProps> = ({
       const payload: UpdateReleaseDTO = {
         name: safeName,
         dueDate: dueIso,
-        recipients: recipientIds,
         description: note.length > 0 ? note : "",
       };
 
@@ -197,23 +181,6 @@ const ReleaseEditView: React.FC<ReleaseEditViewProps> = ({
           {errors.dueDate && (
             <p className="text-xs text-red-600 mt-1">{errors.dueDate}</p>
           )}
-        </div>
-
-        <div className="space-y-1.5">
-          <Label className="text-xs font-medium text-gray-500">
-            Recipients
-          </Label>
-
-          <RecipientSelector
-            projectId={release.projectId}
-            initialOptions={initialRecipientOptions}
-            onChange={(ids) => setRecipientIds(ids)}
-            disabled={loading}
-          />
-
-          <p className="text-[10px] text-gray-400">
-            You can search for project members or groups.
-          </p>
         </div>
 
         <div className="space-y-1.5">

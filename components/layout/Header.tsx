@@ -60,7 +60,8 @@ export default function Header() {
     };
 
     fetchProjectName();
-  }, [projectId, get]);
+    // Omit `get` — useApi() returns new function refs each render; including `get` loops requests.
+  }, [projectId]);
 
   const onLogout = async () => {
     await logout();

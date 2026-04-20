@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { CreateReleaseDTO } from "@/types/release";
 import { Button } from "@/components/ui/button";
-import { RecipientSelector } from "./RecipientSelector";
 import {
   Dialog,
   DialogContent,
@@ -47,7 +46,6 @@ export const CreateReleaseDialog: React.FC<CreateReleaseDialogProps> = ({
 }) => {
   const [name, setName] = useState("");
   const [dueDate, setDueDate] = useState<Date | undefined>(undefined);
-  const [recipientIds, setRecipientIds] = useState<string[]>([]);
   const [description, setDescription] = useState("");
 
   const [showNote, setShowNote] = useState(false);
@@ -57,7 +55,6 @@ export const CreateReleaseDialog: React.FC<CreateReleaseDialogProps> = ({
   const resetForm = () => {
     setName("");
     setDueDate(undefined);
-    setRecipientIds([]);
     setDescription("");
     setShowNote(false);
     setErrors({});
@@ -100,7 +97,6 @@ export const CreateReleaseDialog: React.FC<CreateReleaseDialogProps> = ({
         description: showNote && note ? note : undefined,
         dueDate: dueIso,
         items: [],
-        recipients: recipientIds,
       };
 
       await releaseService.createRelease(payload);
@@ -208,17 +204,6 @@ export const CreateReleaseDialog: React.FC<CreateReleaseDialogProps> = ({
             {errors.dueDate && (
               <p className="text-xs text-red-600 mt-1">{errors.dueDate}</p>
             )}
-          </div>
-
-          <div className="space-y-1.5">
-            <Label className="text-sm font-normal text-gray-600">
-              Recipients
-            </Label>
-            <RecipientSelector
-              projectId={projectId}
-              onChange={(ids) => setRecipientIds(ids)}
-              initialOptions={[]}
-            />
           </div>
 
           <div className="space-y-2 pt-2">

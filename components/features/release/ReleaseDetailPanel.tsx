@@ -1,7 +1,7 @@
 import React from "react";
 import { IRelease } from "@/types/release";
 import { Button } from "@/components/ui/button";
-import { X, Download, Send, File as FileIcon, User } from "lucide-react";
+import { X, Download, CircleCheck, File as FileIcon } from "lucide-react";
 import { ReleaseStatusBadge } from "./ReleaseStatusBadge";
 import { format } from "date-fns";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -21,15 +21,15 @@ export const ReleaseDetailPanel: React.FC<ReleaseDetailPanelProps> = ({
 }) => {
   if (!release) return null;
 
-  const handleSend = async () => {
+  const handlePublish = async () => {
     try {
-      await releaseService.sendRelease(release._id);
-      toast.success("Release sent successfully");
+      await releaseService.finalizeRelease(release._id);
+      toast.success("Release completed");
       onUpdate();
-      onClose(); // Or just refresh
+      onClose();
     } catch (error) {
       console.error(error);
-      toast.error("Failed to send release");
+      toast.error("Failed to release");
     }
   };
 
@@ -76,8 +76,9 @@ export const ReleaseDetailPanel: React.FC<ReleaseDetailPanelProps> = ({
           <div>
              <h4 className="text-sm font-medium text-gray-500">Created By</h4>
              <p className="text-sm text-gray-700 mt-1">
-                 {/* Assuming createdBy is an ID, ideally we resolve this to a name */}
-                 User {release.createdBy.slice(0, 8)}...
+                 {typeof release.createdBy === "object" && release.createdBy
+                   ? release.createdBy.fullName || release.createdBy._id
+                   : String(release.createdBy).slice(0, 8)}
              </p>
           </div>
 
@@ -107,29 +108,13 @@ export const ReleaseDetailPanel: React.FC<ReleaseDetailPanelProps> = ({
             </div>
           </div>
 
-          <div className="border-t pt-4">
-            <h4 className="text-sm font-medium text-gray-500 mb-2 flex items-center gap-2">
-                <User className="h-4 w-4" />
-                Recipients ({release.recipients?.length || 0})
-            </h4>
-            {/* List recipients here if needed */}
-             <div className="bg-gray-50 rounded-md border border-gray-100 p-2">
-                {release.recipients && release.recipients.length > 0 ? (
-                    <ul className="list-disc list-inside text-sm text-gray-700">
-                        {release.recipients.map(r => <li key={r}>{r.slice(0, 8)}...</li>)}
-                    </ul>
-                ) : (
-                    <p className="text-sm text-gray-400">No recipients</p>
-                )}
-             </div>
-          </div>
         </div>
       </ScrollArea>
 
       <div className="p-4 border-t bg-gray-50 flex gap-2 justify-end">
         {release.status === "DRAFT" && (
-           <Button onClick={handleSend} className="bg-blue-600 hover:bg-blue-700">
-             <Send className="mr-2 h-4 w-4" /> Send Release
+           <Button onClick={handlePublish} className="bg-blue-600 hover:bg-blue-700">
+             <CircleCheck className="mr-2 h-4 w-4" /> Release
            </Button>
         )}
         <Button variant="outline" onClick={handleDownload}>

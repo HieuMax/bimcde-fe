@@ -146,11 +146,15 @@ export default function ToolbarSection({
   const showIsoRestore = isFile
     ? !!fileItem?.isoRevokeOriginalFolderId
     : !!folderItem?.isoRevokeOriginalParentId;
+  /** ISO admin: Revoke on Shared/Published — never on CDE root folders or group home folders. */
+  const isoRevokeFolderExcluded =
+    !isFile && (isRootFolder || isGroupHomeFolder);
   const showIsoRevoke =
     workflowMode === "ISO_19650" &&
     !!cdeCapabilities?.isProjectAdmin &&
     !showIsoRestore &&
-    (parentStage === "SHARED" || parentStage === "PUBLISHED");
+    (parentStage === "SHARED" || parentStage === "PUBLISHED") &&
+    !isoRevokeFolderExcluded;
   const hideDeleteForIsoRevoke = showIsoRevoke;
 
   const promoteOptions = useMemo(() => {
