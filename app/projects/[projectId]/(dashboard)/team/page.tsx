@@ -11,7 +11,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 
-import { Search, ChevronDown, EllipsisVertical, Loader2 } from "lucide-react";
+import {
+  Search,
+  ChevronDown,
+  EllipsisVertical,
+  Loader2,
+  Filter,
+  X,
+} from "lucide-react";
 
 import { ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import { DataTable } from "@/components/features/team/DataTable";
@@ -58,6 +65,7 @@ export default function page({
     user: false,
     admin: false,
   });
+  const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
 
   const roleRadio = [
     {
@@ -130,7 +138,7 @@ export default function page({
 
     try {
       const response = await get(`/team/getMemberProject/${projectId}`);
-      console.log(response)
+      console.log(response);
       if (response.success) {
         setMemberData(response.result || memberData);
         setMemberProjectCount(response.result.length || 0);
@@ -325,7 +333,7 @@ export default function page({
   const isProjectAdmin = useMemo(() => {
     if (!user?._id || !memberPorject?.length) return false;
     const me = memberPorject.find(
-      (m: any) => String(m.userId) === String(user._id)
+      (m: any) => String(m.userId) === String(user._id),
     );
     return me?.role === "admin";
   }, [user?._id, memberPorject]);
@@ -343,13 +351,11 @@ export default function page({
           {
             userId: targetUserId,
             role,
-          }
+          },
         );
         if (res.success) {
           toast.success("Group role updated.");
-          const response = await get(
-            `/team/getMemberGroup/${activeGroup._id}`
-          );
+          const response = await get(`/team/getMemberGroup/${activeGroup._id}`);
           if (response.success) {
             setMemberData(response.result || []);
             setMemberGroup(response.result || null);
@@ -358,7 +364,7 @@ export default function page({
           toast.error(
             (res.message as string) ||
               (res.error as string) ||
-              "Unable to update."
+              "Unable to update.",
           );
         }
       } catch (e) {
@@ -368,7 +374,7 @@ export default function page({
         setUpdatingGroupRoleUserId(null);
       }
     },
-    [activeGroup._id, put, get]
+    [activeGroup._id, put, get],
   );
 
   const tableColumns = useMemo(
@@ -386,7 +392,7 @@ export default function page({
       isProjectAdmin,
       handleGroupMemberRoleChange,
       updatingGroupRoleUserId,
-    ]
+    ],
   );
 
   const filteredData = memberData.filter((m: any) => {
@@ -406,11 +412,22 @@ export default function page({
     return !memberPorject.some((m) => m.userId === u._id);
   });
 
+  const handleGroupSelectChange = (groupId: string) => {
+    if (groupId === "all") {
+      handleGroupSelection({ _id: "all", name: "" });
+    } else {
+      const selectedGroup = groupData.find((g: any) => g._id === groupId);
+      if (selectedGroup) {
+        handleGroupSelection(selectedGroup);
+      }
+    }
+  };
+
   return (
     <div className="flex relative w-full h-full gap-3">
       <div className="pt-4 space-y-4 bg-muted h-full w-full overflow-y-hidden">
         {/* HEADER */}
-        <div className="flex items-center justify-between px-4">
+        <div className="flex items-center justify-between px-4 overflow-x-auto gap-1">
           <h1 className="text-xl font-normal text-gray-800">Project members</h1>
           {!isTeamReadOnly ? (
             <Button
@@ -424,7 +441,7 @@ export default function page({
         <div className="flex  border-t h-[calc(100%-40px)] bg-white">
           {/* groups */}
 
-          <div className="max-w-72 w-full border-r">
+          <div className="max-w-72 w-full border-r hidden lg:block">
             <div className="h-16 flex items-center justify-between p-4 font-semibold text-lg border-b">
               <h3>Groups</h3>
               {!isTeamReadOnly ? (
@@ -436,7 +453,6 @@ export default function page({
               ) : null}
             </div>
             {/* group item */}
-
             <div className="h-full bg-white border-none ">
               <Button
                 onClick={() => handleGroupSelection({ _id: "all" })}
@@ -474,25 +490,48 @@ export default function page({
 
           <div className=" w-full">
             {/* filter table */}
-            <div className="  border-b h-16 w-full">
-              <div className="flex justify-between p-4 pr-28 items-center h-full">
-                <div>
-                  <h3 className="font-semibold text-lg">
+            <div className="border-b h-16 w-full">
+              <div className="flex justify-between p-4 items-center h-full gap-2">
+                <div className="min-w-0 flex-1">
+                  {/* Desktop */}
+                  <h3 className="font-semibold text-lg hidden lg:block truncate">
                     {activeGroup._id === "all"
                       ? "All project members"
                       : `Members — ${activeGroup.name}`}
                   </h3>
+
+                  {/* Tablet & Mobile */}
+                  <div className="block lg:hidden">
+                    <Select
+                      value={activeGroup._id}
+                      onValueChange={(value) => handleGroupSelectChange(value)}>
+                      <SelectTrigger className="w-full outline-none ring-0 border border-slate-300  focus-visible:ring-0 focus:ring-0 hover:border-slate-400 h-10 rounded-lg">
+                        <SelectValue placeholder="Select group" />
+                      </SelectTrigger>
+
+                      <SelectContent>
+                        <SelectItem value="all">All project members</SelectItem>
+                        {groupData.map((group: any) => (
+                          <SelectItem key={group._id} value={group._id}>
+                            {group.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
                   {showGroupMemberRoleCol && isProjectAdmin && (
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      Phân quyền Group Leader / Group Member (ISO 19650): dùng cột
-                      &quot;Trong nhóm&quot;.
+                    <p className="text-xs text-slate-500 mt-0.5 hidden lg:block">
+                      Assign Group Leader / Group Member roles (ISO 19650): use
+                      the "In Group" column.
                     </p>
                   )}
                 </div>
-                <div className="flex items-center">
+
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {/* Desktop Filter */}
                   {!isSearch && !isTeamReadOnly && (
-                    <div>
-                      {" "}
+                    <div className="hidden md:flex items-center gap-2">
                       <CustomDropdown
                         type="checkbox"
                         icon={<ChevronDown></ChevronDown>}
@@ -522,23 +561,32 @@ export default function page({
                     </div>
                   )}
 
+                  {/* Mobile Filter Button */}
+                  {!isSearch && !isTeamReadOnly && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="md:hidden p-2 h-10 w-10"
+                      onClick={() => setIsFilterSheetOpen(true)}>
+                      <Filter size={20} />
+                    </Button>
+                  )}
+
                   {/* Search */}
                   {!isTeamReadOnly ? (
                     <div
-                      className={`flex items-center ${
-                        isSearch
-                          ? "border w-[450px] border-b-4 border-b-blue-900"
-                          : ""
-                      }`}>
+                      className={`flex items-center flex-shrink-0 ${
+                        isSearch ? "border-b-4 border-b-blue-900" : ""
+                      } ${isSearch ? "md:w-[300px] w-[250px]" : ""}`}>
                       <Button
                         variant="ghost"
-                        className=""
+                        className="p-2 h-10 w-10"
                         onClick={() => setIsSearch(true)}>
-                        <Search className="!h-full  !w-full" size={23} />
+                        <Search size={20} />
                       </Button>
                       {isSearch && (
                         <Input
-                          className="focus-visible:ring-0 border-none "
+                          className="focus-visible:ring-0 border-none h-10 text-sm"
                           placeholder="Search..."
                           value={searchText}
                           onChange={(e) => setSearchText(e.target.value)}
@@ -553,7 +601,7 @@ export default function page({
 
                   {!isTeamReadOnly ? (
                     <CustomDropdown
-                      icon={<EllipsisVertical></EllipsisVertical>}
+                      icon={<EllipsisVertical size={20}></EllipsisVertical>}
                       type="item"
                       items={[
                         {
@@ -704,7 +752,7 @@ export default function page({
             </DialogFooter>
           </DialogContent>
         </Dialog>
-        ;{/* CONFIRM DELETE GROUP */}
+        {/* CONFIRM DELETE GROUP */}
         <ConfirmDeleteGroup
           open={isOpenConfirmDelete}
           groupName={activeGroup?.name || ""}
@@ -718,6 +766,84 @@ export default function page({
         data={rowSelection}
         groupData={groupData}
         activeGroup={activeGroup}></TeamDrawer>
+
+      {/* Mobile Filter Sheet */}
+      {isFilterSheetOpen && (
+        <div className="fixed inset-0 z-50 md:hidden">
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/50"
+            onClick={() => setIsFilterSheetOpen(false)}
+          />
+          {/* Sheet */}
+          <div className="fixed top-0 left-0 right-0 bg-white rounded-t-lg shadow-lg z-50 max-h-[80vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b flex items-center justify-between p-4">
+              <h3 className="font-semibold text-lg">Filters</h3>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0"
+                onClick={() => setIsFilterSheetOpen(false)}>
+                <X size={20} />
+              </Button>
+            </div>
+
+            <div className="p-4 space-y-4">
+              {/* Role Filter */}
+              <div className="space-y-3">
+                <h4 className="font-semibold text-sm text-gray-700">Role</h4>
+                <div className="space-y-2">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={roleFilter.user}
+                      onChange={(e) =>
+                        handleCheckedChange("user", e.target.checked)
+                      }
+                      className="w-4 h-4 rounded border-gray-300"
+                    />
+                    <span className="text-sm text-gray-700">User</span>
+                  </label>
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={roleFilter.admin}
+                      onChange={(e) =>
+                        handleCheckedChange("admin", e.target.checked)
+                      }
+                      className="w-4 h-4 rounded border-gray-300"
+                    />
+                    <span className="text-sm text-gray-700">Admin</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Add People to Group */}
+              {activeGroup._id !== "all" && projectIdStorage && (
+                <div className="border-t pt-4">
+                  <AddPeopleToGroup
+                    projectId={projectIdStorage}
+                    groupId={activeGroup._id}
+                    memberProject={memberPorject}
+                    memberGroup={memberGroup}
+                  />
+                </div>
+              )}
+
+              {/* Footer Buttons */}
+              <div className="flex gap-2 pt-4 border-t">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setIsFilterSheetOpen(false)}>
+                  Done
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <Toaster richColors position="top-center" />
     </div>
   );
