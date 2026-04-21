@@ -187,12 +187,39 @@ export default function ShareFileDialog({
       const clientUrl = process.env.NEXT_PUBLIC_CLIENT_URL || window.location.origin;
       const link = `${clientUrl}/share/${token}`;
       setShareLink(link);
-      
-      if (shareType === "SPECIFIC" || customEmails.trim().length > 0) {
-        toast.success(`Link created and email sent successfully!`);
-      } else {
-        toast.success("Link created successfully!");
+
+      const md = data.mailDelivery as
+        | {
+            attempted?: boolean;
+            sent?: boolean;
+            recipientCount?: number;
+            skipReason?: string;
+            errorMessage?: string;
+          }
+        | undefined;
+
+      if (md && (md.recipientCount ?? 0) > 0) {
+        if (md.skipReason === "NO_SMTP_CONFIG") {
+          toast.warning(
+            "Link created, but email was not sent: server has no MAIL_USER / MAIL_PASS configured.",
+            { duration: 8000 },
+          );
+          return;
+        }
+        if (md.attempted && md.sent) {
+          toast.success("Link created and email sent successfully!");
+          return;
+        }
+        if (md.attempted && !md.sent) {
+          toast.warning(
+            `Link created, but email failed: ${md.errorMessage ?? "Unknown error"}`,
+            { duration: 10000 },
+          );
+          return;
+        }
       }
+
+      toast.success("Link created successfully!");
     },
     onError: (err: any) => {
       toast.error(err?.response?.data?.message || err?.message || "Error when performing sharing");   
