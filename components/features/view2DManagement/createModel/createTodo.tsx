@@ -2,7 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { TodoItem } from "@/types/explorer";
-import { RecipientSelector } from "../../release/RecipientSelector";
+import {
+  RecipientSelector,
+  RecipientOption,
+} from "../../release/RecipientSelector";
 import { useTags } from "@/components/features/explorer/hooks/useTags";
 import { TagIcon, Loader2 } from "lucide-react";
 
@@ -39,10 +42,13 @@ export default function CreateTodoPanel({
     priority: "Normal",
     status: "Open",
     completion: 0,
-    assignee: "",
     tags: [],
     createdBy: "Unknown",
   });
+
+  const [selectedAssignees, setSelectedAssignees] = useState<RecipientOption[]>(
+    [],
+  );
 
   const [tagInput, setTagInput] = useState("");
 
@@ -63,9 +69,13 @@ export default function CreateTodoPanel({
       return;
     }
 
+    const assigneeIds = selectedAssignees.map((o) => o.id);
+
     onSave({
       ...formData,
       createdBy: currentUser || "Unknown",
+      assignees: assigneeIds,
+      assignee: assigneeIds[0],
     });
   };
 
@@ -151,9 +161,15 @@ export default function CreateTodoPanel({
               setFormData({ ...formData, type: e.target.value })
             }
           >
-            <option value="Issue">Issue</option>
-            <option value="Comment">Comment</option>
-            <option value="Undefined">Undefined</option>
+             <option value="Comment">Comment</option>
+              <option value="Undefined">Undefined</option>
+              <option value="Issue">Issue</option>
+              <option value="Request">Request</option>
+              <option value="Fault">Fault</option>
+              <option value="Inquiry">Inquiry</option>
+              <option value="Solution">Solution</option>
+              <option value="Clash">Clash</option>
+              <option value="Remark">Remark</option>
           </select>
         </div>
 
@@ -172,10 +188,11 @@ export default function CreateTodoPanel({
               })
             }
           >
+            
             <option value="Low">Low</option>
             <option value="Normal">Normal</option>
             <option value="High">High</option>
-            <option value="Urgent">Urgent</option>
+            <option value="Critical">Critical</option>
           </select>
         </div>
 
@@ -205,15 +222,18 @@ export default function CreateTodoPanel({
           <label className="block mb-1 text-sm text-gray-600">
             Assignee
           </label>
-          <RecipientSelector
-            projectId={projectId}
-            onChange={(selectedIds, selectedOptions) => {
-              setFormData({
-                ...formData,
-                assignee: selectedOptions.length > 0 ? selectedOptions[0].label : "",
-              });
-            }}
-          />
+          <div className="border rounded-md p-1 bg-slate-50 focus-within:ring-2 focus-within:ring-blue-100 focus-within:border-blue-400">
+            <RecipientSelector
+              projectId={projectId}
+              initialOptions={selectedAssignees}
+              onChange={(selectedIds, options) => {
+                setSelectedAssignees(options ?? []);
+              }}
+            />
+          </div>
+          <p className="text-[11px] text-gray-400 mt-1">
+            Optional — choose project members to assign
+          </p>
         </div>
 
         {/* Tags */}

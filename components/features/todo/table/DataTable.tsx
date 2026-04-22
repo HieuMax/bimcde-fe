@@ -95,7 +95,7 @@ export function DataTable<TData, TValue>({
 
   return (
     <div className="w-full ">
-      <div className=" rounded-md border">
+      <div>
         <ScrollArea className="w-full h-[70vh]">
           <Table>
             <TableHeader className="h-14 bg-gray-100 sticky top-0 cursor-default text-left">

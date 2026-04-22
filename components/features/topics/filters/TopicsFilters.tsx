@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/radio-group";
 import {
   activityFilterChevronDownClassName,
+  activityFilterClearRowButtonClassName,
   activityFilterCountBadgeClassName,
   activityFilterPopoverContentClassName,
   activityFilterPopoverScrollClassName,
@@ -75,6 +76,11 @@ export function MultiCheckboxFilterPopover({
     else onChange(options.map((o) => o.value));
   };
 
+  const handleClearFilter = () => {
+    onChange([]);
+    setOpen(false);
+  };
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -97,7 +103,7 @@ export function MultiCheckboxFilterPopover({
         align="start"
         className={activityFilterPopoverContentClassName}
       >
-        <div className="flex items-center justify-between border-b border-gray-100 px-2 py-2">
+        <div className="flex items-center justify-between border-b border-gray-100 px-3 py-2">
           <div className="text-sm font-medium text-gray-800">{label}</div>
           <Button
             variant="ghost"
@@ -108,28 +114,32 @@ export function MultiCheckboxFilterPopover({
           </Button>
         </div>
 
-        <div className={cn(activityFilterPopoverScrollClassName, "px-2")}>
+        <div className={cn(activityFilterPopoverScrollClassName, "px-1")}>
           {options.map((opt) => {
             const checked = selectedSet.has(opt.value);
             return (
               <div
                 key={opt.value}
-                className="flex items-center gap-2 py-2"
+                className="flex cursor-default items-center rounded-sm px-3 py-1.5 hover:bg-gray-50"
               >
                 <Checkbox
                   checked={checked}
                   onCheckedChange={() => toggle(opt.value)}
+                  className="mr-3"
                 />
-                <div className="flex items-center gap-2 min-w-0">
+                <div className="flex min-w-0 flex-1 items-center gap-2">
                   {renderOptionIcon ? (
                     renderOptionIcon(opt)
                   ) : opt.color ? (
                     <span
-                      className="inline-block w-3 h-3 rounded-sm border"
+                      className="inline-block h-3 w-3 shrink-0 rounded-full border border-gray-200/80"
                       style={{ backgroundColor: opt.color }}
                     />
                   ) : null}
-                  <span className="text-sm text-gray-800 truncate">
+                  <span
+                    className="cursor-default truncate text-sm text-gray-600"
+                    onClick={() => toggle(opt.value)}
+                  >
                     {opt.label}
                   </span>
                 </div>
@@ -137,11 +147,23 @@ export function MultiCheckboxFilterPopover({
             );
           })}
           {options.length === 0 && (
-            <div className="text-sm text-gray-400 py-4 text-center">
+            <div className="py-4 text-center text-sm text-gray-400">
               No options
             </div>
           )}
         </div>
+
+        {isActive && (
+          <div className="border-t border-gray-100 p-2">
+            <Button
+              variant="ghost"
+              className={activityFilterClearRowButtonClassName}
+              onClick={handleClearFilter}
+            >
+              Clear filter
+            </Button>
+          </div>
+        )}
       </PopoverContent>
     </Popover>
   );

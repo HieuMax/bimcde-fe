@@ -50,6 +50,7 @@ import {
   canMutateReleaseDraft,
   type ProjectReleaseContext,
 } from "./releaseProjectContext";
+import { GroupFilter } from "../activity/GroupFilter";
 
 interface ReleaseListProps {
   projectId: string;
@@ -74,7 +75,9 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
   // --- FILTER STATE ---
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [createdByUserIds, setCreatedByUserIds] = useState<string[]>([]);
+  const [groupIds, setGroupIds] = useState<string[]>([]);
   const [dueFilter, setDueFilter] = useState<{ start?: Date; end?: Date }>({}); // Due Date Filter
+  const [dateFilterResetKey, setDateFilterResetKey] = useState(0);
 
   const fetchReleases = useCallback(async () => {
     try {
@@ -83,6 +86,7 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
         projectId,
         status: statusFilter,
         userIds: createdByUserIds,
+        groupIds,
         dueStartDate: dueFilter.start?.toISOString(),
         dueEndDate: dueFilter.end?.toISOString(),
       });
@@ -93,7 +97,7 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [projectId, statusFilter, createdByUserIds, dueFilter]);
+  }, [projectId, statusFilter, createdByUserIds, groupIds, dueFilter]);
 
   useEffect(() => {
     fetchReleases();
@@ -101,6 +105,10 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
 
   const handleCreatedByFilterChange = (userIds: string[]) => {
     setCreatedByUserIds(userIds);
+  };
+
+  const handleGroupFilterChange = (ids: string[]) => {
+    setGroupIds(ids);
   };
 
   // Handler thay đổi Date Filter
@@ -217,7 +225,7 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
   };
 
   return (
-    <div className="relative flex h-full min-h-0 w-full flex-row overflow-hidden rounded-md border border-gray-200 bg-white shadow-sm">
+    <div className="relative flex h-full min-h-0 w-full flex-row overflow-hidden bg-white shadow-sm">
       {/* MAIN CONTENT */}
       <div
         className={`flex flex-col h-full flex-1 transition-all duration-300 ${isPanelOpen ? "mr-0 sm:mr-80" : "mr-0"
@@ -268,15 +276,24 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
 
             <span className="text-gray-300">|</span>
 
+            <GroupFilter
+              projectId={projectId}
+              selectedGroupIds={groupIds}
+              onChange={handleGroupFilterChange}
+            />
+
+            <span className="text-gray-300">|</span>
+
             <DateFilter
+              key={dateFilterResetKey}
               label="Due date"
-              hideCustom={true}
               onFilterChange={handleDueDateChange}
             />
           </div>
 
           {(createdByUserIds.length > 0 ||
             statusFilter !== "ALL" ||
+            groupIds.length > 0 ||
             dueFilter.start) && (
               <Button
                 variant="ghost"
@@ -284,8 +301,10 @@ export const ReleaseList: React.FC<ReleaseListProps> = ({
                 className="ml-auto text-gray-500 hover:text-red-600"
                 onClick={() => {
                   setStatusFilter("ALL");
+                  setGroupIds([]);
                   setCreatedByUserIds([]);
                   setDueFilter({});
+                  setDateFilterResetKey((k) => k + 1);
                 }}
               >
                 <FilterX className="h-4 w-4 mr-1" /> Clear

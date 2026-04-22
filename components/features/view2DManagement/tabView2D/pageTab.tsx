@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
-import { Virtuoso } from 'react-virtuoso';
+import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 import { RotateCcw, RotateCw, FileText } from 'lucide-react'; 
 import { PageItem } from '@/types/explorer'; 
 
@@ -23,6 +23,19 @@ export default function PagesTab({
 }: PagesTabProps) {
   const [pageRotations, setPageRotations] = useState<Record<number, number>>({});
   const [showRotateNote, setShowRotateNote] = useState(false);
+  const virtuosoRef = useRef<VirtuosoHandle>(null);
+
+  useEffect(() => {
+    const idx = pages.findIndex(
+      (p) => (p.pageNumber ?? p.index) === currentPageIndex,
+    );
+    if (idx < 0 || pages.length === 0) return;
+    virtuosoRef.current?.scrollToIndex({
+      index: idx,
+      align: 'center',
+      behavior: 'smooth',
+    });
+  }, [currentPageIndex, pages.length, pdfUrl]);
 
   const rotateActivePage = (delta: number) => {
     if (!currentPageIndex) return;
@@ -66,6 +79,7 @@ export default function PagesTab({
       {/* ===== LIST CONTENT ===== */}
       <div className="flex-1 min-h-0">
         <Virtuoso
+          ref={virtuosoRef}
           style={{ height: '100%' }}
           data={pages}
           itemContent={(index, p) => {

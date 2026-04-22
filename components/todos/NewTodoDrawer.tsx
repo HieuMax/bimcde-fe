@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react"
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { toast } from "sonner"
 import { AxiosError } from "axios"
@@ -29,9 +30,11 @@ import {
   Pencil
 } from "lucide-react";
 import { todoService } from "@/services/todo3d.service";
+import { todo2DService } from "@/services/todo2d.service";
 import { topicSettingsService } from "@/services/topicSettings.service";
 import {
   IAssigneeTodo,
+  IAttachment,
   ITagTodo,
   ITodo,
   IPriority,
@@ -46,6 +49,20 @@ import { useApi } from "@/app/hooks/useApi";
 import CommentFormComponent from "@/components/features/todo/comment/commentForm";
 import ListCommentComponent from "@/components/features/todo/comment/listComment";
 import { TagSelector } from "./TagsSelector";
+
+const TODO2D_PRIORITIES = ["Low", "Normal", "High", "Critical"] as const;
+const TODO2D_STATUSES = ["Open", "In Progress", "Done", "Closed"] as const;
+const TODO2D_TYPES = [
+  "Comment",
+  "Undefined",
+  "Issue",
+  "Request",
+  "Fault",
+  "Inquiry",
+  "Solution",
+  "Clash",
+  "Remark",
+] as const;
 
 interface NewTodoDrawerProps {
   open: boolean;
@@ -65,7 +82,12 @@ interface NewTodoDrawerProps {
   } | null;
   currentSelection?: any[]
   /** When set (e.g. “Add todo” from a topic), topic is linked automatically and the topic picker is hidden. */
-  presetTopicId?: string | null
+  presetTopicId?: string | null;
+  /**
+   * Dashboard list page: dock beside the table (no overlay); parent should use a flex row + `sm:mr-*` when open.
+   * Viewer / other contexts: default overlay sheet.
+   */
+  embedded?: boolean;
 }
 
 // Helper format size
@@ -77,6 +99,33 @@ const formatFileSize = (bytes: number) => {
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
 };
 
+/** Same routing rules as Explorer `ViewList` — open in app viewer instead of raw URL */
+function attachmentOpensIn2DViewer(file: {
+  name: string;
+  mimeType?: string;
+}): boolean {
+  const ext = file.name.split(".").pop()?.toLowerCase() || "";
+  const docExts = ["pdf", "png", "jpg", "jpeg", "webp", "gif", "docs"];
+  if (docExts.includes(ext)) return true;
+  if (file.mimeType?.startsWith("image/")) return true;
+  if (file.mimeType === "application/pdf") return true;
+  return false;
+}
+
+function attachmentOpensIn3DViewer(file: { name: string }): boolean {
+  const ext = file.name.split(".").pop()?.toLowerCase() || "";
+  return ext === "ifc";
+}
+
+function resolveAttachmentFileId(
+  file: IAttachment & { fileId?: string },
+): string | undefined {
+  if (file.fileId) return file.fileId;
+  const nested = (file as { file?: { _id?: string } }).file;
+  if (nested?._id) return nested._id;
+  return undefined;
+}
+
 export function NewTodoDrawer({
   open,
   onOpenChange,
@@ -87,9 +136,48 @@ export function NewTodoDrawer({
   initialData,
   currentSelection = [],
   presetTopicId = null,
+  embedded = false,
 }: NewTodoDrawerProps) {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+
+  const handleOpenAttachment = (file: IAttachment) => {
+    const fileId = resolveAttachmentFileId(file);
+
+    if (attachmentOpensIn3DViewer(file)) {
+      if (!file.url) {
+        toast.error("Missing file URL for 3D viewer.");
+        return;
+      }
+      router.push(
+        `/projects/${projectId}/viewer3d?urls=${encodeURIComponent(JSON.stringify([file.url]))}`,
+      );
+      return;
+    }
+
+    if (attachmentOpensIn2DViewer(file)) {
+      if (fileId) {
+        router.push(`/projects/${projectId}/viewer/${fileId}`);
+        return;
+      }
+      if (file.url) {
+        window.open(file.url, "_blank", "noopener,noreferrer");
+        toast.info(
+          "Opened in a new tab. Attach from Project files to open inside the 2D viewer.",
+        );
+        return;
+      }
+      toast.error("Cannot open this file.");
+      return;
+    }
+
+    if (file.url) {
+      window.open(file.url, "_blank", "noopener,noreferrer");
+      return;
+    }
+    toast.error("No link available for this attachment.");
+  };
 
   // State Attachments
   const [attachments, setAttachments] = useState<any[]>([]);
@@ -116,6 +204,11 @@ export function NewTodoDrawer({
 
 
   const { get } = useApi();
+
+  const isTodo2d = Boolean(
+    (todoToEdit as { _todoSource?: string } | null)?._todoSource === "2d",
+  );
+
   // Initial state helper
   const defaultState = {
     title: "",
@@ -177,6 +270,65 @@ export function NewTodoDrawer({
   useEffect(() => {
     if (open) {
       if (todoToEdit) {
+        if ((todoToEdit as { _todoSource?: string })._todoSource === "2d") {
+          const t = todoToEdit as ITodo & {
+            _todoSource?: string;
+            topicId?: string | null;
+          };
+          let formattedDate = "";
+          if (t.dueDate) {
+            const d = new Date(t.dueDate);
+            if (!isNaN(d.getTime())) {
+              formattedDate = d.toISOString().split("T")[0];
+            }
+          }
+          const statusStr =
+            typeof t.status === "object" && t.status !== null && "name" in t.status
+              ? (t.status as { name?: string }).name || ""
+              : typeof t.status === "string"
+                ? t.status
+                : "";
+          const pri =
+            typeof t.priority === "object" && t.priority?.name
+              ? t.priority
+              : {
+                  priorityId: String(t.priority ?? "Normal"),
+                  name: String(t.priority ?? "Normal"),
+                  color: "#94a3b8",
+                };
+          const typ =
+            typeof t.type === "object" && t.type?.name
+              ? t.type
+              : {
+                  typeId: String(t.type ?? "Issue"),
+                  name: String(t.type ?? "Issue"),
+                };
+          const tagList = Array.isArray(t.tags)
+            ? t.tags.every(
+                (x: unknown) =>
+                  typeof x === "object" && x !== null && "name" in (x as object),
+              )
+              ? t.tags
+              : (t.tags as unknown as string[]).map((name) => ({
+                  tagId: name,
+                  name,
+                }))
+            : [];
+          setFormData({
+            title: t.title || "",
+            description: t.description || "",
+            dueDate: formattedDate,
+            priority: pri,
+            completion: t.completion ?? 0,
+            assignees: t.assignees || [],
+            type: typ,
+            status: statusStr as unknown as string,
+            tags: tagList,
+            items: [],
+            viewState: null,
+          });
+          setAttachments((t as ITodo).attachments || []);
+        } else {
         // Format date to YYYY-MM-DD for input[type="date"]
         let formattedDate = "";
         if (todoToEdit.dueDate) {
@@ -199,6 +351,7 @@ export function NewTodoDrawer({
           viewState: todoToEdit?.viewState || null,
         });
         setAttachments(todoToEdit.attachments || []);
+        }
       } else if (initialData && mode === "create") {
         setFormData({
           ...defaultState,
@@ -368,7 +521,10 @@ export function NewTodoDrawer({
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => todoService.delete(id),
+    mutationFn: (id: string) =>
+      (todoToEdit as { _todoSource?: string } | null)?._todoSource === "2d"
+        ? todo2DService.deleteTodo(id)
+        : todoService.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["todos", projectId] });
       queryClient.invalidateQueries({ queryKey: ["topic-linked-open-todos"] });
@@ -389,7 +545,17 @@ export function NewTodoDrawer({
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: any) => todoService.update(todoToEdit!._id, data),
+    mutationFn: async (data: any) => {
+      if (
+        (todoToEdit as { _todoSource?: string } | null)?._todoSource === "2d"
+      ) {
+        return (await todo2DService.updateTodo(
+          todoToEdit!._id,
+          data,
+        )) as unknown as ITodo;
+      }
+      return todoService.update(todoToEdit!._id, data);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["todos", projectId] })
       queryClient.invalidateQueries({ queryKey: ["topic-linked-open-todos"] })
@@ -398,7 +564,6 @@ export function NewTodoDrawer({
       setFormData(defaultState)
     },
     onError: (error: AxiosError<{ message?: string }>) => {
-      console.log("test")
       if (error?.response?.status === 403) {
         toast.error("Failed! You don't have permission to update this todo.");
         return;
@@ -452,6 +617,29 @@ export function NewTodoDrawer({
     }
 
     if (todoToEdit) {
+      if ((todoToEdit as { _todoSource?: string })._todoSource === "2d") {
+        const payload2d: Record<string, unknown> = {
+          title: formData.title.trim(),
+          description: formData.description.trim() || undefined,
+          dueDate: formData.dueDate || undefined,
+          priority: formData.priority?.name,
+          completion: formData.completion,
+          status:
+            typeof formData.status === "string"
+              ? formData.status
+              : (formData.status as { value?: string })?.value ?? formData.status,
+          type: formData.type?.name,
+          assignees: formData.assignees.map((a) => a.assigneeId),
+          assignee: formData.assignees[0]?.assigneeId,
+          tags: formData.tags.map((tg) => tg.name || tg.tagId),
+          attachments,
+        };
+        const topicId =
+          linkedTopicId !== "__none__" ? linkedTopicId : null;
+        payload2d.topicId = topicId;
+        updateMutation.mutate(payload2d);
+        return;
+      }
       updateMutation.mutate(payload);
     } else {
       createMutation.mutate(payload);
@@ -571,65 +759,106 @@ export function NewTodoDrawer({
   const isPending = createMutation.isPending || updateMutation.isPending;
 
   return (
-    <Sheet open={open} onOpenChange={handleCloseDrawer} modal={false}>
+    <Sheet
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) handleCloseDrawer();
+      }}
+      modal={false}>
       <SheetContent
-        className="w-[400px] sm:w-[540px] flex flex-col p-0"
+        embedded={embedded}
+        hideDefaultClose
+        className="h-full min-h-0 w-full sm:w-[320px] sm:max-w-[320px] flex flex-col p-0 bg-white border-l shadow-xl"
         onInteractOutside={(e) => {
           e.preventDefault();
         }}
         style={{
-          boxShadow: "-5px 0 15px rgba(0,0,0,0.1)",
+          boxShadow: embedded ? "none" : "-5px 0 15px rgba(0,0,0,0.1)",
           pointerEvents: "auto",
-          zIndex: 50,
+          zIndex: embedded ? 20 : 50,
         }}>
-        <SheetHeader className="border-b px-6 py-4 flex items-center">
-          <div className="flex items-center gap-2 w-full">
+        <SheetHeader className="border-b border-gray-200 p-3 min-h-[52px] flex flex-row items-center justify-between gap-2 space-y-0">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
             {currentMode === "edit" && (
               <Button
                 variant="ghost"
                 size="icon"
+                className="h-8 w-8 shrink-0"
+                title="Back"
                 onClick={() => setCurrentMode("view")}>
-                <MoveLeft className="h-4 w-4" />
+                <MoveLeft className="h-4 w-4 text-gray-600" />
               </Button>
             )}
 
-            <SheetTitle className="text-lg font-semibold">
+            <SheetTitle className="text-sm font-semibold text-gray-800 truncate">
               {currentMode === "create"
                 ? "New ToDo"
                 : currentMode === "edit"
                   ? "Edit ToDo"
-                  : "View ToDo"}
+                  : "View"}
             </SheetTitle>
+          </div>
 
-            <div className="flex items-center gap-3 ml-3">
-              {currentMode === "view" && todoToEdit?.status != "Closed" && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setCurrentMode("edit")}>
-                  <Pencil className="h-4 w-4" />
-                </Button>
-              )}
+          <div className="flex items-center gap-1 shrink-0">
+            {currentMode === "view" &&
+              (() => {
+                const st = todoToEdit?.status as unknown;
+                const label =
+                  typeof st === "object" && st !== null && "name" in st
+                    ? (st as { name: string }).name
+                    : String(st ?? "");
+                return label !== "Closed";
+              })() && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                title="Edit"
+                onClick={() => setCurrentMode("edit")}>
+                <Pencil className="h-4 w-4 text-gray-500" />
+              </Button>
+            )}
 
-              {currentMode === "edit" && todoToEdit?._id && todoToEdit.createdBy === user?._id && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="text-destructive"
-                  onClick={() => {
-                    if (!todoToEdit?._id) return;
-                    if (!confirm("Are you sure you want to delete this todo?")) return;
-                    deleteMutation.mutate(todoToEdit._id);
-                  }}>
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
+            {currentMode === "edit" &&
+              todoToEdit?._id &&
+              (() => {
+                if (isTodo2d) {
+                  const uid = (todoToEdit as { userId?: string }).userId;
+                  return uid && String(uid) === String(user?._id);
+                }
+                const cb = todoToEdit.createdBy;
+                const id =
+                  typeof cb === "object" && cb && "_id" in cb
+                    ? (cb as { _id: string })._id
+                    : "";
+                return id === user?._id;
+              })() && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 text-destructive"
+                title="Delete"
+                onClick={() => {
+                  if (!todoToEdit?._id) return;
+                  if (!confirm("Are you sure you want to delete this todo?")) return;
+                  deleteMutation.mutate(todoToEdit._id);
+                }}>
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              title="Close"
+              onClick={handleCloseDrawer}>
+              <X className="h-4 w-4 text-gray-500" />
+            </Button>
           </div>
         </SheetHeader>
 
-        <div className="flex-1 overflow-y-auto px-6 ">
-          <div className="space-y-6">
+        <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4">
+          <div className="space-y-5 w-full min-w-0 max-w-full pb-4">
             {/* --- THUMBNAIL --- */}
             {currentMode === "view" && formData.viewState?.thumbnail && (
               <div
@@ -643,7 +872,7 @@ export function NewTodoDrawer({
                 <img
                   src={formData.viewState.thumbnail}
                   alt="3D Context View"
-                  className="w-full h-48 object-cover bg-slate-100"
+                  className="w-full h-32 object-cover bg-slate-100"
                 />
 
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
@@ -659,15 +888,28 @@ export function NewTodoDrawer({
               </div>
             )}
 
+            {currentMode === "view" && isTodo2d && onRestoreView && (
+              <div className="mb-4 mt-4">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  className="w-full gap-2"
+                  onClick={() => onRestoreView(null)}>
+                  <Eye className="w-4 h-4" />
+                  Open 2D viewer
+                </Button>
+              </div>
+            )}
+
             {/* Title */}
             {currentMode === "view" ? (
               <ViewField label="Title" value={formData.title} />
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <Label
                   htmlFor="title"
-                  className="text-sm text-muted-foreground">
-                  Title (required)
+                  className="text-xs font-medium text-gray-500">
+                  Title <span className="text-red-500">*</span>
                 </Label>
                 <Input
                   id="title"
@@ -675,6 +917,7 @@ export function NewTodoDrawer({
                   onChange={(e) =>
                     setFormData({ ...formData, title: e.target.value })
                   }
+                  className="h-9 border-gray-300"
                 />
               </div>
             )}
@@ -683,8 +926,8 @@ export function NewTodoDrawer({
             {currentMode === "view" ? (
               <ViewField label="Description" value={formData.description} />
             ) : (
-              <div className="space-y-2">
-                <Label className="text-sm text-muted-foreground">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-gray-500">
                   Description
                 </Label>
                 <Textarea
@@ -692,6 +935,7 @@ export function NewTodoDrawer({
                   onChange={(e) =>
                     setFormData({ ...formData, description: e.target.value })
                   }
+                  className="min-h-[90px] resize-none border-gray-300"
                 />
               </div>
             )}
@@ -704,14 +948,14 @@ export function NewTodoDrawer({
               />
             ) : (
               <div
-                className="space-y-2"
+                className="space-y-1.5"
                 onClick={() => {
                   dateInputRef.current?.showPicker();
                 }}>
                 <div className="flex items-center gap-2">
                   <Label
                     htmlFor="dueDate"
-                    className="text-sm text-muted-foreground">
+                    className="text-xs font-medium text-gray-500">
                     Due date
                   </Label>
                 </div>
@@ -724,7 +968,7 @@ export function NewTodoDrawer({
                     onChange={(e) =>
                       setFormData({ ...formData, dueDate: e.target.value })
                     }
-                    className="w-full pr-10 cursor-pointer"
+                    className="h-9 w-full cursor-pointer border-gray-300 pr-10"
                   />
                   <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground cursor-pointer" />
                 </div>
@@ -733,20 +977,51 @@ export function NewTodoDrawer({
 
             {/* Priority */}
             {currentMode === "view" ? (
-              <div className="space-y-1">
-                <Label className="text-xs text-muted-foreground">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-gray-500">
                   Priority
                 </Label>
-                <div className="flex items-center gap-2 text-sm">
+                <div className="flex items-center gap-2 text-sm text-gray-800">
                   <PriorityDot priority={formData.priority as any} />
                   <span className="capitalize">{formData.priority?.name}</span>
                 </div>
               </div>
-            ) : (
-              <div className="space-y-2">
+            ) : isTodo2d ? (
+              <div className="space-y-1.5">
                 <Label
                   htmlFor="priority"
-                  className="text-sm text-muted-foreground">
+                  className="text-xs font-medium text-gray-500">
+                  Priority
+                </Label>
+                <Select
+                  value={formData.priority?.name || ""}
+                  onValueChange={(name) => {
+                    setFormData({
+                      ...formData,
+                      priority: {
+                        priorityId: name,
+                        name,
+                        color: "#94a3b8",
+                      },
+                    });
+                  }}>
+                  <SelectTrigger id="priority" className="h-9 w-full border-gray-300">
+                    <SelectValue placeholder="Priority" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TODO2D_PRIORITIES.map((p) => (
+                      <SelectItem key={p} value={p}>
+                        {p}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <Label
+                  htmlFor="priority"
+                  className="text-xs font-medium text-gray-500">
                   Priority
                 </Label>
 
@@ -759,7 +1034,7 @@ export function NewTodoDrawer({
                       ) || formData.priority;
                     setFormData({ ...formData, priority });
                   }}>
-                  <SelectTrigger id="priority" className="w-full">
+                  <SelectTrigger id="priority" className="h-9 w-full border-gray-300">
                     <SelectValue>
                       {formData.priority && (
                         <div className="flex items-center gap-2">
@@ -790,24 +1065,57 @@ export function NewTodoDrawer({
 
             {/* Status */}
             {currentMode === "view" ? (
-              <ViewField label="Status" value={formData.status} />
-            ) : (
-              <div className="space-y-2">
+              <ViewField
+                label="Status"
+                value={
+                  typeof formData.status === "object" && formData.status !== null
+                    ? (formData.status as { name?: string }).name
+                    : (formData.status as string) || ""
+                }
+              />
+            ) : isTodo2d ? (
+              <div className="space-y-1.5">
                 <Label
                   htmlFor="status"
-                  className="text-sm text-muted-foreground">
+                  className="text-xs font-medium text-gray-500">
+                  Status
+                </Label>
+                <Select
+                  value={
+                    typeof formData.status === "string" ? formData.status : ""
+                  }
+                  onValueChange={(value) =>
+                    setFormData({ ...formData, status: value as string })
+                  }>
+                  <SelectTrigger id="status" className="h-9 w-full border-gray-300">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TODO2D_STATUSES.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {s}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <Label
+                  htmlFor="status"
+                  className="text-xs font-medium text-gray-500">
                   Status
                 </Label>
 
                 <Select
-                  value={formData.status}
+                  value={formData.status as string}
                   onValueChange={(value) =>
                     setFormData({ ...formData, status: value as any })
                   }>
-                  <SelectTrigger id="status" className="w-full">
+                  <SelectTrigger id="status" className="h-9 w-full border-gray-300">
                     <SelectValue>
                       {formData.status && (
-                        <span className="capitalize">{formData.status}</span>
+                        <span className="capitalize">{String(formData.status)}</span>
                       )}
                     </SelectValue>
                   </SelectTrigger>
@@ -827,10 +1135,10 @@ export function NewTodoDrawer({
             {currentMode === "view" ? (
               <ViewField label="Completion" value={`${formData.completion}%`} />
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-1.5">
                 <Label
                   htmlFor="completion"
-                  className="text-sm text-muted-foreground">
+                  className="text-xs font-medium text-gray-500">
                   Completion %
                 </Label>
                 <Input
@@ -845,6 +1153,7 @@ export function NewTodoDrawer({
                       completion: Number(e.target.value),
                     })
                   }
+                  className="h-9 border-gray-300"
                 />
               </div>
             )}
@@ -856,8 +1165,8 @@ export function NewTodoDrawer({
                 value={formatAssigneesShort(selectedAssigneeOptions)}
               />
             ) : (
-              <div className="space-y-2">
-                <Label className="text-sm text-muted-foreground">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-gray-500">
                   Assignees
                 </Label>
                 <AssignedSelector
@@ -877,9 +1186,34 @@ export function NewTodoDrawer({
             {/* Type */}
             {currentMode === "view" ? (
               <ViewField label="Type" value={formData.type?.name} />
+            ) : isTodo2d ? (
+              <div className="space-y-1.5">
+                <Label htmlFor="type" className="text-xs font-medium text-gray-500">
+                  Type
+                </Label>
+                <Select
+                  value={formData.type?.name || ""}
+                  onValueChange={(name) => {
+                    setFormData({
+                      ...formData,
+                      type: { typeId: name, name },
+                    });
+                  }}>
+                  <SelectTrigger id="type" className="h-9 w-full border-gray-300">
+                    <SelectValue placeholder="Type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TODO2D_TYPES.map((tp) => (
+                      <SelectItem key={tp} value={tp}>
+                        {tp}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             ) : (
-              <div className="space-y-2">
-                <Label htmlFor="type" className="text-sm text-muted-foreground">
+              <div className="space-y-1.5">
+                <Label htmlFor="type" className="text-xs font-medium text-gray-500">
                   Type
                 </Label>
                 <Select
@@ -890,7 +1224,7 @@ export function NewTodoDrawer({
                       formData.type;
                     setFormData({ ...formData, type });
                   }}>
-                  <SelectTrigger id="type" className="w-full">
+                  <SelectTrigger id="type" className="h-9 w-full border-gray-300">
                     <SelectValue>
                       {formData.type && (
                         <span className="capitalize">{formData.type.name}</span>
@@ -915,8 +1249,8 @@ export function NewTodoDrawer({
                 value={selectedTagsOptions.map((o) => o.name).join(", ")}
               />
             ) : (
-              <div className="space-y-2">
-                <Label className="text-sm text-muted-foreground">Tags</Label>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-gray-500">Tags</Label>
 
                 <TagSelector
                   projectId={projectId}
@@ -946,15 +1280,15 @@ export function NewTodoDrawer({
             ) : null}
 
             {!presetTopicId && (currentMode === "create" || currentMode === "edit") ? (
-              <div className="space-y-2">
-                <Label className="text-sm text-muted-foreground">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-gray-500">
                   Link to a Topic (Optional)
                 </Label>
                 <Select
                   value={linkedTopicId}
                   onValueChange={setLinkedTopicId}
                 >
-                  <SelectTrigger className="w-full">
+                  <SelectTrigger className="h-9 w-full border-gray-300">
                     <SelectValue placeholder="None" />
                   </SelectTrigger>
                   <SelectContent>
@@ -970,14 +1304,14 @@ export function NewTodoDrawer({
             ) : null}
 
             {presetTopicId && currentMode === "create" ? (
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[10px] text-gray-400">
                 This todo will be linked to the current topic automatically.
               </p>
             ) : null}
 
             {/* Created At & Updated At */}
             {todoToEdit && (
-              <div className="grid grid-cols-2 gap-4 pt-4 border-t mt-4">
+              <div className="grid grid-cols-1 gap-3 pt-4 border-t border-gray-200 mt-4 sm:grid-cols-2 sm:gap-4">
                 <ViewField
                   label="Created At"
                   value={formatDateTime(todoToEdit.createdAt)}
@@ -989,10 +1323,11 @@ export function NewTodoDrawer({
               </div>
             )}
 
-            {/* --- LINKED OBJECTS --- */}
-            <div className="pt-4 border-t">
+            {/* --- LINKED OBJECTS (3D only) --- */}
+            {!isTodo2d && (
+            <div className="pt-4 border-t border-gray-200">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-medium flex items-center gap-2">
+                <h3 className="text-xs font-semibold text-gray-800 flex items-center gap-2">
                   <LinkIcon className="w-4 h-4" />
                   Linked Objects
                   <span className="bg-slate-100 text-xs px-2 py-0.5 rounded-full">
@@ -1062,13 +1397,14 @@ export function NewTodoDrawer({
                 ))}
               </div>
             </div>
+            )}
             {/* ---------------------------------------------------------------------- */}
 
             {/* --- NEW SECTION: ATTACHMENTS --- */}
             {todoToEdit && (
-              <div className="pt-4 border-t">
+              <div className="pt-4 border-t border-gray-200">
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-sm font-medium flex items-center gap-2">
+                  <h3 className="text-xs font-semibold text-gray-800 flex items-center gap-2">
                     <Paperclip className="w-4 h-4" />
                     Attachments
                     <span className="bg-slate-100 text-xs px-2 py-0.5 rounded-full">
@@ -1103,13 +1439,12 @@ export function NewTodoDrawer({
                           <FileIcon className="w-4 h-4 text-blue-500" />
                         </div>
                         <div className="flex flex-col min-w-0">
-                          <a
-                            href={file.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-sm font-medium text-slate-700 truncate hover:underline">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenAttachment(file)}
+                            className="text-sm font-medium text-slate-700 truncate hover:underline text-left">
                             {file.name}
-                          </a>
+                          </button>
                           <span className="text-xs text-slate-400">
                             {formatFileSize(file.size)}
                           </span>
@@ -1159,7 +1494,7 @@ export function NewTodoDrawer({
             onDataChange={handleCommentChange}
           />
         ) : (
-          <div className="border-t px-6 py-4 flex-shrink-0">
+          <div className="border-t border-gray-200 px-4 py-3 flex-shrink-0 bg-white">
             <div className="flex gap-3 justify-end">
               <Button
                 variant="outline"
@@ -1217,12 +1552,12 @@ interface FieldProps {
 }
 
 const ViewField = ({ label, value }: FieldProps) => (
-  <div className="space-y-1">
-    <Label className="text-xs text-muted-foreground">{label}</Label>
-    <div className="text-sm text-foreground min-h-[20px]">
+  <div className="space-y-1.5">
+    <Label className="text-xs font-medium text-gray-500">{label}</Label>
+    <div className="text-sm text-gray-800 min-h-[20px] break-words">
       {Array.isArray(value)
         ? value.join(", ")
-        : value || <span className="italic text-muted-foreground">—</span>}
+        : value || <span className="italic text-gray-400">—</span>}
     </div>
   </div>
 );

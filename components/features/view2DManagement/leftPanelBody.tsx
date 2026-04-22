@@ -27,6 +27,7 @@ type LeftPanelBodyProps = {
     pageIndex: number;
     views: View2DItem[];
     todos: TodoItem[];
+    projectId?: string;
   };
   onSelectPage: (item: PageItem) => void;
   onSelectView: (view: View2DItem) => void;
@@ -122,6 +123,7 @@ export default function LeftPanelBody(props: LeftPanelBodyProps) {
         {activeTab === "todo" && (
           <TodosTab
             todos={data.todos}
+            projectId={data.projectId}
             // 🌟 Sử dụng biến currentUser động
             currentUser={currentUser}
             onSelectTodo={onSelectTodo}

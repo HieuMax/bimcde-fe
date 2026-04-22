@@ -5,19 +5,16 @@ import { useRouter, useParams } from "next/navigation";
 import {
   ArrowLeft,
   Download,
-  MoreHorizontal,
   Maximize,
   Minimize,
   FolderSearch,
   View,
   CircleCheckBig,
   Package,
-  Share,
   SendHorizonalIcon,
   CalendarPlus2,
   ImagePlus,
   MousePointer,
-  HandMetal,
   Hand,
   MoveRight,
   ALargeSmall,
@@ -63,6 +60,8 @@ interface DetailToolbarProps {
   onOpenViewPanel?: () => void;
   onOpenTodoPanel?: () => void;
   canDownload?: boolean;
+  /** Shared link with VIEW permission: disable markup and create actions */
+  readOnlyShare?: boolean;
   activeTool: ToolType;
   onToolSelect: (t: ToolType) => void;
   onDownload: () => void;
@@ -78,6 +77,7 @@ interface ToolBtnProps {
   title: string;
   activeTool: ToolType;
   onToolSelect: (t: ToolType) => void;
+  disabled?: boolean;
 }
 
 const ToolBtn = ({
@@ -86,14 +86,19 @@ const ToolBtn = ({
   title,
   activeTool,
   onToolSelect,
+  disabled,
 }: ToolBtnProps) => (
   <button
+    type="button"
+    disabled={disabled}
     onClick={() => onToolSelect(tool)}
     title={title}
     className={`p-2 rounded transition ${
-      activeTool === tool
-        ? "bg-blue-100 text-blue-600"
-        : "hover:bg-gray-100 text-gray-700"
+      disabled
+        ? "opacity-40 cursor-not-allowed text-gray-400"
+        : activeTool === tool
+          ? "bg-blue-100 text-blue-600"
+          : "hover:bg-gray-100 text-gray-700"
     }`}
   >
     <Icon size={20} />
@@ -103,17 +108,25 @@ const ToolBtn = ({
 const ColorPickerButton = ({
   activeColor,
   onChangeColor,
+  disabled,
 }: {
   activeColor: string;
   onChangeColor: (c: string) => void;
+  disabled?: boolean;
 }) => {
   const [open, setOpen] = React.useState(false);
 
   return (
     <div className="relative">
       <button
-        onClick={() => setOpen((v) => !v)}
-        className="p-2 rounded hover:bg-gray-100 border border-gray-300 bg-white"
+        type="button"
+        disabled={disabled}
+        onClick={() => !disabled && setOpen((v) => !v)}
+        className={`p-2 rounded border border-gray-300 bg-white ${
+          disabled
+            ? "opacity-40 cursor-not-allowed"
+            : "hover:bg-gray-100"
+        }`}
         title="Change color"
       >
         <span
@@ -146,6 +159,9 @@ export default function DetailToolbar({
   onShare,
   onOpenTodoPanel,
   onOpenViewPanel,
+  canShare = true,
+  canDownload = true,
+  readOnlyShare = false,
   activeTool,
   activeColor,
   showAnnotation,
@@ -267,6 +283,7 @@ export default function DetailToolbar({
           title="Free Draw"
           activeTool={activeTool}
           onToolSelect={onToolSelect}
+          disabled={readOnlyShare}
         />
         <ToolBtn
           tool="arrow"
@@ -274,6 +291,7 @@ export default function DetailToolbar({
           title="Arrow"
           activeTool={activeTool}
           onToolSelect={onToolSelect}
+          disabled={readOnlyShare}
         />
         <ToolBtn
           tool="measure"
@@ -281,6 +299,7 @@ export default function DetailToolbar({
           title="Measure Distance"
           activeTool={activeTool}
           onToolSelect={onToolSelect}
+          disabled={readOnlyShare}
         />
         <ToolBtn
           tool="text"
@@ -288,15 +307,26 @@ export default function DetailToolbar({
           title="Text Box"
           activeTool={activeTool}
           onToolSelect={onToolSelect}
+          disabled={readOnlyShare}
         />
         <ColorPickerButton
           activeColor={activeColor}
           onChangeColor={onChangeColor}
+          disabled={readOnlyShare}
         />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
-              className={`flex items-center gap-1 p-2 rounded transition ${["pentagon", "cloud", "rectangle", "circle"].includes(activeTool) ? "bg-blue-100 text-blue-600" : "hover:bg-gray-100 text-gray-700"}`}
+              type="button"
+              disabled={readOnlyShare}
+              title={readOnlyShare ? "Not available in view-only share" : undefined}
+              className={`flex items-center gap-1 p-2 rounded transition ${
+                readOnlyShare
+                  ? "opacity-40 cursor-not-allowed text-gray-400"
+                  : ["pentagon", "cloud", "rectangle", "circle"].includes(activeTool)
+                    ? "bg-blue-100 text-blue-600"
+                    : "hover:bg-gray-100 text-gray-700"
+              }`}
             >
               <Cloud size={20} />
               <ChevronDown size={14} />
@@ -323,10 +353,22 @@ export default function DetailToolbar({
         <div className="flex items-center gap-1 z-10">
           <ToolButton
             icon={<ImagePlus size={18} />}
+            title={
+              readOnlyShare
+                ? "Not available in view-only share"
+                : "Create view"
+            }
+            disabled={readOnlyShare}
             onClick={() => onOpenViewPanel?.()}
           />
           <ToolButton
             icon={<CalendarPlus2 size={18} />}
+            title={
+              readOnlyShare
+                ? "Not available in view-only share"
+                : "To-do"
+            }
+            disabled={readOnlyShare}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -335,18 +377,20 @@ export default function DetailToolbar({
           />
         </div>
 
-
         {/* ===== SHARE ===== */}
-        <div className="flex items-center gap-1">
-          <ToolButton
-            icon={<SendHorizonalIcon size={18} />}
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onShare?.();
-            }}
-          />
-        </div>
+        {canShare ? (
+          <div className="flex items-center gap-1">
+            <ToolButton
+              icon={<SendHorizonalIcon size={18} />}
+              title="Share"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onShare?.();
+              }}
+            />
+          </div>
+        ) : null}
         <div className="w-px h-6 bg-slate-300 mx-2" />
       </div>
 
@@ -359,8 +403,17 @@ export default function DetailToolbar({
           {showAnnotation ? <Eye size={20} /> : <EyeOff size={20} />}
         </button>
         <button
+          type="button"
+          disabled={!canDownload}
+          title={
+            !canDownload ? "Download not allowed for this share" : "Download"
+          }
           onClick={onDownload}
-          className="p-2 hover:bg-gray-100 rounded text-gray-700"
+          className={`p-2 rounded text-gray-700 ${
+            !canDownload
+              ? "opacity-40 cursor-not-allowed"
+              : "hover:bg-gray-100"
+          }`}
         >
           <Download size={20} />
         </button>
@@ -388,23 +441,29 @@ export default function DetailToolbar({
 function ToolButton({
   icon,
   onClick,
+  disabled,
+  title,
 }: {
   icon: React.ReactNode;
   onClick?: (e: React.MouseEvent<HTMLButtonElement>) => void;
+  disabled?: boolean;
+  title?: string;
 }) {
   return (
     <button
       type="button"
+      title={title}
+      disabled={disabled}
       onClick={onClick}
-      className="
+      className={`
         w-9 h-9
         flex items-center justify-center
         rounded
         text-gray-600
-        hover:bg-gray-100
         transition
         pointer-events-auto
-      "
+        ${disabled ? "opacity-40 cursor-not-allowed" : "hover:bg-gray-100"}
+      `}
     >
       {icon}
     </button>

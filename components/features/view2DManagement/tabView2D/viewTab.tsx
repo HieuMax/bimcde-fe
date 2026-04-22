@@ -12,6 +12,31 @@ import {
 } from "lucide-react";
 import { View2DItem } from "@/types/view2d";
 
+function countViewSharedRecipients(v: View2DItem): number {
+  const sw = (v as View2DItem & { sharedWith?: unknown }).sharedWith;
+  if (sw == null) return 0;
+  if (Array.isArray(sw)) return sw.length;
+  if (
+    typeof sw === "object" &&
+    sw !== null &&
+    "users" in sw &&
+    Array.isArray((sw as { users: unknown[] }).users)
+  ) {
+    return (sw as { users: unknown[] }).users.length;
+  }
+  return 0;
+}
+
+/** When views are loaded with populated `fileId` (e.g. project list). */
+function getViewSourceFileName(v: View2DItem): string | null {
+  const fid = v.fileId as unknown;
+  if (fid && typeof fid === "object" && fid !== null && "name" in fid) {
+    const n = (fid as { name?: string }).name;
+    return typeof n === "string" && n.trim() ? n : null;
+  }
+  return null;
+}
+
 type ViewsTabProps = {
   views: View2DItem[];
   currentUser: string;
@@ -51,9 +76,12 @@ export default function ViewsTab({
       filterType === "mine" ? creatorName === currentUser : true;
 
     const viewName = v.name || "";
-    const matchesSearch = viewName
-      .toLowerCase()
-      .includes(searchQuery.toLowerCase());
+    const fileLabel =
+      v.fileId && typeof v.fileId === "object" && "name" in v.fileId
+        ? String((v.fileId as { name?: string }).name || "")
+        : "";
+    const haystack = `${viewName} ${fileLabel}`.toLowerCase();
+    const matchesSearch = haystack.includes(searchQuery.toLowerCase());
 
     return matchesFilter && matchesSearch;
   });
@@ -113,7 +141,10 @@ export default function ViewsTab({
           </div>
         ) : (
           <div className="space-y-2">
-            {filtered.map((v) => (
+            {filtered.map((v) => {
+              const shareCount = countViewSharedRecipients(v);
+              const sourceFileName = getViewSourceFileName(v);
+              return (
               <div
                 key={v._id}
                 className="group relative flex gap-3 p-2 rounded-lg border border-transparent hover:border-gray-200 hover:bg-gray-50 transition-all duration-200"
@@ -152,7 +183,26 @@ export default function ViewsTab({
                       )}
                     </div>
 
+                    {v.fileId &&
+                      typeof v.fileId === "object" &&
+                      (v.fileId as { name?: string }).name && (
+                        <div className="text-[10px] text-sky-700/90 truncate mt-0.5 font-medium">
+                          {(v.fileId as { name: string }).name}
+                        </div>
+                      )}
+
                     <div className="flex items-center gap-1 text-[10px] text-gray-500 mt-0.5">
+                      {sourceFileName && (
+                        <>
+                          <span
+                            className="truncate max-w-[100px] text-gray-400"
+                            title={sourceFileName}
+                          >
+                            {sourceFileName}
+                          </span>
+                          <span className="w-0.5 h-0.5 rounded-full bg-gray-300" />
+                        </>
+                      )}
                       <span className="truncate max-w-[80px]">
                         {typeof v.createdBy === "string"
                           ? v.createdBy
@@ -165,6 +215,18 @@ export default function ViewsTab({
                           ? new Date(v.createdAt).toLocaleDateString()
                           : "Just now"}
                       </span>
+                      {shareCount > 0 && (
+                        <>
+                          <span className="w-0.5 h-0.5 rounded-full bg-gray-300 shrink-0" />
+                          <span
+                            className="inline-flex items-center gap-0.5 text-[#005a9e] shrink-0"
+                            title={`Shared with ${shareCount}`}
+                          >
+                            <Share2 size={10} className="opacity-80" />
+                            {shareCount}
+                          </span>
+                        </>
+                      )}
                     </div>
                   </div>
 
@@ -227,7 +289,8 @@ export default function ViewsTab({
                   )}
                 </div>
               </div>
-            ))}
+            );
+            })}
           </div>
         )}
       </div>

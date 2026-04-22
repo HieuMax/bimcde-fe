@@ -117,6 +117,125 @@ export default function WordViewerClient({
     return () => { isMounted = false; };
   }, [src]);
 
+  // Liên kết nội bộ Word (TOC / bookmark): một lần nhấn — dùng elementsFromPoint vì parent có CSS `zoom`.
+  useEffect(() => {
+    const root = containerRef.current;
+    if (!root || loading) return;
+
+    const resolveFragment = (href: string): string | null => {
+      const h = href.trim();
+      if (!h) return null;
+      const hashIdx = h.indexOf("#");
+      if (hashIdx >= 0) {
+        const frag = h.slice(hashIdx + 1);
+        if (!frag) return null;
+        try {
+          return decodeURIComponent(frag);
+        } catch {
+          return frag;
+        }
+      }
+      try {
+        const u = new URL(h, "http://docx.internal/");
+        if (u.hash) {
+          const f = u.hash.slice(1);
+          try {
+            return decodeURIComponent(f);
+          } catch {
+            return f;
+          }
+        }
+      } catch {
+        /* ignore */
+      }
+      return null;
+    };
+
+    const findDest = (fragment: string): HTMLElement | null => {
+      const tryFind = (id: string): HTMLElement | null => {
+        try {
+          const byId =
+            root.querySelector(`[id="${CSS.escape(id)}"]`) ||
+            document.getElementById(id) ||
+            root.querySelector(`a[name="${CSS.escape(id)}"]`);
+          return byId instanceof HTMLElement ? byId : null;
+        } catch {
+          const byId =
+            root.querySelector(`[id="${id}"]`) ||
+            document.getElementById(id) ||
+            root.querySelector(`a[name="${id}"]`);
+          return byId instanceof HTMLElement ? byId : null;
+        }
+      };
+      return tryFind(fragment) || tryFind(encodeURI(fragment)) || null;
+    };
+
+    const anchorFromEvent = (e: MouseEvent): HTMLAnchorElement | null => {
+      const stack = document.elementsFromPoint(e.clientX, e.clientY);
+      for (const el of stack) {
+        if (el instanceof HTMLAnchorElement && el.hasAttribute("href") && root.contains(el)) {
+          return el;
+        }
+      }
+      const t = e.target;
+      if (t instanceof Node && root.contains(t)) {
+        const fromClosest = (t as HTMLElement).closest?.("a[href]");
+        if (fromClosest instanceof HTMLAnchorElement && root.contains(fromClosest)) {
+          return fromClosest;
+        }
+      }
+      return null;
+    };
+
+    const isExternalOrMail = (href: string) =>
+      /^https?:\/\//i.test(href) || href.startsWith("mailto:");
+
+    let lastNavAt = 0;
+    const navigateIfInternal = (e: MouseEvent) => {
+      if (e.button !== 0) return;
+      const a = anchorFromEvent(e);
+      if (!a) return;
+
+      const hrefAttr = a.getAttribute("href") ?? "";
+      const hrefProp = a.href || hrefAttr;
+      const href = hrefAttr || hrefProp;
+      if (!href) return;
+      if (isExternalOrMail(href)) return;
+
+      const fragment = resolveFragment(href);
+      if (!fragment) return;
+
+      const dest = findDest(fragment);
+      if (!dest) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+      lastNavAt = Date.now();
+      dest.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.pointerType === "mouse" && e.button !== 0) return;
+      navigateIfInternal(e);
+    };
+
+    const onClick = (e: MouseEvent) => {
+      if (Date.now() - lastNavAt < 400) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+      navigateIfInternal(e);
+    };
+
+    root.addEventListener("pointerdown", onPointerDown, true);
+    root.addEventListener("click", onClick, true);
+    return () => {
+      root.removeEventListener("pointerdown", onPointerDown, true);
+      root.removeEventListener("click", onClick, true);
+    };
+  }, [loading, src, totalPages]);
+
   // 🌟 2. THÊM OBSERVER ĐỂ THEO DÕI KHI CUỘN CHUỘT
   useEffect(() => {
     if (!scrollContainerRef.current || pageRefs.current.length === 0) return;
@@ -180,6 +299,9 @@ export default function WordViewerClient({
           min-height: 297mm; 
           width: 210mm !important; 
           padding: 20mm !important; 
+        }
+        .docx-document a[href] {
+          touch-action: manipulation;
         }
       `}</style>
 

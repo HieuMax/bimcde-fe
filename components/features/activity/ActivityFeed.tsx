@@ -85,7 +85,7 @@ export const ActivityFeed: React.FC<ActivityFeedProps> = ({ projectId }) => {
 
   return (
     // Thay đổi style container: bỏ border radius bo tròn quá mức, dùng nền trắng chuẩn
-    <div className="flex flex-col h-full bg-white rounded-md shadow-sm border border-gray-200">
+    <div className="flex flex-col h-full bg-white shadow-sm ">
       <div className="flex shrink-0 items-center justify-between rounded-t-md border-b border-gray-100 bg-white px-4 py-2.5">
         <h2 className="text-lg font-medium text-gray-800">Activity</h2>
         <span

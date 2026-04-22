@@ -239,7 +239,7 @@ export default function ViewDetailPanel({
 
   if (isEditing) {
     return (
-      <aside className="w-[320px] h-full bg-white border-l border-gray-200 flex flex-col shadow-2xl animate-in slide-in-from-right duration-300">
+      <aside className="w-[320px] h-full bg-white border-l border-gray-200 flex flex-col min-h-0 shadow-2xl animate-in slide-in-from-right duration-300">
         <header className="shrink-0 h-14 px-4 border-b border-gray-200 flex items-center justify-between bg-white sticky top-0 z-30">
           <div className="flex items-center gap-3">
             <button
@@ -258,7 +258,7 @@ export default function ViewDetailPanel({
           </button>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-5 space-y-4 custom-scrollbar">
+        <main className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4 custom-scrollbar">
           <div className="px-4 pt-4">
             <div
               className="relative h-[110px] rounded-md border border-gray-100 bg-gray-50 overflow-hidden group cursor-pointer"
@@ -401,7 +401,33 @@ export default function ViewDetailPanel({
               )}
             </div>
           </div>
+
+          <section className="pt-4 border-t border-gray-100">
+            <SectionHeader title="Comments" />
+            <div className="mt-3">
+              <CommentList
+                comments={comments}
+                totalComments={totalComments}
+                isLoading={isCommentsLoading}
+                hasNextPage={hasNextPage}
+                isFetchingNextPage={isFetchingNextPage}
+                fetchNextPage={fetchNextPage}
+                currentUserId={currentUserId}
+                onUpdate={updateComment}
+                onDelete={deleteComment}
+              />
+            </div>
+          </section>
         </main>
+
+        <div className="shrink-0 border-t border-gray-100 bg-white z-40">
+          <CommentInput
+            value={commentInput}
+            onChange={setCommentInput}
+            onSend={addComment}
+            isSending={isAddingComment}
+          />
+        </div>
 
         <footer className="shrink-0 border-t border-gray-200 bg-white p-4 flex items-center justify-end gap-4 z-40">
           <button

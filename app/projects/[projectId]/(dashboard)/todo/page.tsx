@@ -10,10 +10,8 @@ import AddTodoDialog from "@/components/features/todo/dialog/addTodoDialog";
 import type { TopicLinkOption } from "@/components/features/todo/dialog/addTodoDialog";
 import { topicsService } from "@/services/topics.service";
 import DropDownCheckBox from "@/components/features/todo/dropdown/dropdownCheckBox";
-import {
-  DateModifiedFilterPopover,
-  MultiCheckboxFilterPopover,
-} from "@/components/features/topics/filters/TopicsFilters";
+import { DateFilter } from "@/components/features/activity/DateFilter";
+import { MultiCheckboxFilterPopover } from "@/components/features/topics/filters/TopicsFilters";
 import { columnsTable } from "@/components/features/todo/table/column";
 import { DataTable } from "@/components/features/todo/table/DataTable";
 import { NewTodoDrawer } from "@/components/todos/NewTodoDrawer";
@@ -21,6 +19,87 @@ import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { ITodo } from "@/types/todo3d";
+import { TodoItem } from "@/types/explorer";
+
+/** Gộp todo 3D (BCF) và todo 2D (PDF) trên cùng bảng */
+export type DashboardTodoRow = ITodo & {
+  __source?: "todo3d" | "todo2d";
+  __todo2d?: TodoItem;
+  /** Dùng cho bộ lọc Date modified khi BE không trả modifiedOn */
+  modifiedOn?: string;
+};
+
+// function normalizeTodo2dRow(
+//   t: TodoItem,
+//   members: { userId?: string; _id?: string; fullName?: string; name?: string }[],
+// ): DashboardTodoRow {
+//   const rawIds: string[] = Array.isArray(t.assignees)
+//     ? (t.assignees as string[]).filter(Boolean)
+//     : t.assignee
+//       ? [typeof t.assignee === "string" ? t.assignee : (t.assignee as { _id?: string })?._id].filter(
+//           Boolean,
+//         ) as string[]
+//       : [];
+
+//   const assignees: IAssigneeTodo[] = rawIds.map((id) => {
+//     const m = members.find(
+//       (u) => String(u.userId || u._id || "") === String(id),
+//     );
+//     return {
+//       assigneeId: id,
+//       name: m?.fullName || m?.name || id,
+//       type: "user",
+//     };
+//   });
+
+//   const fileIdRaw = t.fileId;
+//   const fileIdStr =
+//     fileIdRaw && typeof fileIdRaw === "object"
+//       ? String((fileIdRaw as { _id?: string })._id || "")
+//       : typeof fileIdRaw === "string"
+//         ? fileIdRaw
+//         : "";
+
+//   const userIdRaw = t.userId;
+//   const userIdStr = userIdRaw ? String(userIdRaw) : "";
+//   const createdByName =
+//     typeof t.createdBy === "string" ? t.createdBy : "";
+
+//   const priName = t.priority || "Normal";
+//   const priority: IPriority = {
+//     priorityId: "",
+//     name: priName,
+//     color: TODO2D_PRIORITY_COLORS[priName] || "#94a3b8",
+//   };
+
+//   const updated = t.updatedAt || "";
+//   const created = t.createdAt || "";
+
+//   return {
+//     _id: t._id,
+//     title: t.title || "",
+//     description: t.description,
+//     status: mapTodo2dStatusToSlug(t.status),
+//     priority,
+//     completion: t.completion ?? 0,
+//     assignees,
+//     type: null,
+//     tags: null,
+//     dueDate: t.dueDate,
+//     projectId: t.projectId || "",
+//     topicId: null,
+//     topicItemId: null,
+//     createdBy: {
+//       _id: userIdStr,
+//       fullName: createdByName || undefined,
+//     },
+//     createdAt: created,
+//     updatedAt: updated,
+//     modifiedOn: updated || created,
+//     __source: "todo2d",
+//     __todo2d: { ...t, fileId: fileIdStr || t.fileId },
+//   };
+// }
 
 const optionsOwner = [
   { name: "Assigned to me", checked: false },
@@ -45,14 +124,67 @@ const status = [
   },
 ];
 
-const DATE_OPTIONS = [
-  { label: "Today", value: "today" },
-  { label: "Yesterday", value: "yesterday" },
-  { label: "Past 7 days", value: "7days" },
-  { label: "Past 30 days", value: "30days" },
-];
+const STATUS_SLUG_FALLBACK_COLORS: Record<string, string> = {
+  new: "#2563eb",
+  in_progress: "#ea580c",
+  waiting: "#16a34a",
+  done: "#0ea5e9",
+  closed: "#64748b",
+};
 
-export default function page({
+/** Map status Todo2D → slug filter (cùng logic với topic dashboard) */
+function map2dStatusToFilterSlug(s: string): string {
+  const m: Record<string, string> = {
+    Open: "new",
+    "In Progress": "in_progress",
+    Done: "done",
+    Closed: "closed",
+  };
+  return m[s] || s.toLowerCase().replace(/\s+/g, "_");
+}
+
+/** Gộp Todo2D vào bảng: chỉ hiển thị title (không prefix TO-xxxx), chuẩn hóa assignee/priority cho filter */
+function normalizeTodo2dRow(t: any, memberData: any[]) {
+  const ids = Array.isArray(t.assignees)
+    ? t.assignees
+    : t.assignee
+      ? [t.assignee]
+      : [];
+  const assignees = ids.map((id: string) => {
+    const m = memberData.find(
+      (u: any) => String(u._id) === String(id) || u.userId === id,
+    );
+    return {
+      assigneeId: id,
+      name: m?.name || m?.fullName || id,
+      type: "user" as const,
+      label: m?.subLabel,
+    };
+  });
+  const st =
+    typeof t.status === "string" ? t.status : t.status?.name || "";
+  const statusSlug = map2dStatusToFilterSlug(st);
+  return {
+    ...t,
+    _todoSource: "2d" as const,
+    title: t.title || "",
+    assignees,
+    priority:
+      typeof t.priority === "string"
+        ? { priorityId: t.priority, name: t.priority, color: "#94a3b8" }
+        : t.priority,
+    type:
+      typeof t.type === "string"
+        ? { typeId: t.type, name: t.type }
+        : t.type,
+    status: { value: statusSlug, name: st },
+    tags: Array.isArray(t.tags)
+      ? t.tags.map((tag: string) => ({ tagId: tag, name: tag }))
+      : [],
+  };
+}
+
+export default function Page({
   params,
 }: {
   params: Promise<{ projectId: string }>;
@@ -62,14 +194,11 @@ export default function page({
   const router = useRouter();
   const fromTopicQueryHandled = useRef(false);
   const openTodoQueryHandled = useRef(false);
-  const [date, setDate] = useState("");
-  const [dateRange, setDateRange] = useState<{
-    from: Date | null;
-    to: Date | null;
-  }>({
-    from: null,
-    to: null,
-  });
+  const [dateModifiedRange, setDateModifiedRange] = useState<{
+    startDate?: Date;
+    endDate?: Date;
+  }>({});
+  const [dateFilterResetKey, setDateFilterResetKey] = useState(0);
   const [groupData, setGroupData] = useState([]);
   const [memberData, setMemberData] = useState([]);
   const [priorityData, setPriorityData] = useState([]);
@@ -77,7 +206,8 @@ export default function page({
   const [statusData, setStatusData] = useState([]);
   const [tagData, setTagData] = useState([]);
 
-  const [todoList, setTodoList] = useState([]);
+  const [todoList, setTodoList] = useState<DashboardTodoRow[]>([]);
+  const [todo2dList, setTodo2dList] = useState<any[]>([]);
 
   const [isOpenDrawer, setIsOpenDrawer] = useState(false);
   const [projectId, setProjectId] = useState("");
@@ -87,7 +217,9 @@ export default function page({
   const [topicLinkOptions, setTopicLinkOptions] = useState<TopicLinkOption[]>(
     [],
   );
-  const [rowSelection, setRowSelection] = useState<ITodo | null>(null);
+  const [rowSelection, setRowSelection] = useState<DashboardTodoRow | null>(
+    null,
+  );
   // Filter states
   const [selectedOwners, setSelectedOwners] = useState<string[]>([]);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
@@ -207,17 +339,37 @@ export default function page({
     try {
       const projectId = (await params).projectId;
 
-      const response3d = await get(`/todo`, { params: { projectId } });
-      const response2d = await get(`/todos2d/project/${projectId}`);
-
-      const todos3d = response3d || [];
-      const todos2d = response2d || [];
-
-      const combinedTodos = [...todos3d, ...todos2d];
-
-      setTodoList(combinedTodos as never[]);
+      /** Chỉ todo 3D — todo 2D nằm ở `getAllTodo2d` + `mergedTodoRows` để tránh trùng dòng */
+      const response = await get(`/todo`, { params: { projectId } });
+      if (Array.isArray(response)) {
+        const rows = response.map((r: ITodo) => ({
+          ...r,
+          __source: "todo3d" as const,
+          modifiedOn:
+            (r as DashboardTodoRow).modifiedOn ?? r.updatedAt ?? r.createdAt,
+        }));
+        setTodoList(rows as DashboardTodoRow[]);
+      } else {
+        setTodoList([]);
+        console.error("Failed to fetch todos:", response);
+      }
     } catch (err) {
       console.error("Error fetching todos :", err);
+    }
+  };
+
+  const getAllTodo2d = async () => {
+    try {
+      const projectId = (await params).projectId;
+      const response = await get(`/todos2d/project/${projectId}`);
+      if (Array.isArray(response)) {
+        setTodo2dList(response);
+      } else {
+        setTodo2dList([]);
+      }
+    } catch (err) {
+      console.error("Error fetching todo2d:", err);
+      setTodo2dList([]);
     }
   };
 
@@ -225,6 +377,7 @@ export default function page({
     getAllUser();
     getAllGroup();
     getAllTodo();
+    getAllTodo2d();
   };
 
   useEffect(() => {
@@ -233,7 +386,8 @@ export default function page({
     getAllTopics();
     getAllTags();
     getAllTodo();
-    getPermissions()
+    getAllTodo2d();
+    getPermissions();
   }, []);
 
   useEffect(() => {
@@ -289,12 +443,27 @@ export default function page({
 
     (async () => {
       try {
-        const todo3d = await get(`/todo/${todoId}`).catch(() => null);
-        const todo2d = !todo3d ? await get(`/todos/${todoId}`).catch(() => null) : null;
-        const todo = todo3d || todo2d;
-        if (todo) {
-          setRowSelection(todo);
-          setIsOpenDrawer(true);
+        let opened = false;
+        try {
+          const todo = await get(`/todo/${todoId}`);
+          if (todo) {
+            setRowSelection({ ...todo, _todoSource: "3d" });
+            setIsOpenDrawer(true);
+            opened = true;
+          }
+        } catch {
+          /* thử Todo2D */
+        }
+        if (!opened) {
+          try {
+            const t2 = await get(`/todos2d/${todoId}`);
+            if (t2) {
+              setRowSelection(normalizeTodo2dRow(t2, memberData));
+              setIsOpenDrawer(true);
+            }
+          } catch (err) {
+            console.error("Failed to open todo from query:", err);
+          }
         }
       } catch (err) {
         console.error("Failed to open todo from query:", err);
@@ -306,7 +475,7 @@ export default function page({
         }
       }
     })();
-  }, [searchParams, get, router, routeParams?.projectId]);
+  }, [searchParams, get, router, routeParams?.projectId, memberData]);
   //#endregion
 
   //#region HANDLE FILTER
@@ -314,8 +483,19 @@ export default function page({
     return user?._id || "";
   };
 
-  const filterTodos = () => {
-    let filtered = [...todoList];
+  const mergedTodoRows = useMemo(() => {
+    const a = (todoList || []).map((t: any) => ({
+      ...t,
+      _todoSource: "3d" as const,
+    }));
+    const b = (todo2dList || []).map((t: any) =>
+      normalizeTodo2dRow(t, memberData || []),
+    );
+    return [...a, ...b];
+  }, [todoList, todo2dList, memberData]);
+
+  const filterTodos = (source: any[]) => {
+    let filtered = [...source];
     const currentUserId = getCurrentUserId();
 
     if (permissions?.isTodosRestricted && userRole !== "admin") {
@@ -337,8 +517,7 @@ export default function page({
     // Filter by Owner
     if (selectedOwners.length > 0) {
       const currentUserId = getCurrentUserId();
-      console.log(currentUserId);
-      filtered = filtered.filter((todo: any) => {
+      filtered = filtered.filter((todo: DashboardTodoRow) => {
         // Check if todo matches any of the selected owner filters (OR logic)
         return selectedOwners.some((ownerFilter) => {
           switch (ownerFilter) {
@@ -351,10 +530,12 @@ export default function page({
               const createdById = (() => {
                 if (!todo.createdBy) return "";
                 if (typeof todo.createdBy === "string") return todo.createdBy;
-                // try common populated shapes
-                return (
-                  todo.createdBy._id || todo.createdBy.userId || todo.createdBy.id || ""
-                );
+                const o = todo.createdBy as {
+                  _id?: string;
+                  userId?: string;
+                  id?: string;
+                };
+                return o._id || o.userId || o.id || "";
               })();
               return String(createdById) === String(currentUserId);
             case "Unassigned":
@@ -369,7 +550,7 @@ export default function page({
 
     // Filter by Users
     if (selectedUsers.length > 0) {
-      filtered = filtered.filter((todo: any) => {
+      filtered = filtered.filter((todo: DashboardTodoRow) => {
         return todo.assignees?.some((assignee: any) => {
           // Filter by user type and name
           const assigneeName =
@@ -382,7 +563,7 @@ export default function page({
 
     // Filter by Groups
     if (selectedGroups.length > 0) {
-      filtered = filtered.filter((todo: any) => {
+      filtered = filtered.filter((todo: DashboardTodoRow) => {
         return todo.assignees?.some((assignee: any) => {
           // Filter by group type and name
           const assigneeName =
@@ -404,82 +585,36 @@ export default function page({
         )
         .filter(Boolean);
 
-      filtered = filtered.filter((todo: any) => {
-        // Get status value from todo (could be direct value or from status object)
-        const todoStatusValue =
-          todo.status?.value || todo.status || todo.statusName || "";
+      filtered = filtered.filter((todo: DashboardTodoRow) => {
+        const s = todo.status as unknown;
+        let todoStatusValue = "";
+        if (s == null) todoStatusValue = (todo as { statusName?: string }).statusName || "";
+        else if (typeof s === "string") todoStatusValue = s;
+        else if (typeof s === "object" && s !== null && "value" in s)
+          todoStatusValue = String((s as { value?: string }).value ?? "");
         return selectedStatusValues.includes(todoStatusValue);
       });
     }
 
     // Filter by Priority
     if (selectedPriorities.length > 0) {
-      filtered = filtered.filter((todo: any) => {
-        const todoPriority = todo.priority?.name || todo.priorityName || "";
+      filtered = filtered.filter((todo: DashboardTodoRow) => {
+        const todoPriority =
+          todo.priority?.name ||
+          (todo as { priorityName?: string }).priorityName ||
+          "";
         return selectedPriorities.includes(todoPriority);
       });
     }
 
-    // Filter by Date Modified (quick options)
-    if (date) {
-      const now = new Date();
-      let startDate: Date;
-
-      switch (date) {
-        case "today":
-          startDate = new Date(
-            now.getFullYear(),
-            now.getMonth(),
-            now.getDate(),
-          );
-          break;
-        case "yesterday":
-          startDate = new Date(
-            now.getFullYear(),
-            now.getMonth(),
-            now.getDate() - 1,
-          );
-          const endDate = new Date(
-            now.getFullYear(),
-            now.getMonth(),
-            now.getDate(),
-          );
-          filtered = filtered.filter((todo: any) => {
-            if (!todo.modifiedOn) return false;
-            const modifiedDate = new Date(todo.modifiedOn);
-            return modifiedDate >= startDate && modifiedDate < endDate;
-          });
-          return filtered;
-        case "7days":
-          startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-          break;
-        case "30days":
-          startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-          break;
-        default:
-          return filtered;
-      }
-
+    if (dateModifiedRange.startDate && dateModifiedRange.endDate) {
       filtered = filtered.filter((todo: any) => {
         if (!todo.modifiedOn) return false;
         const modifiedDate = new Date(todo.modifiedOn);
-        return modifiedDate >= startDate;
-      });
-    }
-
-    // Filter by custom date range (from / to)
-    if (dateRange.from || dateRange.to) {
-      filtered = filtered.filter((todo: any) => {
-        if (!todo.modifiedOn) return false;
-        const modifiedDate = new Date(todo.modifiedOn);
-
-        if (dateRange.from && modifiedDate < startOfDay(dateRange.from)) {
-          return false;
-        }
-        if (dateRange.to && modifiedDate > endOfDay(dateRange.to)) {
-          return false;
-        }
-        return true;
+        return (
+          modifiedDate >= startOfDay(dateModifiedRange.startDate!) &&
+          modifiedDate <= endOfDay(dateModifiedRange.endDate!)
+        );
       });
     }
 
@@ -489,20 +624,19 @@ export default function page({
 
   //#region HANDLE DATA TABLE
 
-  const assigneeData = [...memberData, ...groupData];
-
   const filteredData = useMemo(
-    () => filterTodos(),
+    () => filterTodos(mergedTodoRows),
     [
-      todoList,
+      mergedTodoRows,
       selectedOwners,
       selectedUsers,
       selectedGroups,
       selectedStatuses,
       selectedPriorities,
-      date,
-      dateRange,
+      dateModifiedRange,
       user,
+      permissions,
+      userRole,
     ],
   );
 
@@ -511,7 +645,8 @@ export default function page({
       setIsOpenDrawer(false);
 
       if (rowSelection && rowSelection.original) {
-        setRowSelection(rowSelection.original);
+        const original = rowSelection.original as DashboardTodoRow;
+        setRowSelection(original);
         setIsOpenDrawer(true);
       } else {
         setRowSelection(null);
@@ -542,9 +677,8 @@ export default function page({
       selectedGroups.length > 0 ||
       selectedStatuses.length > 0 ||
       selectedPriorities.length > 0 ||
-      date !== "" ||
-      dateRange.from !== null ||
-      dateRange.to !== null
+      (dateModifiedRange.startDate != null &&
+        dateModifiedRange.endDate != null)
     );
   };
 
@@ -554,21 +688,46 @@ export default function page({
     setSelectedGroups([]);
     setSelectedStatuses([] as Array<{ name: string; value?: string }>);
     setSelectedPriorities([]);
-    setDate("");
-    setDateRange({ from: null, to: null });
+    setDateModifiedRange({});
+    setDateFilterResetKey((k) => k + 1);
   };
   //#endregion
 
   const handleExcel = (type: String) => { };
 
-  const statusFilterOptions = useMemo(
-    () =>
-      status.map((s) => ({
-        value: s.value as string,
-        label: s.name,
-      })),
-    [],
-  );
+  const statusFilterOptions = useMemo(() => {
+    type ApiStatus = { name?: string; color?: string; visible?: boolean };
+    const apiRows = (statusData as ApiStatus[]).filter(
+      (r) => Boolean(r?.name) && r.visible !== false,
+    );
+
+    const slugForStatusName = (name: string) => {
+      const n = name.trim().toLowerCase();
+      const found = status.find((s) => s.name.toLowerCase() === n);
+      if (found?.value) return found.value as string;
+      return name.trim().toLowerCase().replace(/\s+/g, "_");
+    };
+
+    if (apiRows.length > 0) {
+      return apiRows.map((row) => {
+        const slug = slugForStatusName(row.name!);
+        return {
+          value: slug,
+          label: row.name!,
+          color:
+            row.color ||
+            STATUS_SLUG_FALLBACK_COLORS[slug] ||
+            "#94a3b8",
+        };
+      });
+    }
+
+    return status.map((s) => ({
+      value: s.value as string,
+      label: s.name,
+      color: STATUS_SLUG_FALLBACK_COLORS[s.value as string] ?? "#94a3b8",
+    }));
+  }, [statusData]);
 
   const priorityFilterOptions = useMemo(() => {
     return (priorityData as { name?: string; color?: string }[])
@@ -596,18 +755,23 @@ export default function page({
     setSelectedStatuses(
       nextValues.map((v) => {
         const row = status.find((s) => s.value === v);
+        const fromOptions = statusFilterOptions.find((o) => o.value === v);
         return {
-          name: row?.name ?? v,
-          value: row?.value ?? v,
+          name: row?.name ?? fromOptions?.label ?? v,
+          value: (row?.value ?? v) as string,
         };
       }),
     );
   };
 
   return (
-    <div className="flex h-full w-full flex-col bg-[#F5F6F7]">
-      <div className="flex min-h-0 flex-1 w-full flex-col overflow-hidden">
-        <div className="flex h-full min-h-0 flex-col overflow-hidden rounded-md border border-gray-200 bg-white shadow-sm">
+    <div className="relative flex h-full min-h-0 w-full bg-[#F5F6F7]">
+      <div
+        className={`flex min-h-0 flex-1 w-full min-w-0 flex-col overflow-hidden transition-all duration-300 ${
+          isOpenDrawer ? "mr-0 sm:mr-80" : "mr-0"
+        }`}
+      >
+        <div className="flex h-full min-h-0 flex-col overflow-hidden bg-white shadow-sm">
           <div className="flex shrink-0 items-center justify-between rounded-t-md border-b border-gray-100 bg-white px-4 py-3">
             <h2 className="text-lg font-medium text-gray-800">Todo</h2>
             <Button
@@ -631,6 +795,7 @@ export default function page({
                   value={selectedOwners}
                   onChange={setSelectedOwners as any}
                 />
+                <span className="text-gray-300">|</span>
                 <DropDownCheckBox
                   title="Users"
                   options={memberData}
@@ -638,6 +803,7 @@ export default function page({
                   value={selectedUsers}
                   onChange={setSelectedUsers as any}
                 />
+                <span className="text-gray-300">|</span>
                 <DropDownCheckBox
                   title="Group"
                   options={groupData}
@@ -645,12 +811,14 @@ export default function page({
                   value={selectedGroups}
                   onChange={setSelectedGroups as any}
                 />
+                <span className="text-gray-300">|</span>
                 <MultiCheckboxFilterPopover
                   label="Status"
                   options={statusFilterOptions}
                   selectedValues={selectedStatusValuesForUi}
                   onChange={handleStatusFilterChange}
                 />
+                <span className="text-gray-300">|</span>
                 <MultiCheckboxFilterPopover
                   label="Priority"
                   options={priorityFilterOptions}
@@ -659,20 +827,22 @@ export default function page({
                   renderOptionIcon={(opt) =>
                     opt.color ? (
                       <span
-                        className="inline-block h-3 w-3 rounded-sm border"
+                        className="inline-block h-3 w-3 shrink-0 rounded-full border border-gray-200/80"
                         style={{ backgroundColor: opt.color }}
                       />
                     ) : null
                   }
                 />
-                <DateModifiedFilterPopover
+                <span className="text-gray-300">|</span>
+                <DateFilter
+                  key={dateFilterResetKey}
                   label="Date modified"
-                  options={DATE_OPTIONS}
-                  presetValue={date}
-                  onPresetChange={setDate}
-                  from={dateRange.from}
-                  to={dateRange.to}
-                  onRangeChange={setDateRange}
+                  onFilterChange={(range) =>
+                    setDateModifiedRange({
+                      startDate: range.startDate,
+                      endDate: range.endDate,
+                    })
+                  }
                 />
               </div>
 
@@ -702,7 +872,6 @@ export default function page({
           <AddTodoDialog
             key={openDialog ? "dialog-open" : "dialog-closed"}
             open={openDialog}
-            users={assigneeData}
             priority={priorityData}
             type={typeData}
             tag={tagData}
@@ -715,6 +884,7 @@ export default function page({
         </div>
       </div>
       <NewTodoDrawer
+        embedded
         open={isOpenDrawer}
         onOpenChange={(open) => {
           if (!open) {
@@ -724,8 +894,29 @@ export default function page({
         projectId={projectId}
         todoToEdit={rowSelection}
         mode="view"
-        onRestoreView={(viewState) => {
+        onRestoreView={() => {
           if (!rowSelection) return;
+          if ((rowSelection as { _todoSource?: string })._todoSource === "2d") {
+            const t = rowSelection as {
+              viewId?: string;
+              fileId?: string | { _id?: string };
+            };
+            const vid = t.viewId;
+            const fid =
+              typeof t.fileId === "object" && t.fileId
+                ? String(t.fileId._id)
+                : t.fileId
+                  ? String(t.fileId)
+                  : "";
+            if (!vid || !fid) {
+              toast.error("This 2D todo has no view or file linked.");
+              return;
+            }
+            router.push(
+              `/projects/${projectId}/viewer/${vid}?fileId=${encodeURIComponent(fid)}`,
+            );
+            return;
+          }
           const targetUrls = Array.from(
             new Set((rowSelection.items || []).map((i: any) => i.fileUrl).filter(Boolean)),
           );

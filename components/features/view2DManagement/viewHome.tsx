@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { explorerService } from "@/services/explorer.service";
 import LeftPanelTool from "./leftPanelTool";
@@ -119,6 +119,10 @@ export default function DetailView2D({
   const [error, setError] = useState<string | null>(null);
 
   const [isViewLoading, setIsViewLoading] = useState(false);
+  /** Server tip vs revision currently shown after "Open" on an older version */
+  const [viewerActiveVersion, setViewerActiveVersion] = useState<number | null>(
+    null,
+  );
   const [pendingScroll, setPendingScroll] = useState<{
     x: number;
     y: number;
@@ -303,7 +307,13 @@ export default function DetailView2D({
     name: string;
     description: string;
     createdBy?: string;
-    sharedWithUsers?: string[];
+    sharedWithUsers?: Array<{
+      id: string;
+      label: string;
+      fullName: string;
+      email?: string;
+      type: "USER" | "GROUP";
+    }>;
   }) => {
     const targetFileId = fileId || params.viewId;
     const targetProjectId = params.projectId || currentProjectId;
@@ -358,6 +368,10 @@ export default function DetailView2D({
         rotation: pageRotations[actualPageIndex] || 0,
         viewState: newViewState as any,
       };
+
+      if (data.sharedWithUsers && data.sharedWithUsers.length > 0) {
+        payload.sharedWithUsers = data.sharedWithUsers;
+      }
 
       const newView: any = await view2DService.createView(payload as any);
 
@@ -586,6 +600,11 @@ export default function DetailView2D({
 
       setSelectedFile(newFile);
       setFile(newFile);
+      setViewerActiveVersion(
+        newFile.currentVersion != null && newFile.currentVersion !== undefined
+          ? Number(newFile.currentVersion)
+          : null,
+      );
 
       let derivedPages: PageItem[] = [];
       if (newFile.fileType === "PDF") {
@@ -755,6 +774,98 @@ export default function DetailView2D({
     }
   };
 
+  const handleOpenFileVersionInViewer = useCallback(
+    (version: {
+      version: number | string;
+      location?: string;
+      fileName?: string;
+      mimeType?: string;
+    }) => {
+      const activeFile = selectedFile || file;
+      if (!activeFile?._id || version?.version == null) return;
+
+      const v = Number(version.version);
+      const rawUrl =
+        (version.location && String(version.location).trim()) ||
+        explorerService.buildVersionDownloadUrl(activeFile._id, v);
+      const normalized = rawUrl.replace(/ /g, "%20");
+
+      const updated: IFile = {
+        ...activeFile,
+        fileUrl: normalized,
+        previewSrc: normalized,
+      };
+      setSelectedFile(updated);
+      setFile(updated);
+      setCurrentSrc(normalized);
+      setViewerActiveVersion(v);
+      setSelectedView(null);
+      setRightPanel(null);
+      setPageIndex(1);
+      setIsViewLoading(true);
+
+      if (updated.fileType === "PDF") {
+        void (async () => {
+          try {
+            const total = await getPdfTotalPages(normalized);
+            const derivedPages: PageItem[] = Array.from({ length: total }).map(
+              (_, i) => ({
+                _id: `${updated._id}-page-${i + 1}`,
+                index: i + 1,
+                pageNumber: i + 1,
+                fileId: updated._id,
+                source: "pdf" as const,
+              }),
+            );
+            setPages(derivedPages);
+          } finally {
+            setIsViewLoading(false);
+          }
+        })();
+      } else if (updated.fileType === "WORD") {
+        setPages([
+          {
+            _id: updated._id,
+            index: 1,
+            imageSrc: "",
+            fileId: updated._id,
+            source: "word",
+          },
+        ]);
+        setTimeout(() => setIsViewLoading(false), 200);
+      } else {
+        setPages([
+          {
+            _id: updated._id,
+            index: 1,
+            imageSrc: normalized,
+            fileId: updated._id,
+            source: "image",
+          },
+        ]);
+        setTimeout(() => setIsViewLoading(false), 200);
+      }
+    },
+    [selectedFile, file],
+  );
+
+  const handleDownloadFileVersion = useCallback(
+    (version: {
+      version: number | string;
+      fileName?: string;
+      name?: string;
+    }) => {
+      const activeFile = selectedFile || file;
+      if (!activeFile?._id || version?.version == null) return;
+      void explorerService.downloadFileVersion(
+        activeFile._id,
+        Number(version.version),
+        version.fileName || version.name || activeFile.name,
+      );
+    },
+    [selectedFile, file],
+  );
+
   const rotateCurrentPage = (delta: number) => {
     setPageRotations((prev) => ({
       ...prev,
@@ -908,6 +1019,11 @@ export default function DetailView2D({
         setFile(file);
         setSelectedFile(file);
         setCurrentSrc(file.fileUrl);
+        setViewerActiveVersion(
+          file.currentVersion != null && file.currentVersion !== undefined
+            ? Number(file.currentVersion)
+            : null,
+        );
 
         if (onLoaded && !hasCalledOnLoaded.current) {
           hasCalledOnLoaded.current = true;
@@ -979,30 +1095,27 @@ export default function DetailView2D({
     load();
   }, [fileId, params.viewId, activeShareToken, isShareMode, mode, onLoaded]);
 
-  // Load View & Todo
+  // Load View & Todo — all 2D views + all 2D todos in the project (mọi file)
   useEffect(() => {
     const fetchMetadata = async () => {
       if (!currentProjectId) return;
 
       try {
-        const targetId = fileId || params.viewId;
-        const viewsData = targetId
-          ? await view2DService.getViewsByFile(targetId)
-          : await view2DService.getViewsByProject(currentProjectId);
-
+        const viewsData =
+          await view2DService.getViewsByProject(currentProjectId);
         if (Array.isArray(viewsData)) setViews(viewsData);
 
-        if (targetId) {
-          const todosData = await todo2DService.getTodosByFile(targetId);
-          if (Array.isArray(todosData)) setTodos(todosData);
-          else if ((todosData as any).data) setTodos((todosData as any).data);
-        }
+        const todosData =
+          await todo2DService.getTodosByProject(currentProjectId);
+        if (Array.isArray(todosData)) setTodos(todosData);
+        else if ((todosData as any)?.data)
+          setTodos((todosData as any).data);
       } catch (error) {
         console.error("Lỗi tải metadata (view/todo):", error);
       }
     };
     fetchMetadata();
-  }, [currentProjectId, fileId, params.viewId]);
+  }, [currentProjectId]);
 
   const handleWordLoadSuccess = (totalPages: number) => {
     if (!selectedFile) return;
@@ -1141,6 +1254,7 @@ export default function DetailView2D({
                 pageIndex,
                 views: views as any,
                 todos,
+                projectId: currentProjectId || undefined,
               }}
               onSelectPage={(item) => {
                 setPageIndex(item.pageNumber ?? item.index);
@@ -1162,6 +1276,10 @@ export default function DetailView2D({
                 setFile(updatedFile);
                 setSelectedFile(updatedFile);
               }}
+              onOpenVersion={handleOpenFileVersionInViewer}
+              activeViewerVersion={viewerActiveVersion}
+              onDownloadVersion={handleDownloadFileVersion}
+              onCloseHistory={() => setActiveTab("page")}
             />
           </motion.div>
         )}
@@ -1232,14 +1350,11 @@ export default function DetailView2D({
 
             {rightPanel.type === "history" && (
               <VersionHistoryPanel
-                file={selectedFile || fileId}
+                file={selectedFile || file}
+                activeViewerVersion={viewerActiveVersion}
                 onClose={() => setRightPanel(null)}
-                onDownloadVersion={(versionId) => {
-                  console.log("Download version:", versionId);
-                }}
-                onOpenVersion={(versionId) => {
-                  console.log("Open version:", versionId);
-                }}
+                onDownloadVersion={handleDownloadFileVersion}
+                onOpenVersion={handleOpenFileVersionInViewer}
               />
             )}
 

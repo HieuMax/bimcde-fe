@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 
 import DetailView2D from "@/components/features/view2DManagement/viewHome";
@@ -60,6 +60,13 @@ export default function Page() {
 
   //permission
   const canDownload = !isShareMode || fileData?.permission === "DOWNLOAD";
+  const readOnlyShare =
+    isShareMode && fileData?.permission !== "DOWNLOAD";
+
+  useEffect(() => {
+    if (!readOnlyShare) return;
+    setActiveTool((t) => (t === "hand" || t === "cursor" ? t : "cursor"));
+  }, [readOnlyShare]);
 
   const handleDownloadRaw = useCallback(async () => {
     // Kiểm tra trực tiếp giá trị hiện tại
@@ -124,6 +131,7 @@ export default function Page() {
         onBack={handleBack}
         canShare={!isShareMode}
         canDownload={canDownload}
+        readOnlyShare={readOnlyShare}
         onShare={() => {
           if (!fileData) return;
           setIsShareOpen(true);

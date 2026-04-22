@@ -105,7 +105,7 @@ function DraggableCard({
               checked={isSelected}
               onClick={handleCheckboxInteraction}
               className={cn(
-                "data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600 size-5 border-slate-400 bg-white shadow-sm transition-opacity z-20",
+                "size-5 transition-opacity z-20",
                 isSelected
                   ? "opacity-100"
                   : "opacity-0 group-hover:opacity-100 absolute",
@@ -208,7 +208,7 @@ function DraggableCard({
                 checked={isSelected}
                 onClick={handleCheckboxInteraction}
                 className={cn(
-                  "data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600 size-5 border-slate-400 bg-white shadow-sm transition-opacity z-20 absolute top-0 left-0",
+                  "size-5 transition-opacity z-20 absolute top-0 left-0",
                   isSelected
                     ? "opacity-100"
                     : "opacity-0 group-hover:opacity-100",

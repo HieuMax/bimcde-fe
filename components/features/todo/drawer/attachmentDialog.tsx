@@ -151,7 +151,7 @@ export function AttachmentDialog({
                     <p className="text-sm font-medium text-slate-700">
                       Click to upload or drag and drop
                     </p>
-                    <p className="text-xs">SVG, PNG, JPG, PDF, IFC...</p>
+                    <p className="text-xs">SVG, PNG, JPG, PDF, IFC, DOCX...</p>
                   </div>
                 </div>
               )}

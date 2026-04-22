@@ -194,7 +194,7 @@ function DraggableRow({
               <Checkbox
                 checked={isSelected}
                 onClick={handleCheckboxInteraction}
-                className="data-[state=checked]:bg-blue-600 data-[state=checked]:border-blue-600 size-4 md:size-5 border-slate-400 bg-white"
+                className="size-4 md:size-5"
               />
             </div>
           )}
