@@ -61,11 +61,11 @@ export default function page({
 
   const roleRadio = [
     {
-      id: "user", // Changed to 'user' to ensure unique ID
+      id: "user",
       label: "User",
     },
     {
-      id: "admin", // Changed to 'admin' to ensure unique ID
+      id: "admin",
       label: "Admin",
     },
   ];
@@ -85,7 +85,7 @@ export default function page({
   const [isDialogAddToGroup, setIsDialogAddToGroup] = useState(false);
   const [memberProjectCount, setMemberProjectCount] = useState(0);
   const [roleDialog, setRoleDialog] = useState({
-    id: "user", // Initial role set to 'user'
+    id: "user",
     label: "User",
   });
 
@@ -185,7 +185,6 @@ export default function page({
       setMemberData(response.result || []);
       setMemberProjectCount(response.result.length || 0);
     } else {
-      // Fetch members for the selected group
       const response = await get(`/team/getMemberGroup/${group._id}`);
       setMemberData(response.result || []);
       setMemberGroup(response.result || null);
@@ -195,7 +194,7 @@ export default function page({
   const handleCheckedChange = (role: "user" | "admin", checked: boolean) => {
     setRoleFilter((prevState) => ({
       ...prevState,
-      [role]: checked, // Cập nhật trạng thái checkbox cho từng role
+      [role]: checked,
     }));
   };
 
@@ -284,7 +283,6 @@ export default function page({
     if (!groupId) return;
     try {
       await deleteApi(`/team/deleteGroup/${groupId}`);
-      // Refresh group and member data after deletion
       setSelectedGroup(null);
       setActiveGroup({ _id: "all", name: "" });
       setIsOpenConfirmDelete(false);
@@ -336,7 +334,6 @@ export default function page({
     setIsOpenDrawer(false);
   };
 
-  // Lọc dữ liệu dựa trên checkbox
   const isProjectAdmin = useMemo(() => {
     if (!user?._id || !memberPorject?.length) return false;
     const me = memberPorject.find(
@@ -424,37 +421,42 @@ export default function page({
   });
 
   return (
-    <div className="flex relative w-full h-full gap-3">
-      <div className="pt-4 space-y-4 bg-muted h-full w-full overflow-y-hidden">
+    // Đã chỉnh sửa div bọc ngoài thành flex-row
+    <div className="flex flex-row relative w-full h-full gap-3 bg-muted overflow-hidden">
+
+      {/* Sửa w-full thành flex-1 min-w-0 để nhường khoảng trống cho Drawer */}
+      <div className="pt-4 space-y-4 h-full flex-1 flex flex-col min-w-0">
+
         {/* HEADER */}
-        <div className="flex items-center justify-between px-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between px-4 gap-4">
           <h1 className="text-xl font-normal text-gray-800">Project members</h1>
           {canInvite && (
             <Button
               onClick={handleInvitePeople}
-              className="bg-[#406D87] hover:bg-[#345a70] px-6 py-4 rounded text-base font-medium flex items-center transition-colors disabled:opacity-50 outline-none ring-0 focus-visible:ring-0 focus-visible:ring-offset-0">
+              className="bg-[#406D87] hover:bg-[#345a70] w-full sm:w-auto px-4 sm:px-6 py-2 sm:py-4 rounded text-sm sm:text-base font-medium flex items-center transition-colors disabled:opacity-50 outline-none ring-0 focus-visible:ring-0 focus-visible:ring-offset-0">
               Invite people to project
             </Button>
           )}
         </div>
-        {/* BODY */}
-        <div className="flex  border-t h-[calc(100%-40px)] bg-white">
-          {/* groups */}
 
-          <div className="max-w-72 w-full border-r">
-            <div className="h-16 flex items-center justify-between p-4 font-semibold text-lg border-b">
+        {/* BODY */}
+        <div className="flex flex-col md:flex-row border-t flex-1 bg-white overflow-hidden">
+          {/* GROUPS SIDEBAR */}
+          <div className="w-full md:max-w-72 border-b md:border-b-0 md:border-r flex flex-col shrink-0 overflow-y-auto h-48 md:h-full">
+            <div className="h-16 flex shrink-0 items-center justify-between p-4 font-semibold text-lg border-b sticky top-0 bg-white z-10">
               <h3>Groups</h3>
               {!isTeamReadOnly ? (
                 <Button
                   onClick={handleNewGroup}
+                  size="sm"
                   className="bg-[#406D87] hover:bg-[#345a70] text-white ">
                   New Group
                 </Button>
               ) : null}
             </div>
-            {/* group item */}
 
-            <div className="h-full bg-white border-none ">
+            {/* group items */}
+            <div className="flex-1 bg-white">
               <Button
                 onClick={() => handleGroupSelection({ _id: "all" })}
                 className={`w-full flex flex-col rounded-none items-start h-14 bg-white text-gray-500 hover:bg-gray-200 border-none outline-none shadow-none ${activeGroup._id === "all" ? "text-[#005f9e] bg-[#e5f0f8]" : ""
@@ -462,8 +464,8 @@ export default function page({
                 <span> All project members</span>
                 <span className="font-normal">{memberProjectCount} Users</span>
               </Button>
-              <div className="h-14 items-center">
-                <Button className="w-full rounded-none pointer-events-none justify-start h-14 bg-white text-gray-500 hover:bg-gray-200 border-none outline-none shadow-none">
+              <div className="h-14 flex items-center">
+                <Button className="w-full rounded-none pointer-events-none justify-start h-full bg-white text-gray-500 hover:bg-gray-200 border-none outline-none shadow-none">
                   CUSTOM GROUPS
                 </Button>
               </div>
@@ -485,32 +487,32 @@ export default function page({
             </div>
           </div>
 
-          {/* table */}
-
-          <div className=" w-full">
-            {/* filter table */}
-            <div className="  border-b h-16 w-full">
-              <div className="flex justify-between p-4 pr-28 items-center h-full">
-                <div>
-                  <h3 className="font-semibold text-lg">
+          {/* TABLE AREA */}
+          <div className="w-full flex-1 flex flex-col min-w-0 overflow-hidden">
+            {/* filter table header */}
+            <div className="border-b w-full shrink-0">
+              <div className="flex flex-col lg:flex-row justify-between p-4 items-start lg:items-center gap-4 w-full">
+                <div className="flex-1 min-w-0">
+                  <h3 className="font-semibold text-lg truncate">
                     {activeGroup._id === "all"
                       ? "All project members"
                       : `Members — ${activeGroup.name}`}
                   </h3>
                   {showGroupMemberRoleCol && isProjectAdmin && (
-                    <p className="text-xs text-slate-500 mt-0.5">
+                    <p className="text-xs text-slate-500 mt-0.5 truncate">
                       Phân quyền Group Leader / Group Member (ISO 19650): dùng cột
                       &quot;Trong nhóm&quot;.
                     </p>
                   )}
                 </div>
-                <div className="flex items-center">
+
+                {/* Actions: Roles, Invite, Search, Excel */}
+                <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto shrink-0">
                   {!isSearch && !isTeamReadOnly && (
-                    <div>
-                      {" "}
+                    <div className="flex flex-wrap items-center gap-2">
                       <CustomDropdown
                         type="checkbox"
-                        icon={<ChevronDown></ChevronDown>}
+                        icon={<ChevronDown className="w-4 h-4 ml-1" />}
                         label="Role"
                         items={[
                           {
@@ -532,7 +534,7 @@ export default function page({
                           projectId={projectIdStorage}
                           groupId={activeGroup._id}
                           memberProject={memberPorject}
-                          memberGroup={memberGroup}></AddPeopleToGroup>
+                          memberGroup={memberGroup} />
                       )}
                     </div>
                   )}
@@ -540,19 +542,20 @@ export default function page({
                   {/* Search */}
                   {!isTeamReadOnly ? (
                     <div
-                      className={`flex items-center ${isSearch
-                        ? "border w-[450px] border-b-4 border-b-blue-900"
-                        : ""
+                      className={`flex items-center transition-all duration-300 ${isSearch
+                        ? "border w-full sm:w-[250px] lg:w-[350px] border-b-4 border-b-blue-900"
+                        : "w-auto"
                         }`}>
                       <Button
                         variant="ghost"
-                        className=""
+                        size="icon"
+                        className="shrink-0"
                         onClick={() => setIsSearch(true)}>
-                        <Search className="!h-full  !w-full" size={23} />
+                        <Search size={20} />
                       </Button>
                       {isSearch && (
                         <Input
-                          className="focus-visible:ring-0 border-none "
+                          className="focus-visible:ring-0 border-none h-8 px-2 flex-1 min-w-0"
                           placeholder="Search..."
                           value={searchText}
                           onChange={(e) => setSearchText(e.target.value)}
@@ -564,10 +567,9 @@ export default function page({
                   ) : null}
 
                   {/* Excel */}
-
                   {!isTeamReadOnly ? (
                     <CustomDropdown
-                      icon={<EllipsisVertical></EllipsisVertical>}
+                      icon={<EllipsisVertical size={20} />}
                       type="item"
                       items={[
                         {
@@ -586,7 +588,7 @@ export default function page({
                               onClick: () => onModifiedGroup("edit"),
                             },
                             {
-                              className: "border-t mt-2",
+                              className: "border-t mt-2 text-red-600 focus:text-red-600 focus:bg-red-50",
                               label: "Delete Group",
                               onClick: () => onModifiedGroup("delete"),
                             },
@@ -600,14 +602,17 @@ export default function page({
             </div>
 
             {/* data table */}
-            <DataTable
-              columns={tableColumns}
-              data={filteredData}
-              isDrawer={isOpenDrawer}
-              onRowSelectionChange={handleRowSelectionChange}></DataTable>
+            <div className="flex-1 overflow-auto bg-white min-h-0">
+              <DataTable
+                columns={tableColumns}
+                data={filteredData}
+                isDrawer={isOpenDrawer}
+                onRowSelectionChange={handleRowSelectionChange} />
+            </div>
           </div>
         </div>
-        {/* DIALOG */}
+
+        {/* DIALOGS */}
         <Dialog
           open={!!dialog}
           onOpenChange={(open) => {
@@ -615,10 +620,9 @@ export default function page({
               oncloseDialog();
             }
           }}>
-          {" "}
           <DialogContent
             aria-describedby={undefined}
-            className="sm:max-w-[425px]">
+            className="sm:max-w-[425px] w-[95%] rounded-md">
             <DialogHeader>
               <DialogTitle>{titleDialog}</DialogTitle>
             </DialogHeader>
@@ -634,7 +638,6 @@ export default function page({
                     id="name"
                     value={dialogInput || ""}
                     onChange={(e) => setDialogInput(e.target.value)}
-                  // onKeyDown={(e) => e.key === "Enter" && handleSaveEdit()}
                   />
                 )}
               </div>
@@ -653,7 +656,7 @@ export default function page({
                           </SelectItem>
                         ))
                       ) : (
-                        <p>No users available to add project</p>
+                        <p className="p-2 text-sm text-gray-500">No users available to add project</p>
                       )}
                     </SelectContent>
                   </Select>
@@ -676,7 +679,7 @@ export default function page({
                             </SelectItem>
                           ))
                         ) : (
-                          <p>No groups available to add project</p>
+                          <p className="p-2 text-sm text-gray-500">No groups available to add project</p>
                         )}
                       </SelectContent>
                     </Select>
@@ -692,7 +695,7 @@ export default function page({
                       if (item.id === "admin" && !isProjectAdmin) return null;
                       return (
                         <div key={item.id} className="flex items-center gap-3 ">
-                          <Label>{item.label}</Label>
+                          <Label htmlFor={item.id} className="cursor-pointer">{item.label}</Label>
                           <RadioGroupItem
                             value={item.id}
                             id={item.id}></RadioGroupItem>
@@ -704,11 +707,12 @@ export default function page({
               )}
             </div>
 
-            <DialogFooter>
-              <Button variant="outline" onClick={() => oncloseDialog()}>
+            <DialogFooter className="flex-col sm:flex-row gap-2">
+              <Button variant="outline" className="w-full sm:w-auto" onClick={() => oncloseDialog()}>
                 Cancel
               </Button>
               <Button
+                className="w-full sm:w-auto"
                 onClick={handleSubmitDialog}
                 disabled={
                   loading ||
@@ -721,7 +725,8 @@ export default function page({
             </DialogFooter>
           </DialogContent>
         </Dialog>
-        ;{/* CONFIRM DELETE GROUP */}
+
+        {/* CONFIRM DELETE GROUP */}
         <ConfirmDeleteGroup
           open={isOpenConfirmDelete}
           groupName={activeGroup?.name || ""}
@@ -729,24 +734,20 @@ export default function page({
           onCancel={() => onCloseConfirmDelete()}
         />
       </div>
+
       <TeamDrawer
         isOpen={!isTeamReadOnly && isOpenDrawer}
         onClose={onCloseDrawer}
         data={rowSelection}
         groupData={groupData}
         activeGroup={activeGroup}></TeamDrawer>
+
       <Toaster richColors position="top-center" />
     </div>
   );
 }
 
 //#region CUSTOM DROPDOWN
-/**
- * label
- * checked: true/false
- * onCheckedChange: check boolean
- * onClick : callback
- */
 type DropdownItem = {
   label: string;
   checked?: boolean;
@@ -766,7 +767,7 @@ const CustomDropdown = ({ label, items, type, icon }: DropdownProps) => {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="focus-visible:ring-0">
+        <Button variant="ghost" className="focus-visible:ring-0 flex items-center">
           {label} {icon}
         </Button>
       </DropdownMenuTrigger>
@@ -778,14 +779,14 @@ const CustomDropdown = ({ label, items, type, icon }: DropdownProps) => {
               key={index}
               checked={item.checked}
               onCheckedChange={item.onCheckedChange}
-              className={`cursor-pointer ${item.className}`}>
+              className={`cursor-pointer ${item.className || ''}`}>
               {item.label}
             </DropdownMenuCheckboxItem>
           ) : (
             <DropdownMenuItem
               key={index}
               onClick={item.onClick}
-              className={`cursor-pointer h-12 ${item.className}`}>
+              className={`cursor-pointer h-12 ${item.className || ''}`}>
               {item.label}
             </DropdownMenuItem>
           ),
@@ -794,7 +795,6 @@ const CustomDropdown = ({ label, items, type, icon }: DropdownProps) => {
     </DropdownMenu>
   );
 };
-
 //#endregion
 
 //#region CONFIRM DELETE GROUP
@@ -811,7 +811,7 @@ const ConfirmDeleteGroup = ({
 }) => {
   return (
     <AlertDialog open={open} onOpenChange={onCancel}>
-      <AlertDialogContent>
+      <AlertDialogContent className="w-[95%] sm:max-w-md rounded-md">
         <AlertDialogHeader>
           <AlertDialogTitle>Delete Group</AlertDialogTitle>
           <AlertDialogDescription>
@@ -819,11 +819,11 @@ const ConfirmDeleteGroup = ({
             action cannot be undone.
           </AlertDialogDescription>
         </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel onClick={onCancel}>Cancel</AlertDialogCancel>
+        <AlertDialogFooter className="flex-col sm:flex-row gap-2 mt-4">
+          <AlertDialogCancel className="mt-0 w-full sm:w-auto" onClick={onCancel}>Cancel</AlertDialogCancel>
           <AlertDialogAction
             onClick={onConfirm}
-            className="bg-red-600 hover:bg-red-700 text-white">
+            className="bg-red-600 hover:bg-red-700 text-white w-full sm:w-auto">
             Delete
           </AlertDialogAction>
         </AlertDialogFooter>

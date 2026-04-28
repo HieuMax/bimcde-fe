@@ -4,7 +4,7 @@ const nextConfig: NextConfig = {
   /* config options here */
   env: {
     NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'https://bimcde-be-dev2.up.railway.app/api',
-    NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL || 'https://bimcde-fe-dev2.up.railway.app',
+    NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL || 'https://bimcde-be-dev2.up.railway.app',
   },
   typescript: {
     ignoreBuildErrors: true,
