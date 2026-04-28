@@ -186,7 +186,9 @@ export default function ToolbarSection({
     fileItem &&
     isCurrentVersionSubmittedForReview(fileItem);
 
-  const wipMode = isFile ? (fileItem?.wipDirectPromoteMode ?? "member_submit") : "member_submit";
+  // Do not fallback to "member_submit" to avoid flash-then-hide while file
+  // metadata is still hydrating. Show only when backend explicitly returns it.
+  const wipMode = isFile ? fileItem?.wipDirectPromoteMode : undefined;
   const showSubmitForReview =
     isFile &&
     workflowMode === "ISO_19650" &&
@@ -197,6 +199,18 @@ export default function ToolbarSection({
     !cdeCapabilities.isGroupLeader &&
     !!onSubmitForReview &&
     !memberSubmittedThisVersion;
+
+  /**
+   * Share button flash fix:
+   * In ISO/WIP, access can momentarily flip during hydration (currentUserId / file creator metadata).
+   * Keep Share hidden until this context is stable for file items.
+   */
+  const isShareAccessReady =
+    !isFile ||
+    workflowMode !== "ISO_19650" ||
+    (item as IFile).parentCdeRootStage !== "WIP" ||
+    !!currentUserId;
+  const showShareButton = !isFileBasicPanel && isShareAccessReady;
 
   const renderAddToReleaseDialog = () => (
     <AddToReleaseDialog
@@ -387,11 +401,13 @@ export default function ToolbarSection({
                 onClick={onOpenPermissions}
               />
             )}
-            <TooltipAction
-              icon={<Share2 size={18} />}
-              label="Share"
-              onClick={onOpenShare}
-            />
+            {showShareButton && (
+              <TooltipAction
+                icon={<Share2 size={18} />}
+                label="Share"
+                onClick={onOpenShare}
+              />
+            )}
           </>
         )}
 
@@ -559,7 +575,7 @@ export default function ToolbarSection({
         </Button>
       )}
 
-      {!isFileBasicPanel && showSubmitForReview && (
+      {showSubmitForReview && (
         <Button
           variant="outline"
           size="sm"
