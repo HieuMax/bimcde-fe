@@ -500,8 +500,8 @@ export default function page({
                   </h3>
                   {showGroupMemberRoleCol && isProjectAdmin && (
                     <p className="text-xs text-slate-500 mt-0.5 truncate">
-                      Phân quyền Group Leader / Group Member (ISO 19650): dùng cột
-                      &quot;Trong nhóm&quot;.
+                      Group Leader / Group Member permission assignment (ISO 19650): use the
+                      &quot;Within Group&quot; column.
                     </p>
                   )}
                 </div>
