@@ -1,4 +1,4 @@
-import RegisterForm from "../components/registerForm"; 
+import RegisterForm from "../components/registerForm";
 
 export const metadata = {
   title: "Register - BIM CDE",
@@ -32,11 +32,10 @@ export default function RegisterPage() {
             {/* Hero */}
             <div className="space-y-6">
               <h2 className="text-4xl font-bold leading-tight">
-                Bắt đầu hành trình của bạn
+                Start Your Journey
               </h2>
               <p className="text-white/90 text-base leading-relaxed">
-                Tham gia cùng hàng nghìn chuyên gia xây dựng đang sử dụng BIM
-                CDE để quản lý dự án hiệu quả hơn.
+                Join thousands of construction professionals using BIM CDE to manage their projects more effectively.
               </p>
             </div>
 
@@ -57,8 +56,8 @@ export default function RegisterPage() {
                     />
                   </svg>
                 }
-                title="Dễ dàng bắt đầu"
-                description="Tạo tài khoản chỉ trong vài phút và bắt đầu ngay"
+                title="Easy to Get Started"
+                description="Create an account in minutes and start immediately"
               />
 
               <FeatureItem
@@ -76,15 +75,15 @@ export default function RegisterPage() {
                     />
                   </svg>
                 }
-                title="Hỗ trợ 24/7"
-                description="Đội ngũ hỗ trợ luôn sẵn sàng giúp đỡ bạn"
+                title="24/7 Support"
+                description="Our support team is always ready to assist you"
               />
             </div>
           </div>
 
           {/* Footer */}
           <div className="text-white/70 text-xs mt-8">
-            © 2025 BIM CDE. Tất cả quyền được bảo lưu.
+            © 2025 BIM CDE. All rights reserved.
           </div>
         </div>
       </div>

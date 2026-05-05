@@ -20,7 +20,7 @@ import {
   onNotificationRead,
   onNotificationReadAll,
 } from "@/app/libs/socket";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 
 export function BellComponent() {
@@ -103,11 +103,6 @@ export function BellComponent() {
       );
     });
 
-    // // 🔴 DELETE ALL
-    // onNotificationDeleteAll(() => {
-    //   queryClient.setQueryData(["notifications", user._id], () => []);
-    // });
-
     return () => {
       offNotificationEvents();
     };
@@ -139,7 +134,13 @@ export function BellComponent() {
     await NotificationService.readAllNotification(user?._id);
   };
 
-  const unreadCount = notifications.filter((n) => !n.isRead).length;
+  const sortedNotifications = useMemo(() => {
+    return [...notifications].sort((a, b) => {
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+  }, [notifications]);
+
+  const unreadCount = sortedNotifications.filter((n) => !n.isRead).length;
 
   return (
     <Popover>
@@ -169,12 +170,12 @@ export function BellComponent() {
         </div>
 
         <div className="max-h-96 overflow-y-auto">
-          {notifications.length === 0 ? (
+          {sortedNotifications.length === 0 ? (
             <div className="flex items-center justify-center px-4 py-8 text-sm text-muted-foreground">
               No notifications
             </div>
           ) : (
-            notifications?.map((notification, idx) => (
+            sortedNotifications.map((notification, idx) => (
               <div
                 key={notification._id ?? notification.createdAt ?? idx}
                 className={`border-b border-border px-4 py-3 transition-colors hover:bg-muted ${!notification.isRead ? "bg-blue-50 dark:bg-blue-950/30" : ""

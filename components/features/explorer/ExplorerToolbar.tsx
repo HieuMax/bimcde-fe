@@ -91,10 +91,9 @@ export default function ExplorerToolbar({
             href={`/projects/${projectId}/data`}
             className={`
               flex items-center hover:bg-slate-100 p-1.5 rounded transition-colors
-              ${
-                !currentFolder
-                  ? "font-semibold text-slate-900 bg-slate-100"
-                  : ""
+              ${!currentFolder
+                ? "font-semibold text-slate-900 bg-slate-100"
+                : ""
               }
             `}
           >
@@ -135,11 +134,10 @@ export default function ExplorerToolbar({
             <Button
               variant="ghost"
               size="sm"
-              className={`h-7 px-2 ${
-                viewMode === "list"
+              className={`h-7 px-2 ${viewMode === "list"
                   ? "bg-white shadow-sm text-gray-700"
                   : "text-slate-500"
-              }`}
+                }`}
               onClick={() => setViewMode("list")}
             >
               <List className="w-4 h-4" />
@@ -147,11 +145,10 @@ export default function ExplorerToolbar({
             <Button
               variant="ghost"
               size="sm"
-              className={`h-7 px-2 ${
-                viewMode === "grid"
+              className={`h-7 px-2 ${viewMode === "grid"
                   ? "bg-white shadow-sm text-gray-700"
                   : "text-slate-500"
-              }`}
+                }`}
               onClick={() => setViewMode("grid")}
             >
               <LayoutGrid className="w-4 h-4" />
