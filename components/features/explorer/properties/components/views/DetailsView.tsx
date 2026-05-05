@@ -152,7 +152,7 @@ export default function DetailsView({
       // IFC → 3D Viewer
       if (IFC_SET.has(fileExt)) {
         router.push(
-          `/projects/${projectId}/viewer3d?urls=${encodeURIComponent(JSON.stringify([item.location]))}`
+          `/projects/${projectId}/viewer3d?urls=${encodeURIComponent(JSON.stringify([item.fileUrl]))}`
         );
         return;
       }

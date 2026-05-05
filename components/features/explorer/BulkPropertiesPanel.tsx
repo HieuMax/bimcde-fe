@@ -104,7 +104,7 @@ export default function BulkPropertiesPanel({
           }
           parentCdeRootStage={
             selectedItems[0] &&
-            "parentCdeRootStage" in selectedItems[0]
+              "parentCdeRootStage" in selectedItems[0]
               ? selectedItems[0].parentCdeRootStage ?? null
               : null
           }

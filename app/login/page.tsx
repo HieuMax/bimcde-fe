@@ -32,11 +32,10 @@ export default function LoginPage() {
             {/* Hero */}
             <div className="space-y-6">
               <h2 className="text-4xl font-bold leading-tight">
-                Hợp tác thông minh hơn với BIM CDE
+                Collaborate Smarter with BIM CDE
               </h2>
               <p className="text-white/90 text-base leading-relaxed">
-                Tập trung hóa dữ liệu xây dựng, tối ưu hóa quy trình làm việc và
-                trao quyền cho đội ngũ của bạn với cộng tác thời gian thực.
+                Centralize your construction data, optimize workflows, and empower your team with real-time collaboration.
               </p>
             </div>
 
@@ -57,8 +56,8 @@ export default function LoginPage() {
                     />
                   </svg>
                 }
-                title="Cộng tác thời gian thực"
-                description="Làm việc cùng nhau một cách liền mạch với đội ngũ của bạn"
+                title="Real-time Collaboration"
+                description="Work together seamlessly with your team"
               />
               <FeatureItem
                 icon={
@@ -75,8 +74,8 @@ export default function LoginPage() {
                     />
                   </svg>
                 }
-                title="Dữ liệu tập trung"
-                description="Tất cả thông tin dự án của bạn ở một nơi"
+                title="Centralized Data"
+                description="All your project information in one place"
               />
               <FeatureItem
                 icon={
@@ -93,15 +92,15 @@ export default function LoginPage() {
                     />
                   </svg>
                 }
-                title="Bảo mật doanh nghiệp"
-                description="Tính năng bảo mật và tuân thủ tiên tiến"
+                title="Enterprise Security"
+                description="Advanced security and compliance features"
               />
             </div>
           </div>
 
           {/* Footer */}
           <div className="text-white/70 text-xs mt-8">
-            © 2025 BIM CDE. Tất cả quyền được bảo lưu.
+            © 2025 BIM CDE. All rights reserved.
           </div>
         </div>
       </div>
