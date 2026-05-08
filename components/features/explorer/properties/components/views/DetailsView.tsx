@@ -123,12 +123,20 @@ export default function DetailsView({
       : "full";
   const isFileBasicPanel = isFile && filePanelAccess === "basic";
   const isIsoAdmin = workflowMode === "ISO_19650" && !!cdeCapabilities?.isProjectAdmin;
+  const isIsoRevokedArchivedFile =
+    isFile &&
+    workflowMode === "ISO_19650" &&
+    fileItem?.parentCdeRootStage === "ARCHIVED" &&
+    !!fileItem?.isoRevokeOriginalFolderId;
   const isRootFolder = !isFile && folderItem?.parentId === null;
   const isGroupHomeFolder = !isFile && folderItem?.isGroupHomeFolder === true;
   const isIsoAdminRestrictedFolder =
     !isFile && isIsoAdmin && (isRootFolder || isGroupHomeFolder);
   const hideEditAndPermissions =
-    isFileBasicPanel || isFolderBasicPanel || isIsoAdminRestrictedFolder;
+    isFileBasicPanel ||
+    isFolderBasicPanel ||
+    isIsoAdminRestrictedFolder ||
+    isIsoRevokedArchivedFile;
 
   const canManagePermissions =
     workflowMode === "NORMAL" ? !!cdeCapabilities?.isProjectAdmin : !hideEditAndPermissions;
@@ -233,6 +241,7 @@ export default function DetailsView({
             onOpenActivity={onOpenActivity}
             onIsoRevoke={onIsoRevoke}
             onIsoRestore={onIsoRestore}
+            restoreOnlyMode={isIsoRevokedArchivedFile}
           />
           <Separator />
           <InfoSection
@@ -243,7 +252,9 @@ export default function DetailsView({
           <Separator className="mx-4 w-auto" />
 
           {/* Permission Section — NORMAL: dialog + copy; ISO: read-only copy (no dialog) */}
-          {workflowMode === "NORMAL" && !hideEditAndPermissions && (
+          {!isIsoRevokedArchivedFile &&
+            workflowMode === "NORMAL" &&
+            !hideEditAndPermissions && (
             <>
               <div className="p-4 space-y-4">
                 <div className="flex items-center justify-between">
@@ -273,7 +284,9 @@ export default function DetailsView({
               <Separator />
             </>
           )}
-          {workflowMode === "ISO_19650" && !hideEditAndPermissions && (
+          {!isIsoRevokedArchivedFile &&
+            workflowMode === "ISO_19650" &&
+            !hideEditAndPermissions && (
             <>
               <div className="p-4 space-y-2">
                 <h3 className="text-base font-medium text-foreground">
@@ -287,27 +300,31 @@ export default function DetailsView({
             </>
           )}
 
-          <CommentList
-            comments={comments}
-            totalComments={totalComments}
-            isLoading={isLoading}
-            hasNextPage={hasNextPage}
-            isFetchingNextPage={isFetchingNextPage}
-            fetchNextPage={fetchNextPage}
-            currentUserId={commentUserId ?? ""}
-            onUpdate={updateComment}
-            onDelete={deleteComment}
-          />
+          {!isIsoRevokedArchivedFile && (
+            <CommentList
+              comments={comments}
+              totalComments={totalComments}
+              isLoading={isLoading}
+              hasNextPage={hasNextPage}
+              isFetchingNextPage={isFetchingNextPage}
+              fetchNextPage={fetchNextPage}
+              currentUserId={commentUserId ?? ""}
+              onUpdate={updateComment}
+              onDelete={deleteComment}
+            />
+          )}
         </div>
       </ScrollArea>
 
       {/* FOOTER INPUT */}
-      <CommentInput
-        value={commentInput}
-        onChange={setCommentInput}
-        onSend={addComment}
-        isSending={isAdding}
-      />
+      {!isIsoRevokedArchivedFile && (
+        <CommentInput
+          value={commentInput}
+          onChange={setCommentInput}
+          onSend={addComment}
+          isSending={isAdding}
+        />
+      )}
 
       {workflowMode === "NORMAL" && (
         <ItemPermissionsDialog
