@@ -76,6 +76,8 @@ interface Props {
   onIsoRevoke?: () => void;
   /** ISO admin: restore from Archived/Revoked */
   onIsoRestore?: () => void;
+  /** ISO revoked file in Archived: lock panel actions, allow Restore only. */
+  restoreOnlyMode?: boolean;
 }
 
 export default function ToolbarSection({
@@ -102,6 +104,7 @@ export default function ToolbarSection({
   currentUserId,
   onIsoRevoke,
   onIsoRestore,
+  restoreOnlyMode = false,
 }: Props) {
   const isFile = "mimeType" in item;
   const [isAddToReleaseOpen, setIsAddToReleaseOpen] = useState(false);
@@ -381,6 +384,22 @@ export default function ToolbarSection({
   }
 
   // --- LOGIC 2: ITEM FILE ---
+  if (restoreOnlyMode) {
+    return (
+      <div className="px-4 py-2">
+        <div className="flex items-center justify-end">
+          {onIsoRestore && (
+            <TooltipAction
+              icon={<Undo2 size={18} />}
+              label="Restore"
+              onClick={onIsoRestore}
+            />
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="px-4 py-2 space-y-2">
       <div className="flex items-center gap-1">
